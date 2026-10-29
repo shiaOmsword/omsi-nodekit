@@ -58,8 +58,6 @@ htmlcov/
 .cache/
 
 # Rich / terminal recordings if you ever use them
-*.svg
-*.html
 
 # Local launcher files
 local_settings.py
@@ -67,3 +65,16 @@ settings.local.py
 
 # Windows shortcuts / local launch files
 *.lnk
+
+# Nodekit local runtime / frontend
+node_modules/
+frontend/dist/
+backend/config/*.local.yaml
+*.db
+*.db-wal
+*.db-shm
+*.pem
+*.key
+playwright-report/
+test-results/
+*.tsbuildinfo
