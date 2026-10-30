@@ -549,7 +549,13 @@ def test_doctor_subscriptions_with_explicit_unreachable_port_are_reported(
         context,
         tmp_path,
         monkeypatch,
-        {"webPort": "8443", "webBasePath": "/", "subEnable": "true", "subPort": "2097", "subListen": "127.0.0.1"},
+        {
+            "webPort": "8443",
+            "webBasePath": "/",
+            "subEnable": "true",
+            "subPort": "2097",
+            "subListen": "127.0.0.1",
+        },
     )
     panels = PanelInspector(inventory)
     finding = panels.discover([])[0]
