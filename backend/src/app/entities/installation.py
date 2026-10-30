@@ -86,12 +86,21 @@ class CaddyFinding(Entity):
     warnings: list[str] = Field(default_factory=list)
 
 
+class DeploymentProfileFinding(Entity):
+    panel_runtime: Literal["native", "docker"]
+    caddy_runtime: Literal["none", "native", "docker"]
+    required: list[str] = Field(default_factory=list)
+    missing: list[str] = Field(default_factory=list)
+    ready: bool
+
+
 class InstallationReport(Entity):
     observed_at: str
     panels: list[PanelFinding] = Field(default_factory=list)
     selected_panel: str | None = None
     caddy: list[CaddyFinding] = Field(default_factory=list)
     capabilities: dict[str, bool] = Field(default_factory=dict)
+    profiles: list[DeploymentProfileFinding] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
 
 
