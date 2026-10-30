@@ -1,3 +1,4 @@
+
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -9,67 +10,10 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import Settings, get_settings
-from app.entities.node import ConfigRequest, JobRequest, parse_node
+from app.entities import ConfigRequest, JobRequest, parse_node
 from app.execution import MAX_BACKUP, execute, validate_backup
 from app.rendering import plan
 from app.storage import Store
-
-Action = Literal["check", "doctor", "fresh", "restore", "backup"]
-
-
-def create_app(settings: Settings | None = None):
-    settings = settings or get_settings()
-
-    @asynccontextmanager
-    async def lifespan(app):
-        app.state.store = Store(settings.data_dir)
-        app.state.store.recover_jobs()
-        app.state.pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="nodekit")
-        yield
-        # Finish active jobs before closing; a reload must not start a second worker.
-        app.state.pool.shutdown(wait=True)
-
-    app = FastAPI(title="OMSI Nodekit", version="0.1.0", lifespan=lifespan)
-
-    @app.middleware("http")
-    async def local_requests_only(request: Request, call_next):
-        if request.url.hostname not in {"localhost", "127.0.0.1", "::1"}:
-            return JSONResponse(
-                {"detail": "Nodekit accepts localhost requests only"}, status_code=403
-            )
-        if request.url.path.startswith("/api/"):
-            origin = request.headers.get("origin")
-            if origin and origin not in {
-                "http://127.0.0.1:8765",
-                "http://localhost:8765",
-                "http://127.0.0.1:5173",
-                "http://localhost:5173",
-            }:
-                return JSONResponse({"detail": "Untrusted browser origin"}, status_code=403)
-            if (
-                request.method not in {"GET", "HEAD"}
-                and request.headers.get("x-nodekit-request") != "1"
-            ):
-                return JSONResponse({"detail": "Missing X-Nodekit-Request header"}, status_code=403)
-        response = await call_next(request)
-        response.headers["Cache-Control"] = "no-store"
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["Referrer-Policy"] = "no-referrer"
-        return response
-
-    @app.exception_handler(KeyError)
-    async def not_found(request, exc):
-        return JSONResponse({"detail": str(exc.args[0])}, status_code=404)
-
-    @app.exception_handler(ValueError)
-    async def bad_value(request, exc):
-        return JSONResponse({"detail": str(exc)}, status_code=422)
-
-    def parse(text):
-        try:
-            return parse_node(text)
-        except (ValueError, yaml.YAMLError, RecursionError) as exc:
-            raise HTTPException(422, str(exc)) from exc
 
     @app.get("/api/health")
     def health():
@@ -182,6 +126,3 @@ def create_app(settings: Settings | None = None):
             }
 
     return app
-
-
-app = create_app()
