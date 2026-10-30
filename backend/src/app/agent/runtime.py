@@ -50,11 +50,14 @@ class RemoteAgent:
                 self.deployment.deploy(context.payload, base)
             elif action == "doctor":
                 inspector.inspect()
-                if context.node["panel"]["installation"] == "managed":
-                    self.diagnostics.check(context.node, base)
-                else:
-                    ExistingDiagnostics(context, inspector).check()
-                    self.diagnostics.check_transport(context.node)
+                # Always use actual discovered settings, including managed Docker panels.
+                # Record every subsystem result before failing the aggregate doctor job.
+                failures = ExistingDiagnostics(context, inspector).check(raise_on_failure=False)
+                failures += self.diagnostics.check_transport(context.node, raise_on_failure=False)
+                if failures:
+                    raise RuntimeError(
+                        message_text(MessageKey.DIAGNOSTICS_FAILED, count=len(failures))
+                    )
             elif action == "check":
                 inspector.inspect()
                 context.emit(message_text(MessageKey.ENVIRONMENT_CHECK_COMPLETED))

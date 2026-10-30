@@ -36,7 +36,7 @@ class Diagnostics:
             raise RuntimeError(message_text(MessageKey.DIAGNOSTICS_FAILED, count=len(failures)))
         self.check_transport(node)
 
-    def check_transport(self, node):
+    def check_transport(self, node, *, raise_on_failure=True):
         failures = []
         for tunnel in node["tunnels"]:
             unit = self.context.unit(tunnel["name"])
@@ -79,5 +79,6 @@ class Diagnostics:
             )
         for failure in failures:
             self.context.emit(failure, "error")
-        if failures:
+        if failures and raise_on_failure:
             raise RuntimeError(message_text(MessageKey.DIAGNOSTICS_FAILED, count=len(failures)))
+        return failures
