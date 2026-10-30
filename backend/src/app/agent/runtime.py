@@ -53,9 +53,7 @@ class RemoteAgent:
                 # Always use actual discovered settings, including managed Docker panels.
                 # Record every subsystem result before failing the aggregate doctor job.
                 failures = ExistingDiagnostics(context, inspector).check(raise_on_failure=False)
-                failures += self.diagnostics.check_transport(
-                    context.node, raise_on_failure=False
-                )
+                failures += self.diagnostics.check_transport(context.node, raise_on_failure=False)
                 if failures:
                     raise RuntimeError(
                         message_text(MessageKey.DIAGNOSTICS_FAILED, count=len(failures))
