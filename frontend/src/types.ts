@@ -26,7 +26,11 @@ export interface CaddyFinding {
   image: string | null; config_path: string | null; config_source: string; network_mode: string | null;
   networks: string[]; published_ports: string[]; routes: ProxyRoute[]; warnings: string[];
 }
+export interface DeploymentProfileFinding {
+  panel_runtime: 'native' | 'docker'; caddy_runtime: 'none' | 'native' | 'docker';
+  required: string[]; missing: string[]; ready: boolean;
+}
 export interface InstallationReport {
   observed_at: string; panels: PanelFinding[]; selected_panel: string | null; caddy: CaddyFinding[];
-  capabilities: Record<string, boolean>; warnings: string[];
+  capabilities: Record<string, boolean>; warnings: string[]; profiles?: DeploymentProfileFinding[];
 }
