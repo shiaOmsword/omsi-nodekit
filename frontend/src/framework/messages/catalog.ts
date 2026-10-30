@@ -97,7 +97,7 @@ export const messages = {
     previewTitle: 'ПРЕДВАРИТЕЛЬНЫЙ ПЛАН', closePlan: 'Закрыть план',
     deploymentHint: 'Только новая нода и пустой каталог. Клиенты и маршруты восстанавливаются из БД; чистая панель будет пустой. Внешние сертификаты и SSH-ключи подготовь отдельно.',
     inspectFiles: 'Посмотреть создаваемые файлы', launch: 'Запустить {action}',
-    journal: 'Журнал операций', journalHint: 'Реальный вывод задач, без догадок',
+    journal: 'Журнал операций', downloadJournal: 'Скачать .log', journalHint: 'Реальный вывод задач, без догадок',
     running: 'ВЫПОЛНЯЕТСЯ', idle: 'ОЖИДАНИЕ', emptyJobs: 'Пока без задач',
     emptyJobsHint: 'Начни с проверки окружения', taskJournal: 'Журнал задачи',
     terminalReady: 'nodekit — ready', waitForVps: 'Ожидаем ответ VPS…',
