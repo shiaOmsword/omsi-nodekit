@@ -54,11 +54,13 @@ class PrerequisiteInspector:
                     needed.update({"systemctl", "ssh"})
                 required = sorted(needed)
                 missing = [name for name in required if not capabilities.get(name)]
-                profiles.append({
-                    "panel_runtime": panel,
-                    "caddy_runtime": caddy,
-                    "required": required,
-                    "missing": missing,
-                    "ready": not missing,
-                })
+                profiles.append(
+                    {
+                        "panel_runtime": panel,
+                        "caddy_runtime": caddy,
+                        "required": required,
+                        "missing": missing,
+                        "ready": not missing,
+                    }
+                )
         return profiles
