@@ -1,4 +1,4 @@
-from app.entities import JobAction, NodeFactory, StoredNode
+from app.entities import JobAction, NodeFactory, NodeState, StoredNode
 from app.ports import ArtifactRenderer, NodeRepository, NodeTemplate
 from framework.entities import ValidationError, YamlCodec
 from framework.messages import MessageKey
@@ -38,6 +38,13 @@ class NodeService:
         if node.id != node_id:
             raise ValidationError(message_text(MessageKey.NODE_ID_MISMATCH))
         return self.nodes.save(StoredNode.create(node, text))
+
+    def set_state(self, node_id: str, state: NodeState):
+        return self.nodes.set_state(node_id, state)
+
+    def delete(self, node_id: str):
+        self.nodes.delete(node_id)
+        return {"deleted": True, "remote_untouched": True}
 
     def get(self, node_id):
         return self.nodes.get(node_id)
