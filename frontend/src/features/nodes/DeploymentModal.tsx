@@ -219,7 +219,7 @@ export function DeploymentModal({
             </div>
             <FormFields
               fields={[
-                { name: 'name', label: 'Имя', required: true, pattern: '[a-z][a-z0-9-]{0,31}' },
+                { name: 'name', label: 'Имя', required: true, pattern: '[a-z][a-z0-9\\-]{0,31}' },
                 {
                   name: 'port',
                   label: 'Порт inbound',

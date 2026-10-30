@@ -162,7 +162,7 @@ export function OperationDetail({
             node && (
               <div className="report-actions">
                 <Button onClick={() => onSuggest(job)}>Заполнить настройки по отчёту</Button>
-                {!job.report.panels.length && (
+                {!job.report.panels.length && !job.report.warnings.length && (
                   <Button variant="primary" onClick={() => onConfigure(job)}>
                     Настроить установку
                   </Button>

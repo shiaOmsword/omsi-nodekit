@@ -33,6 +33,9 @@ test('node settings use the shared dialog and preserve SSH and installation sele
   assert.match(html, /value="key-id" selected=""/);
   assert.match(html, /type="password"/);
   assert.match(html, /value="00123"/);
+  for (const [, pattern] of html.matchAll(/pattern="([^"]+)"/g)) {
+    assert.doesNotThrow(() => new RegExp(pattern, 'v'));
+  }
   assert.ok(html.includes('Сохранить настройки'));
   assert.ok(html.includes('disabled="" value="test-node"') || html.includes('disabled=""'));
 });

@@ -63,7 +63,7 @@ export function NodeFormModal({
       label: 'ID ноды',
       required: true,
       disabled: !!record,
-      pattern: '[a-z][a-z0-9-]{0,39}',
+      pattern: '[a-z][a-z0-9\\-]{0,39}',
       hint: 'Латинские буквы, цифры и дефис.',
     },
     { name: 'host', label: 'Адрес сервера', required: true, placeholder: 'IP-адрес или домен' },
