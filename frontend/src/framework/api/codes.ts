@@ -1,0 +1,15 @@
+export enum ErrorCode {
+  ApplicationError = 'application_error',
+  ValidationError = 'validation_error',
+  NotFound = 'not_found',
+  Conflict = 'conflict',
+  PayloadTooLarge = 'payload_too_large',
+  InfrastructureError = 'infrastructure_error',
+  ConfigurationError = 'configuration_error',
+  Forbidden = 'forbidden',
+  HttpError = 'http_error',
+  InternalError = 'internal_error',
+  InvalidResponse = 'invalid_response',
+  NetworkError = 'network_error',
+  Unknown = 'unknown_error',
+}
