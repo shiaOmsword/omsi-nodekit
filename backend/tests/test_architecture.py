@@ -12,6 +12,7 @@ from app.container import build_container
 from app.create_app import create_app
 from app.entities import Job, JobAction, JobStatus, NodeFactory
 from app.infrastructure.bootstrap import StorageBootstrap
+from app.infrastructure.schema import MIGRATIONS
 from app.ports import ArtifactRenderer, NodeRepository
 from app.services import NodeService
 from framework.database import Migration, SQLiteDatabase
@@ -148,7 +149,9 @@ def test_migration_preserves_existing_unversioned_database(tmp_path):
         container.resolve(StorageBootstrap).initialize()
         assert container.resolve(NodeRepository).get("legacy").name == "Legacy"
         with sqlite3.connect(path) as db:
-            assert db.execute("PRAGMA user_version").fetchone()[0] == 2
+            assert db.execute("PRAGMA user_version").fetchone()[0] == max(
+                m.version for m in MIGRATIONS
+            )
     finally:
         container.resolve(TaskScheduler).close()
 

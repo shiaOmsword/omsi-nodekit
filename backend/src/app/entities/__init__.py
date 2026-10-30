@@ -7,6 +7,7 @@ from .factory import NodeFactory
 from .installation import Installation, InstallationReport, InstallationSelection, KeySelection
 from .job_request import JobRequest
 from .node import Node
+from .node_state_request import NodeStateRequest
 from .panel import Panel
 from .probe import Probe
 from .records import (
@@ -17,6 +18,7 @@ from .records import (
     JobDetails,
     JobEvent,
     JobStatus,
+    NodeState,
     NodeSummary,
     StoredNode,
 )
@@ -45,6 +47,8 @@ __all__ = [
     "JobStatus",
     "Node",
     "NodeFactory",
+    "NodeState",
+    "NodeStateRequest",
     "NodeSummary",
     "Panel",
     "Port",

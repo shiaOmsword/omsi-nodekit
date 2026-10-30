@@ -3,11 +3,12 @@ import { Activity, BookOpen, KeyRound, ArrowDownToLine, ArrowRight, Check, Chevr
 import { api, getErrorMessage } from './framework/api';
 import { messages, formatMessage, statusLabel } from './framework/messages';
 import { Alert, Button, CardHeader, IconButton, Spinner, StatusBadge } from './framework/components';
-import type { Action, Backup, Job, JobDetail, NodeRecord, NodeSummary, Plan, DraftConfig, Installation, SSHKey } from './types';
+import type { Action, Backup, Job, JobDetail, NodeRecord, NodeSummary, Plan, DraftConfig, Installation, SSHKey, NodeState } from './types';
 
 import { SSHKeysPanel } from './features/keys/SSHKeysPanel';
 import { HelpPanel } from './features/help/HelpPanel';
 import { ConnectionSettings } from './features/nodes/ConnectionSettings';
+import { NodeLifecycle } from './features/nodes/NodeLifecycle';
 import { getNodeErrorMessage } from './features/nodes/configErrors';
 import { InstallationReportView } from './features/nodes/InstallationReportView';
 
@@ -22,6 +23,7 @@ export default function App() {
   const [keys, setKeys] = useState<SSHKey[]>([]);
   const [draft, setDraft] = useState<DraftConfig | null>(null);
   const [nodes, setNodes] = useState<NodeSummary[]>([]);
+  const [nodeFilter, setNodeFilter] = useState<NodeState | 'all'>('active');
   const [selected, setSelected] = useState<NodeRecord | null>(null);
   const [text, setText] = useState('');
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -42,6 +44,8 @@ export default function App() {
   const dirty = !selected || text !== selected.yaml;
   const running = jobs.some(active);
   const showingFiles = tab === 'files' && !!plan && !!Object.keys(plan.files).length;
+  const visibleNodes = nodes.filter(node => nodeFilter === 'all' || node.state === nodeFilter);
+  const archived = selected?.state === 'archived';
 
   function downloadJobLog() {
     if (!job) return;
@@ -88,8 +92,12 @@ export default function App() {
         if (cancelled) return;
         setNodes(list); setKeys(savedKeys);
         if (list.length) {
-          const record = await api<NodeRecord>(`/nodes/${list[0].id}`);
-          if (!cancelled) { setSelected(record); setText(record.yaml); }
+          const first = list.find(item => item.state === 'active') || list[0];
+          const record = await api<NodeRecord>(`/nodes/${first.id}`);
+          if (!cancelled) {
+            setSelected(record); setText(record.yaml);
+            setNodeFilter(first.state);
+          }
         } else setText(template.yaml);
       }).catch(err => !cancelled && setError(getErrorMessage(err)));
     return () => { cancelled = true; };
@@ -142,7 +150,10 @@ export default function App() {
     if (dirty && selected && !window.confirm(messages.confirm.discardForNew)) return;
     await perform(async () => {
       const template = await api<{ yaml: string }>('/template');
-      setSelected(null); setText(template.yaml.replace('moscow-1', `node-${nodes.length + 1}`)); setPlan(null); setTab('yaml');
+      const used = new Set(nodes.map(node => node.id));
+      let next = 1;
+      while (used.has(`node-${next}`)) next++;
+      setSelected(null); setText(template.yaml.replace('moscow-1', `node-${next}`)); setPlan(null); setTab('yaml');
     });
   }
   async function save() {
@@ -152,6 +163,40 @@ export default function App() {
       setSelected(record); setNodes(await api<NodeSummary[]>('/nodes')); setPlan(null); setNotice(messages.notice.configSaved);
     });
   }
+
+  async function changeNodeState(state: NodeState) {
+    if (!selected) return;
+    if (dirty && !window.confirm(messages.confirm.discardForState)) return;
+    await perform(async () => {
+      const record = await api<NodeRecord>(`/nodes/${selected.id}/state`, {
+        method: 'PATCH',
+        body: JSON.stringify({ state }),
+      });
+      setSelected(record); setText(record.yaml);
+      setNodes(await api<NodeSummary[]>('/nodes'));
+      setNodeFilter(state); setPlan(null);
+      setNotice(messages.lifecycle.restored);
+    });
+  }
+  async function deleteSelectedNode() {
+    if (!selected || !window.confirm(formatMessage(messages.confirm.deleteNode, { name: selected.name }))) return;
+    await perform(async () => {
+      await api<{ deleted: boolean }>(`/nodes/${selected.id}`, { method: 'DELETE' });
+      const list = await api<NodeSummary[]>('/nodes');
+      setNodes(list);
+      const first = list.find(item => item.state === 'active') || list[0];
+      if (first) {
+        const record = await api<NodeRecord>(`/nodes/${first.id}`);
+        setSelected(record); setText(record.yaml); setNodeFilter(record.state);
+      } else {
+        const template = await api<{ yaml: string }>('/template');
+        setSelected(null); setText(template.yaml); setNodeFilter('active');
+      }
+      setPlan(null); setTab('yaml');
+      setNotice(messages.lifecycle.removed);
+    });
+  }
+
   async function preview() {
     if (!selected) return;
     await perform(async () => {
@@ -197,7 +242,10 @@ export default function App() {
         <button type="button" className={`nav-item ${view === 'help' ? 'selected' : ''}`} aria-current={view === 'help' ? 'page' : undefined} onClick={() => openHelp()}><BookOpen size={17}/>{messages.navigation.help}</button>
       </nav>
       <div className="node-section"><span>{messages.ui.myNodes}</span><IconButton label={messages.ui.newNode} onClick={newNode} disabled={busy}><Plus size={17}/></IconButton></div>
-      <div className="node-list">{nodes.length ? nodes.map(node => <button key={node.id} className={`node-item ${selected?.id === node.id ? 'current' : ''}`} onClick={() => chooseNode(node.id)}><span className="node-avatar">{node.id.slice(0, 2).toUpperCase()}</span><span className="node-caption"><strong>{node.name}</strong><small>{node.id}</small></span><ChevronRight size={14}/></button>) : <div className="sidebar-empty">{messages.ui.emptyNodesTitle}<br/>{messages.ui.emptyNodesBody}</div>}</div>
+      <label className="node-filter"><span className="sr-only">Фильтр нод</span><select value={nodeFilter} onChange={event => setNodeFilter(event.target.value as NodeState | 'all')}>
+        {(['active', 'hidden', 'archived', 'all'] as const).map(state => <option key={state} value={state}>{messages.lifecycle.filters[state]} ({state === 'all' ? nodes.length : nodes.filter(node => node.state === state).length})</option>)}
+      </select></label>
+      <div className="node-list">{visibleNodes.length ? visibleNodes.map(node => <button key={node.id} className={`node-item ${selected?.id === node.id ? 'current' : ''}`} onClick={() => chooseNode(node.id)}><span className="node-avatar">{node.id.slice(0, 2).toUpperCase()}</span><span className="node-caption"><strong>{node.name}</strong><small>{node.id} · {messages.lifecycle.status[node.state]}</small></span><ChevronRight size={14}/></button>) : <div className="sidebar-empty">{nodes.length ? messages.lifecycle.filters[nodeFilter] : messages.ui.emptyNodesTitle}<br/>{!nodes.length && messages.ui.emptyNodesBody}</div>}</div>
       <div className="sidebar-note"><ShieldCheck size={19}/><div><strong>{messages.ui.localControlTitle}</strong><p>{messages.ui.localControlBody}<br/>{messages.ui.sshConnection}</p></div></div>
       <div className="backend-state"><span className={`dot ${online ? 'green' : ''}`}/>{online ? messages.ui.online : messages.ui.offline}<span>127.0.0.1</span></div>
     </aside>
@@ -214,6 +262,8 @@ export default function App() {
         <div className="work-grid">
           <section className="card config-card"><CardHeader title={selected?.name || messages.ui.newNode} subtitle={selected?.id || messages.ui.newNodeHelp} icon={<FileCode2 size={18}/>} trailing={<StatusBadge tone={dirty ? 'amber' : 'mint'}>{dirty ? messages.ui.unsaved : messages.ui.saved}</StatusBadge>}/>
             <ConnectionSettings draft={draft} keys={keys} busy={busy} onKey={selectKey} onInstallation={selectInstallation} onManage={() => setView('keys')} onHelp={() => openHelp()}/>
+            <NodeLifecycle selected={selected} busy={busy} onState={changeNodeState} onDelete={deleteSelectedNode}/>
+            {archived && <p className="feature-hint">{messages.lifecycle.inactive}</p>}
             <div className="editor-tabs"><button className={!showingFiles ? 'chosen' : ''} onClick={() => setTab('yaml')}><Code2 size={14}/> node.yaml</button><button className={showingFiles ? 'chosen' : ''} onClick={() => setTab('files')} disabled={!plan || !Object.keys(plan.files).length}><FolderOpen size={14}/> {messages.ui.planFiles}</button><span>YAML</span></div>
             {!showingFiles ? <textarea className="yaml-editor" disabled={busy} aria-label={messages.ui.yamlLabel} value={text} onChange={event => { setText(event.target.value); setPlan(null); }} spellCheck={false}/> : <div className="files-preview"><div className="file-tabs">{plan && Object.keys(plan.files).map(name => <button key={name} className={file === name ? 'chosen' : ''} onClick={() => setFile(name)}>{name}</button>)}</div><pre>{plan?.files[file]}</pre></div>}
             <div className="editor-footer"><span><Circle size={9}/> {messages.ui.validationHint}</span><Button small onClick={save} disabled={busy || !dirty} icon={<Save size={14}/>}>{messages.ui.save}</Button></div>
@@ -222,10 +272,10 @@ export default function App() {
             <div className="action-list">{actions.map(item => <button key={item.id} className={`action-option ${action === item.id ? 'active' : ''}`} onClick={() => { setAction(item.id); setPlan(null); }} disabled={busy || (!!draft && draft.panel.installation !== 'managed' && ['fresh', 'restore'].includes(item.id))}><span className="radio">{action === item.id && <span/>}</span><span><strong>{item.title}</strong><small>{item.description}</small></span>{action === item.id && <ArrowRight size={16}/>}</button>)}</div>
             {action === 'restore' && <div className="backup-picker"><label htmlFor="backup">{messages.ui.restoreBackup}</label><select id="backup" value={backupId} onChange={e => setBackupId(e.target.value)}><option value="">{messages.ui.selectBackup}</option>{backups.map(backup => <option key={backup.id} value={backup.id}>{backup.filename} · {backup.id.slice(0, 6)}</option>)}</select><Button variant="text" onClick={() => upload.current?.click()} disabled={busy} icon={<Upload size={14}/>}>{messages.ui.uploadBackup}</Button></div>}
             <input ref={upload} type="file" accept=".db" hidden onChange={event => { const picked = event.target.files?.[0]; if (picked) void importBackup(picked); event.target.value = ''; }}/>
-            <div className="operation-bottom"><p><ShieldCheck size={15}/>{dirty ? messages.ui.saveFirst : messages.ui.previewHint}</p><Button variant="primary" full loading={busy} onClick={preview} disabled={dirty || running || (action === 'restore' && !backupId)} icon={<Play size={15}/>}>{messages.ui.preview}<ArrowRight size={15}/></Button></div>
+            <div className="operation-bottom"><p><ShieldCheck size={15}/>{dirty ? messages.ui.saveFirst : messages.ui.previewHint}</p><Button variant="primary" full loading={busy} onClick={preview} disabled={dirty || running || archived || (action === 'restore' && !backupId)} icon={<Play size={15}/>}>{messages.ui.preview}<ArrowRight size={15}/></Button></div>
           </section>
         </div>
-        {plan && <section className="card plan-card"><div className="plan-heading"><div><div className="eyebrow">{messages.ui.previewTitle}</div><h2>{actionTitle(plan.action)}</h2><p>{plan.remote_dir}</p></div><IconButton label={messages.ui.closePlan} onClick={() => setPlan(null)}><X size={18}/></IconButton></div><ol>{plan.steps.map(step => <li key={step}>{step}</li>)}</ol>{['fresh', 'restore'].includes(plan.action) && <p className="plan-warning">{messages.ui.deploymentHint}</p>}<div className="plan-footer"><Button variant="text" onClick={() => setTab('files')} disabled={!Object.keys(plan.files).length} icon={<FileCode2 size={15}/>}>{messages.ui.inspectFiles}</Button><Button variant="primary" loading={busy} onClick={launch} disabled={dirty || running} icon={<Play size={15}/>}>{formatMessage(messages.ui.launch, { action: actionTitle(plan.action).toLowerCase() })}</Button></div></section>}
+        {plan && <section className="card plan-card"><div className="plan-heading"><div><div className="eyebrow">{messages.ui.previewTitle}</div><h2>{actionTitle(plan.action)}</h2><p>{plan.remote_dir}</p></div><IconButton label={messages.ui.closePlan} onClick={() => setPlan(null)}><X size={18}/></IconButton></div><ol>{plan.steps.map(step => <li key={step}>{step}</li>)}</ol>{['fresh', 'restore'].includes(plan.action) && <p className="plan-warning">{messages.ui.deploymentHint}</p>}<div className="plan-footer"><Button variant="text" onClick={() => setTab('files')} disabled={!Object.keys(plan.files).length} icon={<FileCode2 size={15}/>}>{messages.ui.inspectFiles}</Button><Button variant="primary" loading={busy} onClick={launch} disabled={dirty || running || archived} icon={<Play size={15}/>}>{formatMessage(messages.ui.launch, { action: actionTitle(plan.action).toLowerCase() })}</Button></div></section>}
         <section className="card journal-card"><CardHeader title={messages.ui.journal} subtitle={messages.ui.journalHint} icon={<Terminal size={18}/>} trailing={<span className="journal-live"><span className={`dot ${running ? 'green' : ''}`}/>{running ? messages.ui.running : messages.ui.idle}</span>}/><div className="journal-body"><div className="job-list">{jobs.length ? jobs.map(item => <button key={item.id} className={`job-row ${jobId === item.id ? 'current' : ''}`} onClick={() => { setJobId(item.id); setJob(null); }}><span className={`status-icon ${item.status}`}>{active(item) ? <Spinner size={15}/> : item.status === 'succeeded' ? <Check size={15}/> : <X size={15}/>}</span><span><strong>{actionTitle(item.action)}</strong><small>{item.node_id} · {date(item.created_at)}</small></span><span className={`job-status ${item.status}`}>{statusLabel(item.status)}</span></button>) : <div className="empty-jobs"><Activity size={22}/><strong>{messages.ui.emptyJobs}</strong><p>{messages.ui.emptyJobsHint}</p></div>}</div><div className="terminal" ref={terminal} aria-label={messages.ui.taskJournal} aria-live="polite"><div className="terminal-caption"><span className="terminal-dots"><i/><i/><i/></span><span>{job ? `${job.node_id} / ${job.action}` : messages.ui.terminalReady}</span>{job && <button type="button" className="journal-export" onClick={downloadJobLog}>{messages.ui.downloadJournal}</button>}</div>{job ? <><div className="terminal-line dim">$ {job.action} · {job.id.slice(0, 8)}</div>{job.events.map(event => <div key={event.seq} className={`terminal-line ${event.level}`}><span>{date(event.created_at)}</span>{event.message}</div>)}{active(job) && <div className="terminal-line dim"><Spinner size={13}/> {messages.ui.waitForVps}</div>}{job.backup_id && <a className="download-link" href={`/api/backups/${job.backup_id}/download`}><ArrowDownToLine size={14}/> {messages.ui.downloadBackup}</a>}</> : <div className="terminal-placeholder"><span className="terminal-prompt">›</span> {messages.ui.terminalEmpty}<br/><span>{messages.ui.terminalHint}</span></div>}</div></div></section>
         {job?.report && <InstallationReportView report={job.report} node={job.node_id}/>}
         {!!backups.length && <section className="backups-section"><h2><Database size={17}/> {messages.ui.backups}</h2><div className="backup-items">{backups.map(backup => <a key={backup.id} className="backup-item" href={`/api/backups/${backup.id}/download`}><Database size={17}/><span><strong>{backup.filename}</strong><small>{formatMessage(messages.ui.backupSize, { size: (backup.size / 1024).toFixed(0) })} · SHA256 {backup.sha256.slice(0, 10)}…</small></span><ArrowDownToLine size={16}/></a>)}</div></section>}

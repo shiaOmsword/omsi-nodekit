@@ -1,4 +1,5 @@
-export interface NodeSummary { id: string; name: string; revision: string }
+export type NodeState = 'active' | 'hidden' | 'archived';
+export interface NodeSummary { id: string; name: string; revision: string; state: NodeState }
 export interface NodeRecord extends NodeSummary { yaml: string }
 export type Action = 'check' | 'doctor' | 'fresh' | 'restore' | 'backup';
 export interface Job { id: string; node_id: string; action: Action; status: string; created_at: string; error: string | null; backup_id: string | null }

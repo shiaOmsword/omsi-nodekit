@@ -36,6 +36,8 @@ MESSAGES = MappingProxyType(
         MessageKey.REMOTE_BACKUP_TOO_LARGE: "Remote backup exceeds configured size limit",
         MessageKey.TEMPLATE_UNAVAILABLE: "Node template is not available",
         MessageKey.NODE_NOT_FOUND: "Node not found",
+        MessageKey.NODE_BUSY: "Node has a queued/running operation; wait before changing its state or deleting it",
+        MessageKey.NODE_ARCHIVED: "Node is archived. Restore it to active before starting operations",
         MessageKey.JOB_NOT_FOUND: "Job not found",
         MessageKey.BACKUP_NOT_FOUND: "Backup not found",
         MessageKey.JOB_ALREADY_RUNNING: "Another operation is running; wait for it to finish",

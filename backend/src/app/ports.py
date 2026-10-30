@@ -11,6 +11,7 @@ from app.entities import (
     JobDetails,
     JobEvent,
     Node,
+    NodeState,
     NodeSummary,
     SSHKey,
     StoredNode,
@@ -26,6 +27,12 @@ class NodeRepository(ABC):
 
     @abstractmethod
     def list(self) -> list[NodeSummary]: ...
+
+    @abstractmethod
+    def set_state(self, node_id: str, state: NodeState) -> StoredNode: ...
+
+    @abstractmethod
+    def delete(self, node_id: str) -> None: ...
 
 
 class JobRepository(ABC):

@@ -47,6 +47,8 @@ class MessageKey(StrEnum):
     REMOTE_BACKUP_TOO_LARGE = "remote_backup_too_large"
     TEMPLATE_UNAVAILABLE = "template_unavailable"
     NODE_NOT_FOUND = "node_not_found"
+    NODE_BUSY = "node_busy"
+    NODE_ARCHIVED = "node_archived"
     JOB_NOT_FOUND = "job_not_found"
     BACKUP_NOT_FOUND = "backup_not_found"
     JOB_ALREADY_RUNNING = "job_already_running"
