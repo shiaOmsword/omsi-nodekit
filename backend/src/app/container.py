@@ -4,6 +4,7 @@ import punq
 
 from app.config import DeploymentSettings, Limits, Settings, SSHSettings
 from app.entities import NodeFactory
+from app.infrastructure.auth import SudoPasswordResolver
 from app.infrastructure.backups import LocalBackupFiles, XuiBackupValidator
 from app.infrastructure.bootstrap import StorageBootstrap
 from app.infrastructure.execution import RemoteAgentBuilder, SSHNodeExecutor
@@ -34,7 +35,7 @@ from framework.entities import EntityFactory, JsonCodec, YamlCodec
 from framework.network import CommandRunner, KeyOptions, OpenSSHKeys, SSHClient, SSHOptions
 from framework.routing import ExceptionHandlers, RouterFactory
 from framework.tasks import TaskScheduler, ThreadTaskScheduler
-from framework.utils import PrivateFiles
+from framework.utils import EnvironmentSecrets, PrivateFiles
 
 
 def build_container(settings: Settings, *, overrides: dict | None = None) -> punq.Container:
@@ -60,6 +61,7 @@ def build_container(settings: Settings, *, overrides: dict | None = None) -> pun
             alive_count=settings.ssh.alive_count,
             python_command=settings.ssh.python_command,
             sudo_python_command=settings.ssh.sudo_python_command,
+            sudo_password_command=settings.ssh.sudo_password_command,
         ),
     )
     container.register(
@@ -93,6 +95,8 @@ def build_container(settings: Settings, *, overrides: dict | None = None) -> pun
         SQLiteSnapshots,
         CommandRunner,
         SSHClient,
+        EnvironmentSecrets,
+        SudoPasswordResolver,
         OpenSSHKeys,
         SSHKeyService,
         RemoteAgentBuilder,

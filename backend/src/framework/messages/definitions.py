@@ -171,5 +171,11 @@ MESSAGES = MappingProxyType(
         MessageKey.PLAN_EXISTING_BACKUP: "Snapshot the selected existing SQLite database without stopping 3x-ui",
         MessageKey.PLAN_EXISTING_DIAGNOSTICS: "Use discovered HTTP/HTTPS settings, published ports and configured certificate metadata",
         MessageKey.CADDY_EXISTING_GUARD: "Existing Caddy service/container detected; inspect its configuration before deploying another proxy",
+        MessageKey.SUDO_PASSWORD_INVALID: "Sudo password must be 1–4096 characters without newline or NUL characters",
+        MessageKey.SUDO_PASSWORD_AMBIGUOUS: "Use either ssh.sudo_password or ssh.sudo_password_env, not both",
+        MessageKey.SUDO_PASSWORD_REQUIRES_ENABLED: "Sudo credentials require ssh.sudo: true",
+        MessageKey.SUDO_PASSWORD_ENV_MISSING: "Sudo password environment variable is not set in the backend process: {name}",
+        MessageKey.SUDO_PROTOCOL_INVALID: "Could not decode privileged agent input; no configuration was applied",
+        MessageKey.SUDO_START_FAILED: "Could not start the privileged agent. Check SSH output, sudo password, sudoers permissions and terminal requirements",
     }
 )

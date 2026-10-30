@@ -78,7 +78,8 @@ npm run dev
 выбери `docker` и при необходимости `panel.container`. `caddy.enabled: false` позволяет
 обнаружить существующий Caddy, не создавая новый.
 
-Подключение — по SSH-ключу: root либо пользователь с неинтерактивным sudo и `ssh.sudo: true`.
+Подключение — по SSH-ключу: root либо пользователь с `ssh.sudo: true`. Если sudo запрашивает пароль, задай
+`ssh.sudo_password` или `ssh.sudo_password_env` ([примеры](docs/existing-nodes.md#sudo-с-паролем)).
 Приложение не устанавливает Docker, не меняет sshd, firewall, DNS или настройки провайдера.
 
 Сначала вручную подключись тем же пользователем, ключом и портом и проверь fingerprint
