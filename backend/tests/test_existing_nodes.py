@@ -547,8 +547,6 @@ def test_doctor_subscriptions_with_explicit_unreachable_port_are_reported(
     finding = panels.discover([])[0]
     inspector = InstallationInspector(context)
     inspector.panels, inspector.selected = panels, finding
-    import socket
-
     monkeypatch.setattr(
         ExistingDiagnostics, "_socket",
         lambda self, *args: (_ for _ in ()).throw(ConnectionRefusedError("unavailable")),
