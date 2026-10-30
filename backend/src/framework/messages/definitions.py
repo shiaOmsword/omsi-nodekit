@@ -177,5 +177,15 @@ MESSAGES = MappingProxyType(
         MessageKey.SUDO_PASSWORD_ENV_MISSING: "Sudo password environment variable is not set in the backend process: {name}",
         MessageKey.SUDO_PROTOCOL_INVALID: "Could not decode privileged agent input; no configuration was applied",
         MessageKey.SUDO_START_FAILED: "Could not start the privileged agent. Check SSH output, sudo password, sudoers permissions and terminal requirements",
+        MessageKey.DOCTOR_SCOPE: "Doctor: selected {installation} panel; detected Caddy instances: {caddy} (active: {active})",
+        MessageKey.DOCTOR_CADDY_UNVERIFIED: "Caddy detected: configuration topology was inventoried; external routes and public TLS need a separate external probe",
+        MessageKey.DOCTOR_CADDY_NOT_RUNNING: "Caddy is required by this managed configuration but no active instance was discovered",
+        MessageKey.DOCTOR_WEB_DEFAULTED: "Panel address/path uses inferred defaults, not explicit values from 3x-ui SQLite; verify in the panel",
+        MessageKey.DOCTOR_SUB_DEFAULTED: "Subscription settings use inferred defaults from 3x-ui SQLite; listener availability is not conclusive",
+        MessageKey.DOCTOR_ENDPOINT: "{service} {scheme} probe endpoint: {host}:{port}",
+        MessageKey.DOCTOR_WEB_TLS_UNTRUSTED: "Panel TLS: certificate verification failed (CA trust or hostname mismatch). Listener responded with TLS, but HTTPS identity is NOT verified; inspect webDomain and the certificate chain. Verification was not disabled",
+        MessageKey.DOCTOR_SUB_TLS_UNTRUSTED: "Subscription TLS: certificate verification failed (CA trust or hostname mismatch); availability is not verified; certificate checks were not disabled",
+        MessageKey.DOCTOR_SUB_UNREACHABLE: "Subscription endpoint cannot be inferred on the host (possible private Docker-only listener); external subscription availability is unverified",
+        MessageKey.DOCTOR_SUB_TCP_FAILED: "Subscription listener connection failed: {reason}; inspect subEnable/subListen/subPort and reverse proxy route",
     }
 )
