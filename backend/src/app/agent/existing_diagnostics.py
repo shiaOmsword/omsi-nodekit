@@ -145,8 +145,13 @@ class ExistingDiagnostics:
         else:
             scheme = "HTTPS" if settings.get("webCertFile") else "HTTP"
             self._record(
-                failures, MessageKey.DOCTOR_ENDPOINT, level="info",
-                service="Panel", scheme=scheme, host=endpoint[0], port=endpoint[1],
+                failures,
+                MessageKey.DOCTOR_ENDPOINT,
+                level="info",
+                service="Panel",
+                scheme=scheme,
+                host=endpoint[0],
+                port=endpoint[1],
             )
             connection = http.client.HTTPConnection(
                 *endpoint, timeout=self.context.policy["http_timeout"]
@@ -191,14 +196,20 @@ class ExistingDiagnostics:
             endpoint = self._endpoint(finding, "sub")
             if endpoint is None:
                 self._record(
-                    failures, MessageKey.DOCTOR_SUB_UNREACHABLE,
+                    failures,
+                    MessageKey.DOCTOR_SUB_UNREACHABLE,
                     level="warning" if inferred or finding["installation"] != "native" else "error",
                 )
             else:
                 scheme = "TLS" if settings.get("subCertFile") else "TCP"
                 self._record(
-                    failures, MessageKey.DOCTOR_ENDPOINT, level="info",
-                    service="Subscription", scheme=scheme, host=endpoint[0], port=endpoint[1],
+                    failures,
+                    MessageKey.DOCTOR_ENDPOINT,
+                    level="info",
+                    service="Subscription",
+                    scheme=scheme,
+                    host=endpoint[0],
+                    port=endpoint[1],
                 )
                 try:
                     with self._socket(endpoint, settings, "sub"):
@@ -208,7 +219,8 @@ class ExistingDiagnostics:
                     self._record(failures, MessageKey.DOCTOR_SUB_TLS_UNTRUSTED, level="warning")
                 except (OSError, ValueError) as exc:
                     self._record(
-                        failures, MessageKey.DOCTOR_SUB_TCP_FAILED,
+                        failures,
+                        MessageKey.DOCTOR_SUB_TCP_FAILED,
                         level="warning" if inferred else "error",
                         reason=type(exc).__name__,
                     )
