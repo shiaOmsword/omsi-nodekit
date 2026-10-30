@@ -17,6 +17,7 @@ from .records import (
     JobDetails,
     JobEvent,
     JobStatus,
+    NodeState,
     NodeSummary,
     StoredNode,
 )
@@ -45,6 +46,7 @@ __all__ = [
     "JobStatus",
     "Node",
     "NodeFactory",
+    "NodeState",
     "NodeSummary",
     "Panel",
     "Port",
