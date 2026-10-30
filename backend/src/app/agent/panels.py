@@ -77,6 +77,17 @@ class PanelInspector:
 
     def discover(self, containers):
         result = []
+        owned_service = self.inventory.service(self.context.unit("panel"))
+        if owned_service:
+            owned = {
+                "id": f"managed:{self.context.node['id']}",
+                "installation": "managed",
+                "service": self.context.unit("panel"),
+                "active": owned_service.get("ActiveState") == "active",
+                "database_path": str(self.context.directory() / "db" / XUI_DATABASE_FILE),
+            }
+            self._settings(owned, Path(owned["database_path"]), Path)
+            result.append(owned)
         config = self.context.node["panel"]
         service_name = config["service"]
         service = self.inventory.service(service_name)
@@ -145,7 +156,7 @@ class PanelInspector:
             )
             result.append(finding)
         managed_db = self.context.directory() / "db" / XUI_DATABASE_FILE
-        if not managed_found and managed_db.is_file():
+        if not managed_found and not owned_service and managed_db.is_file():
             finding = {
                 "id": f"managed:{self.context.node['id']}",
                 "installation": "managed",

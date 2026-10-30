@@ -34,6 +34,9 @@ class PanelDatabase:
             "subKeyFile": "",
             "subDomain": "",
         }
+        target = node.get("deployment")
+        if target:
+            changes["subListen"] = target["subscription_bind"]
         # Keep existing panel paths, subscription IDs/paths, clients and Xray settings on restore.
         if not restoring:
             changes.update(

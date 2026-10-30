@@ -30,6 +30,7 @@ from app.ports import (
     SSHKeyRepository,
 )
 from app.services import BackupService, ExecuteJob, JobService, NodeService, SSHKeyService
+from app.services.discovery_config import DiscoveryConfigService
 from framework.database import SQLiteDatabase, SQLiteSnapshots
 from framework.entities import EntityFactory, JsonCodec, YamlCodec
 from framework.network import CommandRunner, KeyOptions, OpenSSHKeys, SSHClient, SSHOptions
@@ -104,6 +105,7 @@ def build_container(settings: Settings, *, overrides: dict | None = None) -> pun
         ExecuteJob,
         JobService,
         NodeService,
+        DiscoveryConfigService,
         StorageBootstrap,
         RouterFactory,
         ExceptionHandlers,

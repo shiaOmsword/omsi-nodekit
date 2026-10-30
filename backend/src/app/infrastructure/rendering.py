@@ -33,7 +33,9 @@ class NodeArtifacts(ArtifactRenderer):
                 },
             }
         }
-        if node.caddy.enabled:
+        if node.deployment and node.deployment.panel_runtime == "native":
+            services.pop("panel")
+        if node.caddy.enabled and (not node.deployment or node.deployment.caddy_mode == "docker"):
             services["caddy"] = {
                 "image": node.caddy.image,
                 "network_mode": "host",
@@ -49,11 +51,8 @@ class NodeArtifacts(ArtifactRenderer):
         )
 
     def caddyfile(self, node: Node) -> str:
-        return f"""{{
-    admin off
-}}
-
-https://{node.caddy.domain}:{node.caddy.https_port} {{
+        bind = node.deployment.subscription_bind if node.deployment else "127.0.0.1"
+        site = f"""https://{node.caddy.domain}:{node.caddy.https_port} {{
     tls {{
         issuer acme {{
             disable_tlsalpn_challenge
@@ -61,12 +60,40 @@ https://{node.caddy.domain}:{node.caddy.https_port} {{
     }}
     @subscriptions path {node.panel.subscription_path}*
     handle @subscriptions {{
-        reverse_proxy 127.0.0.1:{node.panel.subscription_port}
+        reverse_proxy {bind}:{node.panel.subscription_port}
     }}
     handle {{
         respond 404
     }}
 }}
+"""
+        if node.deployment and node.deployment.caddy_mode == "existing":
+            return site
+        return f"""{{
+    admin off
+}}
+
+{site}
+"""
+
+    def panel_unit(self, node: Node) -> str:
+        base = self.remote_dir(node)
+        return f"""[Unit]
+Description=Nodekit {node.id} native 3x-ui
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory={base}/runtime
+Environment=XUI_DB_TYPE=sqlite XUI_DB_FOLDER={base}/db XUI_BIN_FOLDER={base}/runtime/bin XUI_LOG_FOLDER={base}/logs TZ={self.policy.timezone}
+ExecStart={base}/runtime/x-ui
+Restart=on-failure
+RestartSec=3
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
 """
 
     def tunnel_unit(self, node: Node, index: int) -> str:
@@ -92,8 +119,17 @@ WantedBy=multi-user.target
         if node.panel.installation != "managed":
             return {}
         files = {"compose.yaml": self.compose_config(node)}
+        if node.deployment and node.deployment.panel_runtime == "native":
+            files[f"{self.policy.service_prefix}-{node.id}-panel.service"] = self.panel_unit(node)
+            if node.deployment.caddy_mode != "docker":
+                files.pop("compose.yaml")
         if node.caddy.enabled:
-            files["Caddyfile"] = self.caddyfile(node)
+            name = (
+                "Caddyfile.site"
+                if node.deployment and node.deployment.caddy_mode == "existing"
+                else "Caddyfile"
+            )
+            files[name] = self.caddyfile(node)
         for index, tunnel in enumerate(node.tunnels):
             files[f"{self.policy.service_prefix}-{node.id}-{tunnel.name}.service"] = (
                 self.tunnel_unit(node, index)
@@ -122,6 +158,24 @@ WantedBy=multi-user.target
                 message_text(MessageKey.PLAN_TUNNELS_INSTALL),
                 message_text(MessageKey.PLAN_SERVICES_VERIFY),
             ]
+            if node.deployment:
+                target = node.deployment
+                steps.insert(
+                    2,
+                    message_text(
+                        MessageKey.DEPLOYMENT_NATIVE_PLAN
+                        if target.panel_runtime == "native"
+                        else MessageKey.DEPLOYMENT_DOCKER_PLAN
+                    ),
+                )
+                if target.install_docker:
+                    steps.insert(3, message_text(MessageKey.DEPLOYMENT_DOCKER_PLAN))
+                if target.caddy_mode == "existing":
+                    steps.append(message_text(MessageKey.DEPLOYMENT_CADDY_PLAN))
+                if action == "fresh" and target.inbounds:
+                    steps.append(message_text(MessageKey.DEPLOYMENT_INBOUNDS_PLAN))
+                if target.panel_runtime == "native" and target.caddy_mode != "docker":
+                    steps.remove(message_text(MessageKey.PLAN_IMAGES_PULL))
         elif action == "backup":
             steps += [
                 message_text(MessageKey.PLAN_EXISTING_BACKUP),

@@ -8,6 +8,7 @@ from app.defaults import XUI_DATABASE_FILE
 from framework.messages import MessageKey
 from framework.messages import text as message_text
 
+from .adaptive_deployment import AdaptiveDeployment
 from .context import AgentContext
 from .database import PanelDatabase
 from .deployment import DeploymentService
@@ -45,6 +46,11 @@ class RemoteAgent:
                 if context.node["panel"]["installation"] != "managed":
                     raise RuntimeError(message_text(MessageKey.EXISTING_READ_ONLY))
                 report = inspector.inspect()
+                if context.node.get("deployment"):
+                    AdaptiveDeployment(
+                        context, self.host, self.database, self.diagnostics, inspector
+                    ).deploy(base)
+                    return
                 if context.node["caddy"]["enabled"] and report["caddy"]:
                     raise RuntimeError(message_text(MessageKey.CADDY_EXISTING_GUARD))
                 self.deployment.deploy(context.payload, base)

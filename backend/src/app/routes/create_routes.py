@@ -6,6 +6,8 @@ from app.config import Limits
 from app.defaults import APP_VERSION
 from app.entities import (
     ConfigRequest,
+    DeploymentSelection,
+    DiscoverySelection,
     InstallationSelection,
     JobAction,
     JobRequest,
@@ -14,6 +16,7 @@ from app.entities import (
     SSHKeyRequest,
 )
 from app.services import BackupService, JobService, NodeService, SSHKeyService
+from app.services.discovery_config import DiscoveryConfigService
 from framework.entities import PayloadTooLargeError
 from framework.messages import MessageKey
 from framework.messages import text as message_text
@@ -31,6 +34,7 @@ class ApplicationRoutes:
         backups: BackupService,
         limits: Limits,
         keys: SSHKeyService,
+        discovery_config: DiscoveryConfigService,
     ):
         self.factory = factory
         self.nodes = nodes
@@ -38,6 +42,7 @@ class ApplicationRoutes:
         self.backups = backups
         self.limits = limits
         self.keys = keys
+        self.discovery_config = discovery_config
 
     def create(self):
         router = self.factory.create(prefix="/api", tags=["Nodekit"])
@@ -61,6 +66,14 @@ class ApplicationRoutes:
         @router.post("/config/installation")
         def select_installation(body: InstallationSelection) -> ApiResponse:
             return Responses.success(self.nodes.select_installation(body.yaml, body.installation))
+
+        @router.post("/config/from-discovery")
+        def from_discovery(body: DiscoverySelection) -> ApiResponse:
+            return Responses.success(self.discovery_config.suggest(body))
+
+        @router.post("/config/deployment")
+        def select_deployment(body: DeploymentSelection) -> ApiResponse:
+            return Responses.success(self.nodes.select_deployment(body.yaml, body.target))
 
         @router.get("/ssh-keys")
         def ssh_keys() -> ApiResponse:
