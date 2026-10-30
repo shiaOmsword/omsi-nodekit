@@ -61,7 +61,7 @@ class LocalBackupFiles(BackupFiles):
     def write_manifest(self, backup_id, node):
         self.files.write(
             f"{backup_id}.json",
-            self.codec.dumps(node.model_dump(mode="json"), pretty=True).encode(),
+            self.codec.dumps(node.export_config(), pretty=True).encode(),
         )
 
     def remove(self, backup_id):

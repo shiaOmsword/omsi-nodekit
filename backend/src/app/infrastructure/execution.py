@@ -13,6 +13,8 @@ from framework.messages import MessageKey
 from framework.messages import text as message_text
 from framework.network import ProcessError, SSHClient, SSHConnection
 
+from .auth import SudoPasswordResolver
+
 
 class RemoteAgentBuilder:
     """Bundle only standard-library modules; the VPS never needs Poetry or punq."""
@@ -38,6 +40,10 @@ class RemoteAgentBuilder:
             path.relative_to(root).as_posix() for path in (root / "framework/messages").glob("*.py")
         ]
         files.append("framework/network/keys.py")
+        files.append("framework/network/sudo.py")
+        files += [
+            path.relative_to(root).as_posix() for path in (root / "framework/utils").glob("*.py")
+        ]
         archive = io.BytesIO()
         with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
             for name in ("app/__init__.py", "framework/__init__.py"):
@@ -45,7 +51,7 @@ class RemoteAgentBuilder:
             for name in files:
                 bundle.writestr(name, (root / name).read_bytes())
         payload = {
-            "node": node.model_dump(mode="json"),
+            "node": node.export_config(),
             "action": str(action),
             "files": self.renderer.artifacts(node),
             "runtime": {
@@ -82,15 +88,20 @@ class SSHNodeExecutor(NodeExecutor):
         codec: JsonCodec,
         settings: Settings,
         keys: SSHKeyService,
+        passwords: SudoPasswordResolver,
     ):
         self.ssh = ssh
         self.builder = builder
         self.codec = codec
         self.settings = settings
         self.keys = keys
+        self.passwords = passwords
 
     def execute(self, node, action, backup):
-        connection_fields = node.ssh.model_dump(exclude={"key_id"})
+        connection_fields = node.ssh.model_dump(
+            exclude={"key_id", "sudo_password", "sudo_password_env"}
+        )
+        connection_fields["sudo_password"] = self.passwords.resolve(node.ssh)
         if node.ssh.key_id:
             connection_fields["identity_file"] = str(self.keys.require(node.ssh.key_id))
         connection = SSHConnection(**connection_fields)

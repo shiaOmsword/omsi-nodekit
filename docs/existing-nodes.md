@@ -20,7 +20,7 @@ Docker, TLS/Caddy, восстановления и разбора ошибок.
 управляемой установке: для существующей диагностика использует настройки из SQLite.
 
 На VPS нужен Python **3.11+** со стандартным `sqlite3`, root либо `ssh.sudo: true`
-с работающим `sudo -n`. Для чтения системной установки Docker не требуется.
+с настроенным повышением прав: без пароля (`sudo -n`) или с `sudo_password`/`sudo_password_env`. Для чтения системной установки Docker не требуется.
 Для свежей установки Docker Compose/systemd/OpenSSH по-прежнему нужны. В этой версии
 агент работает на Linux; локальную панель и тесты можно запускать на Windows/Linux.
 
@@ -206,3 +206,73 @@ SID текущего пользователя через `icacls`. При нев
 Форматы сверены с [настройками 3x-ui](https://github.com/MHSanaei/3x-ui/blob/main/internal/web/service/setting.go),
 [systemd unit 3x-ui](https://github.com/MHSanaei/3x-ui/blob/main/x-ui.service.debian)
 и [документацией caddy adapt](https://caddyserver.com/docs/command-line#caddy-adapt).
+
+
+## Sudo с паролем
+
+Подключение по SSH остаётся по ключу. Пароль ниже нужен для повышения прав через sudo,
+он не заменяет SSH-ключ и не меняет sudoers. Пользователь должен иметь право выполнять
+Python-агент от root. Наличие пользователя в группе sudo не означает NOPASSWD.
+
+Для пользователя `omsi`, у которого sudo запрашивает пароль, добавь к своей секции `ssh`:
+
+```yaml
+ssh:
+  host: 203.0.113.10
+  user: omsi
+  port: 22
+  identity_file: ~/.ssh/id_ed25519
+  known_hosts_file: ~/.ssh/known_hosts
+  sudo: true
+  sudo_password: 'ВАШ_ПАРОЛЬ_SUDO'
+```
+
+Пароль с символами `#`, `:`, `$` и пробелами заключай в YAML-кавычки. В одинарных
+кавычках апостроф записывается дважды: `sudo_password: 'pa''ss'`. Пустые пароли,
+переносы строки и NUL не принимаются. После изменения сохрани YAML и повтори check.
+
+Вариант без значения пароля в YAML:
+
+```yaml
+ssh:
+  host: 203.0.113.10
+  user: omsi
+  port: 22
+  identity_file: ~/.ssh/id_ed25519
+  known_hosts_file: ~/.ssh/known_hosts
+  sudo: true
+  sudo_password_env: OMSI_SUDO_PASSWORD
+```
+
+Задай `OMSI_SUDO_PASSWORD` в окружении процесса **локального backend** перед его запуском.
+В PowerShell можно ввести значение без отображения:
+
+```powershell
+$secret = Read-Host 'Пароль sudo' -AsSecureString
+$env:OMSI_SUDO_PASSWORD = [System.Net.NetworkCredential]::new('', $secret).Password
+poetry run nodekit
+```
+
+В Bash:
+
+```bash
+read -rsp 'Пароль sudo: ' OMSI_SUDO_PASSWORD
+export OMSI_SUDO_PASSWORD
+poetry run nodekit
+```
+
+Ссылка не означает подстановку `${...}` внутри YAML. Не указывай оба источника сразу.
+Пользовательская переменная читается из окружения запущенного backend, а не из браузера,
+VPS или dotenv-файлов Settings. При смене окружения перезапусти backend.
+Если `sudo_password`/`sudo_password_env` отсутствуют, остаётся прежний `sudo -n`.
+
+Введённый прямо в YAML пароль сохраняется с конфигурацией в локальной SQLite и доступен
+в YAML-редакторе; он не шифруется. Параметры sudo-аутентификации исключаются из bundle,
+локального манифеста бэкапа и remote manifest. Типизированные модели скрывают значение
+в repr/JSON, ошибки валидации не возвращают исходный пароль. Пароль передаётся только
+через stdin зашифрованного SSH-соединения, не через argv или shell-интерполяцию.
+Права sudoers/requiretty и многофакторная аутентификация автоматически не обходятся.
+
+Передача учитывает sudo, которое читает пароль, и sudo с готовым timestamp/NOPASSWD,
+которое пароль не читает: фрейм агента отделён маркером и не исполняет лишнюю строку.
+Это также не требует очистки sudo-кэша и не меняет политику сервера.

@@ -70,6 +70,8 @@ class CommandRunner:
                 message_text(MessageKey.EXECUTABLE_UNAVAILABLE, command=args[0])
             ) from exc
         expired = threading.Event()
+        # Keep the wire protocol independent of Windows CRLF translation (sudo -S).
+        process.stdin.reconfigure(newline="\n")
         write_errors = []
 
         def kill():

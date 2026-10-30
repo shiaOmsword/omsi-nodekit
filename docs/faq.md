@@ -64,14 +64,17 @@ docker compose version
 systemctl --version
 ```
 
-Для non-root пользователя нужно неинтерактивное sudo. Проверь:
+Для non-root пользователя укажи `ssh.sudo: true`. Если sudo работает без пароля, проверь:
 
 ```bash
 sudo -n true
 ```
 
-Если оно недоступно, сначала реши вопрос прав либо используй подготовленный root-доступ.
-Nodekit не запрашивает sudo-пароль в браузере. Если SSH-ключ зашифрован, предварительно
+Если sudo требует пароль, задай `ssh.sudo_password` либо `ssh.sudo_password_env` —
+[варианты и примеры](existing-nodes.md#sudo-с-паролем). Nodekit передаёт пароль через
+SSH stdin, сохраняя агент отдельным фреймом. Неизвестный пароль, запрет sudoers или
+требование TTY завершают задачу ошибкой; членства в sudo-группе без нужных прав недостаточно.
+Пароль интерактивно не запрашивается. Если SSH-ключ зашифрован, предварительно
 загрузи его в работающий `ssh-agent`: `ssh-add ~/.ssh/nodekit_test`.
 
 Выйди из SSH-сессии и проверь **на компьютере** тот же вход без диалога:
@@ -132,7 +135,7 @@ probe: null
 | `Local SSH file does not exist` | Путь к ключу/known_hosts на компьютере с backend |
 | `Permission denied (publickey)` | Пользователя, ключ и его наличие в ssh-agent/authorized_keys |
 | `Host key verification failed` | Предварительный вход, fingerprint, запись именно для нужного порта |
-| Ошибка `sudo` или `Use root…` | `ssh.sudo` и выполнение `sudo -n true` |
+| Ошибка `sudo` или `Use root…` | `ssh.sudo: true`; при запросе пароля — `sudo_password` или `sudo_password_env` |
 | `Missing prerequisite` | Нужную программу на VPS; Nodekit не устанавливает её автоматически |
 | Ошибка Docker daemon | `docker info` с теми же правами, что использует Nodekit |
 | `Remote agent requires Python 3.11…` | Версию команды `python3` на VPS |
