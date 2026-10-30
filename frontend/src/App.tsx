@@ -1,307 +1,700 @@
-import { useEffect, useRef, useState } from 'react';
-import { Activity, BookOpen, KeyRound, ArrowDownToLine, ArrowRight, Check, ChevronRight, Circle, Code2, Database, FileCode2, FolderOpen, Network, Play, Plus, Save, Server, ShieldCheck, Terminal, Upload, X } from 'lucide-react';
-import { api, getErrorMessage } from './framework/api';
-import { messages, formatMessage, statusLabel } from './framework/messages';
-import { Alert, Button, CardHeader, IconButton, Spinner, StatusBadge } from './framework/components';
-import type { Action, Backup, Job, JobDetail, NodeRecord, NodeSummary, Plan, DraftConfig, Installation, SSHKey, NodeState, DeploymentTarget } from './types';
-
+import { useEffect, useState } from 'react';
+import { ArrowLeft, Upload } from 'lucide-react';
+import { api } from './framework/api';
+import {
+  Alert,
+  Button,
+  CodeBlock,
+  EmptyState,
+  FormDialog,
+  Loading,
+  Modal,
+} from './framework/components';
+import type { FormField, FormValues } from './framework/components';
+import { useWorkspaceRoute } from './framework/navigation/router';
+import { preserveDeploymentIntent, readConfig } from './app/config';
+import { isRunning } from './app/format';
+import { Shell } from './app/Shell';
+import { useJobDetail, useNodeReport, useWorkspace } from './app/useWorkspace';
+import { DashboardPage } from './features/dashboard/DashboardPage';
+import { NodesPage } from './features/nodes/NodesPage';
+import { NodePage } from './features/nodes/NodePage';
+import { NodeFormModal } from './features/nodes/NodeFormModal';
+import { DeploymentModal } from './features/nodes/DeploymentModal';
+import { DiscoveryModal } from './features/nodes/DiscoveryModal';
+import { NodeManagementModal } from './features/nodes/NodeManagementModal';
+import { OperationsPage, OperationDetail } from './features/operations/OperationsPage';
+import { PlanModal } from './features/operations/PlanModal';
+import { BackupsPage } from './features/backups/BackupsPage';
+import { LogsPage } from './features/logs/LogsPage';
 import { SSHKeysPanel } from './features/keys/SSHKeysPanel';
 import { HelpPanel } from './features/help/HelpPanel';
-import { ConnectionSettings } from './features/nodes/ConnectionSettings';
-import { NodeLifecycle } from './features/nodes/NodeLifecycle';
-import { getNodeErrorMessage } from './features/nodes/configErrors';
-import { InstallationReportView } from './features/nodes/InstallationReportView';
-import { DeploymentSettings } from './features/nodes/DeploymentSettings';
-import { DiscoverySuggestions } from './features/nodes/DiscoverySuggestions';
-import type { DiscoveryChoice } from './features/nodes/DiscoverySuggestions';
-import { deploymentMessages } from './features/nodes/deploymentMessages';
+import type {
+  Action,
+  Backup,
+  DiscoveryChoice,
+  InstallationReport,
+  JobDetail,
+  NodeRecord,
+  NodeSummary,
+  Plan,
+  SSHKey,
+} from './types';
 
-const actions = (Object.keys(messages.action) as Action[]).map(id => ({ id, ...messages.action[id] }));
-const actionTitle = (action: Action) => messages.action[action].title;
-const active = (job: Job) => ['queued', 'running'].includes(job.status);
-const date = (value: string) => new Date(value.replace(' ', 'T') + 'Z').toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+type ModalState =
+  | { kind: 'node'; record: NodeRecord | null; template: string }
+  | { kind: 'manage'; node: NodeSummary }
+  | {
+      kind: 'confirm';
+      title: string;
+      description: string;
+      danger?: boolean;
+      confirm: () => Promise<void>;
+    }
+  | { kind: 'create-key' }
+  | { kind: 'key-result'; key: SSHKey }
+  | { kind: 'assign-key'; keyId: string }
+  | { kind: 'deployment'; record: NodeRecord; report: InstallationReport | null }
+  | { kind: 'discovery'; record: NodeRecord; job: JobDetail }
+  | { kind: 'plan'; record: NodeRecord; action: Action; backupId: string | null; plan: Plan | null }
+  | { kind: 'import'; done?: (backup: Backup) => void }
+  | { kind: 'restore'; backup: Backup };
+
+function SimpleForm({
+  title,
+  description,
+  fields,
+  initial,
+  busy,
+  error,
+  onClose,
+  onSubmit,
+  submit,
+}: {
+  title: string;
+  description?: string;
+  fields: FormField[];
+  initial: FormValues;
+  busy: boolean;
+  error: string;
+  onClose: () => void;
+  onSubmit: (values: FormValues) => void;
+  submit?: string;
+}) {
+  const [values, setValues] = useState(initial);
+  return (
+    <FormDialog
+      title={title}
+      description={description}
+      fields={fields}
+      values={values}
+      onChange={(name, value) => setValues((v) => ({ ...v, [name]: value }))}
+      busy={busy}
+      error={error}
+      onClose={onClose}
+      onSubmit={() => onSubmit(values)}
+      submit={submit}
+    />
+  );
+}
+
+function ImportModal({
+  busy,
+  error,
+  onClose,
+  onImport,
+}: {
+  busy: boolean;
+  error: string;
+  onClose: () => void;
+  onImport: (file: File) => void;
+}) {
+  const [file, setFile] = useState<File | null>(null);
+  return (
+    <Modal
+      title="Загрузить бэкап"
+      description="Файл базы SQLite 3x-ui (.db). После загрузки проверяются структура и целостность."
+      busy={busy}
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose} disabled={busy}>
+            Отмена
+          </Button>
+          <Button
+            variant="primary"
+            loading={busy}
+            disabled={!file}
+            onClick={() => file && onImport(file)}
+            icon={<Upload size={17} />}
+          >
+            Загрузить файл
+          </Button>
+        </>
+      }
+    >
+      {error && <Alert tone="error">{error}</Alert>}
+      <label className="upload-zone">
+        <Upload size={28} />
+        <strong>{file ? file.name : 'Выбери файл .db'}</strong>
+        <span>Файл останется в локальном разделе «Бэкапы»</span>
+        <input
+          type="file"
+          aria-label="Файл бэкапа SQLite"
+          accept=".db"
+          disabled={busy}
+          onChange={(e) => setFile(e.target.files?.[0] || null)}
+        />
+      </label>
+    </Modal>
+  );
+}
 
 export default function App() {
-  const [view, setView] = useState<'nodes' | 'keys' | 'help'>('nodes');
+  const w = useWorkspace();
+  const nav = useWorkspaceRoute(w.dirty);
+  const { route, navigate } = nav;
+  const [modal, setModal] = useState<ModalState | null>(null);
   const [guide, setGuide] = useState('start');
-  const [keys, setKeys] = useState<SSHKey[]>([]);
-  const [draft, setDraft] = useState<DraftConfig | null>(null);
-  const [nodes, setNodes] = useState<NodeSummary[]>([]);
-  const [nodeFilter, setNodeFilter] = useState<NodeState | 'all'>('active');
-  const [selected, setSelected] = useState<NodeRecord | null>(null);
-  const [text, setText] = useState('');
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [jobId, setJobId] = useState<string | null>(null);
-  const [job, setJob] = useState<JobDetail | null>(null);
-  const [backups, setBackups] = useState<Backup[]>([]);
-  const [backupId, setBackupId] = useState('');
-  const [action, setAction] = useState<Action>('check');
-  const [plan, setPlan] = useState<Plan | null>(null);
-  const [file, setFile] = useState('compose.yaml');
-  const [tab, setTab] = useState<'yaml' | 'files'>('yaml');
-  const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [online, setOnline] = useState(false);
-  const upload = useRef<HTMLInputElement>(null);
-  const terminal = useRef<HTMLDivElement>(null);
-  const dirty = !selected || text !== selected.yaml;
-  const running = jobs.some(active);
-  const showingFiles = tab === 'files' && !!plan && !!Object.keys(plan.files).length;
-  const visibleNodes = nodes.filter(node => nodeFilter === 'all' || node.state === nodeFilter);
-  const archived = selected?.state === 'archived';
-  const currentReport = job?.node_id === selected?.id && job?.report?.ssh_host === draft?.ssh.host && job?.report?.ssh_port === draft?.ssh.port ? job?.report || null : null;
-
-  function downloadJobLog() {
-    if (!job) return;
-    const lines = [
-      `Node: ${job.node_id} / Action: ${job.action} / Status: ${job.status}`,
-      `Job: ${job.id}`,
-      ...(job.error ? [`Failure: ${job.error}`] : []),
-      ...job.events.map(event => `[${event.created_at}] [${event.level}] ${event.message}`),
-    ];
-    const url = URL.createObjectURL(new Blob([lines.join('\n') + '\n'], { type: 'text/plain;charset=utf-8' }));
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `nodekit-${job.node_id}-${job.id.slice(0, 8)}.log`;
-    document.body.append(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-  }
-
-  async function refreshKeys() { setKeys(await api<SSHKey[]>('/ssh-keys')); }
-  function openHelp(id = 'start') { setGuide(id); setView('help'); }
-
+  const [restoreChoice, setRestoreChoice] = useState<{ nodeId: string; backupId: string } | null>(
+    null,
+  );
+  const nodeId = route.page === 'node' ? route.id : null;
+  useEffect(() => w.selectNode(nodeId), [nodeId, w.selectNode]);
+  const reportJob = useNodeReport(nodeId, w.jobs);
+  const logId =
+    route.page === 'logs'
+      ? route.id || w.jobs.find(isRunning)?.id || w.jobs[0]?.id
+      : route.page === 'operations'
+        ? route.id
+        : undefined;
+  const detail = useJobDetail(logId);
   useEffect(() => {
-    const controller = new AbortController();
-    setDraft(null);
-    const timer = setTimeout(() => {
-      api<{ node: DraftConfig }>('/config/validate', { method: 'POST', body: JSON.stringify({ yaml: text }), signal: controller.signal })
-        .then(result => { if (!controller.signal.aborted) setDraft(result.node); })
-        .catch(() => { /* The editor stays usable while YAML is incomplete. */ });
-    }, 350);
-    return () => { controller.abort(); clearTimeout(timer); };
-  }, [text]);
-
-  useEffect(() => {
-    if (draft && draft.panel.installation !== 'managed' && ['fresh', 'restore'].includes(action)) {
-      setAction('check'); setPlan(null);
+    w.setError('');
+    w.setNotice('');
+  }, [route.page]);
+  const closeModal = () => {
+    if (!w.busy) {
+      setModal(null);
+      w.setError('');
     }
-  }, [draft, action]);
-
-  useEffect(() => {
-    let cancelled = false;
-    Promise.all([api<NodeSummary[]>('/nodes'), api<{ yaml: string }>('/template'), api<SSHKey[]>('/ssh-keys')])
-      .then(async ([list, template, savedKeys]) => {
-        if (cancelled) return;
-        setNodes(list); setKeys(savedKeys);
-        if (list.length) {
-          const first = list.find(item => item.state === 'active') || list[0];
-          const record = await api<NodeRecord>(`/nodes/${first.id}`);
-          if (!cancelled) {
-            setSelected(record); setText(record.yaml);
-            setNodeFilter(first.state);
-          }
-        } else setText(template.yaml);
-      }).catch(err => !cancelled && setError(getErrorMessage(err)));
-    return () => { cancelled = true; };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    const poll = async () => {
-      try {
-        const [list, snapshots] = await Promise.all([api<Job[]>('/jobs'), api<Backup[]>('/backups')]);
-        if (!cancelled) { setJobs(list); setBackups(snapshots); setOnline(true); }
-      } catch { if (!cancelled) setOnline(false); }
-    };
-    void poll();
-    const timer = setInterval(poll, 2500);
-    return () => { cancelled = true; clearInterval(timer); };
-  }, []);
-
-  useEffect(() => {
-    if (!jobId) return;
-    let cancelled = false;
-    const poll = async () => {
-      try {
-        const detail = await api<JobDetail>(`/jobs/${jobId}`);
-        if (!cancelled) setJob(detail);
-      } catch (err) { if (!cancelled) setError(getErrorMessage(err)); }
-    };
-    void poll();
-    const timer = setInterval(poll, 1500);
-    return () => { cancelled = true; clearInterval(timer); };
-  }, [jobId]);
-
-  useEffect(() => { terminal.current?.scrollTo({ top: terminal.current.scrollHeight, behavior: 'smooth' }); }, [job?.events.length]);
-
-  async function perform(task: () => Promise<void>) {
-    setBusy(true); setError(''); setNotice('');
-    try { await task(); } catch (err) { setError(getNodeErrorMessage(err)); }
-    finally { setBusy(false); }
+  };
+  function showModal(value: ModalState) {
+    w.setError('');
+    setModal(value);
   }
-  async function chooseNode(id: string) {
-    setView('nodes');
-    if (dirty && selected && !window.confirm(messages.confirm.discardForNode)) return;
-    await perform(async () => {
-      const record = await api<NodeRecord>(`/nodes/${id}`);
-      setSelected(record); setText(record.yaml); setPlan(null); setTab('yaml');
-    });
+  function requireSaved() {
+    if (w.dirty) {
+      w.setError('Сначала сохрани или отмени изменения YAML.');
+      return false;
+    }
+    return true;
   }
   async function newNode() {
-    setView('nodes');
-    if (dirty && selected && !window.confirm(messages.confirm.discardForNew)) return;
-    await perform(async () => {
-      const template = await api<{ yaml: string }>('/template');
-      const used = new Set(nodes.map(node => node.id));
-      let next = 1;
-      while (used.has(`node-${next}`)) next++;
-      setSelected(null); setText(template.yaml.replace('moscow-1', `node-${next}`)); setPlan(null); setTab('yaml');
-    });
+    if (!requireSaved() || w.busy) return;
+    const result = await w.run(() => api<{ yaml: string }>('/template'));
+    if (result) showModal({ kind: 'node', record: null, template: result.yaml });
   }
-  async function save() {
-    await perform(async () => {
-      const validated = await api<{ node: { id: string } }>('/config/validate', { method: 'POST', body: JSON.stringify({ yaml: text }) });
-      const record = await api<NodeRecord>(`/nodes/${validated.node.id}`, { method: 'PUT', body: JSON.stringify({ yaml: text }) });
-      setSelected(record); setNodes(await api<NodeSummary[]>('/nodes')); setPlan(null); setNotice(messages.notice.configSaved);
-    });
+  function editNode() {
+    if (!w.selected || !requireSaved()) return;
+    showModal({ kind: 'node', record: w.selected, template: w.selected.yaml });
   }
-
-  async function changeNodeState(state: NodeState) {
-    if (!selected) return;
-    if (dirty && !window.confirm(messages.confirm.discardForState)) return;
-    await perform(async () => {
-      const record = await api<NodeRecord>(`/nodes/${selected.id}/state`, {
-        method: 'PATCH',
-        body: JSON.stringify({ state }),
-      });
-      setSelected(record); setText(record.yaml);
-      setNodes(await api<NodeSummary[]>('/nodes'));
-      setNodeFilter(state); setPlan(null);
-      setNotice(messages.lifecycle.restored);
-    });
-  }
-  async function deleteSelectedNode() {
-    if (!selected || !window.confirm(formatMessage(messages.confirm.deleteNode, { name: selected.name }))) return;
-    await perform(async () => {
-      await api<{ deleted: boolean }>(`/nodes/${selected.id}`, { method: 'DELETE' });
-      const list = await api<NodeSummary[]>('/nodes');
-      setNodes(list);
-      const first = list.find(item => item.state === 'active') || list[0];
-      if (first) {
-        const record = await api<NodeRecord>(`/nodes/${first.id}`);
-        setSelected(record); setText(record.yaml); setNodeFilter(record.state);
-      } else {
-        const template = await api<{ yaml: string }>('/template');
-        setSelected(null); setText(template.yaml); setNodeFilter('active');
+  async function saveNode(text: string, expectedId?: string) {
+    const record = await w.run(async () => {
+      if (!expectedId) {
+        const list = await api<NodeSummary[]>('/nodes');
+        if (list.some((n) => n.id === readConfig(text).id))
+          throw new Error('Нода с таким ID уже существует. Выбери другой ID.');
       }
-      setPlan(null); setTab('yaml');
-      setNotice(messages.lifecycle.removed);
+      return w.saveNode(text, expectedId);
+    });
+    if (record) {
+      setModal(null);
+      if (!expectedId) navigate('/nodes/' + record.id);
+    }
+  }
+  function manageNode(node: NodeSummary) {
+    if (requireSaved()) showModal({ kind: 'manage', node: w.nodes.find((n) => n.id === node.id) || node });
+  }
+  async function stateNode(node: NodeSummary, state: 'active' | 'hidden' | 'archived') {
+    const saved = await w.run(() => w.changeState(node.id, state));
+    if (saved) setModal(null);
+  }
+  function deleteNode(node: NodeSummary) {
+    showModal({
+      kind: 'confirm',
+      title: 'Удалить ноду из Nodekit?',
+      description:
+        'Настройки «' +
+        node.name +
+        '» будут удалены из локальной панели. VPS, бэкапы и история операций сохранятся.',
+      danger: true,
+      confirm: async () => {
+        await api('/nodes/' + node.id, { method: 'DELETE' });
+        await w.refresh();
+        navigate('/nodes');
+        w.setNotice('Нода удалена из локальной панели');
+      },
     });
   }
-
-  async function preview() {
-    if (!selected) return;
-    await perform(async () => {
-      const result = await api<Plan>(`/nodes/${selected.id}/plan?action=${action}`);
-      setPlan(result); setFile(Object.keys(result.files)[0] || '');
+  async function getRecord(job?: JobDetail) {
+    return job ? api<NodeRecord>('/nodes/' + job.node_id) : w.selected;
+  }
+  async function configure(job?: JobDetail) {
+    if (!requireSaved()) return;
+    const record = await w.run(() => getRecord(job));
+    if (!record) return;
+    const config = readConfig(record.yaml);
+    const inventory = job?.report || reportJob?.report || null;
+    const matches =
+      inventory?.ssh_host === config.ssh.host && inventory?.ssh_port === (config.ssh.port || 22);
+    showModal({ kind: 'deployment', record, report: matches ? inventory : null });
+  }
+  async function suggest(job: JobDetail) {
+    if (!job.report || !requireSaved()) return;
+    const record = await w.run(async () => {
+      const node = await api<NodeRecord>('/nodes/' + job.node_id);
+      const config = readConfig(node.yaml);
+      if (
+        job.report?.ssh_host !== config.ssh.host ||
+        job.report.ssh_port !== (config.ssh.port || 22)
+      )
+        throw new Error('Отчёт относится к другому SSH-адресу. Повтори обнаружение этой ноды.');
+      return node;
     });
+    if (record) showModal({ kind: 'discovery', record, job });
+  }
+  async function applySuggestions(choice: DiscoveryChoice) {
+    if (modal?.kind !== 'discovery') return;
+    const context = modal;
+    const record = await w.run(async () => {
+      const result = await api<{ yaml: string }>('/config/from-discovery', {
+        method: 'POST',
+        body: JSON.stringify({ yaml: context.record.yaml, job_id: context.job.id, ...choice }),
+      });
+      return w.saveNode(
+        preserveDeploymentIntent(
+          context.record.yaml,
+          result.yaml,
+          !context.job.report!.panels.length,
+        ),
+        context.record.id,
+      );
+    });
+    if (record) setModal(null);
+  }
+  async function preview(record: NodeRecord, action: Action, backupId: string | null = null) {
+    if (!requireSaved()) return;
+    showModal({ kind: 'plan', record, action, backupId, plan: null });
+    const plan = await w.run(() => api<Plan>('/nodes/' + record.id + '/plan?action=' + action));
+    if (plan) setModal({ kind: 'plan', record, action, backupId, plan });
   }
   async function launch() {
-    if (!selected || !plan) return;
-    await perform(async () => {
-      const result = await api<JobDetail>(`/nodes/${selected.id}/jobs`, { method: 'POST', body: JSON.stringify({ action: plan.action, revision: plan.revision, backup_id: plan.action === 'restore' ? backupId : null }) });
-      setJobId(result.id); setJob(result); setJobs(await api<Job[]>('/jobs')); setPlan(null);
-      setNotice(messages.notice.jobStarted);
+    if (modal?.kind !== 'plan' || !modal.plan) return;
+    const context = modal;
+    const job = await w.run(async () => {
+      const result = await api<JobDetail>('/nodes/' + context.record.id + '/jobs', {
+        method: 'POST',
+        body: JSON.stringify({
+          action: context.action,
+          revision: context.plan!.revision,
+          backup_id: context.action === 'restore' ? context.backupId : null,
+        }),
+      });
+      await w.refresh();
+      return result;
     });
+    if (job) {
+      setModal(null);
+      navigate('/operations/' + job.id);
+    }
   }
   async function importBackup(file: File) {
-    await perform(async () => {
-      const result = await api<Backup>(`/backups?filename=${encodeURIComponent(file.name)}`, { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: file });
-      setBackups(await api<Backup[]>('/backups')); setBackupId(result.id); setNotice(messages.notice.backupImported);
+    if (modal?.kind !== 'import') return;
+    const done = modal.done;
+    const backup = await w.run(async () => {
+      const result = await api<Backup>('/backups?filename=' + encodeURIComponent(file.name), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: file,
+      });
+      await w.refresh();
+      w.setNotice('Бэкап проверен и загружен');
+      return result;
+    });
+    if (backup) {
+      done?.(backup);
+      setModal(null);
+    }
+  }
+  function openImport(done?: (backup: Backup) => void) {
+    showModal({ kind: 'import', done });
+  }
+  async function generateKey(name: string) {
+    return w.run(async () => {
+      const result = await api<SSHKey>('/ssh-keys', {
+        method: 'POST',
+        body: JSON.stringify({ name }),
+      });
+      await w.refresh();
+      return result;
     });
   }
+  async function createKey(name: string) {
+    const key = await generateKey(name);
+    if (key) showModal({ kind: 'key-result', key });
+  }
+  function deleteKey(key: SSHKey) {
+    showModal({
+      kind: 'confirm',
+      title: 'Удалить SSH-ключ?',
+      description:
+        'Локальная пара «' +
+        key.name +
+        '» будет удалена. Публичная часть в authorized_keys на VPS останется.',
+      danger: true,
+      confirm: async () => {
+        await api('/ssh-keys/' + key.id, { method: 'DELETE' });
+        await w.refresh();
+        w.setNotice('SSH-ключ удалён из Nodekit');
+      },
+    });
+  }
+  async function assignKey(keyId: string, id: string) {
+    const record = await w.run(async () => {
+      const current = await api<NodeRecord>('/nodes/' + id);
+      const result = await api<{ yaml: string }>('/config/ssh-key', {
+        method: 'POST',
+        body: JSON.stringify({ yaml: current.yaml, key_id: keyId }),
+      });
+      return w.saveNode(result.yaml, id);
+    });
+    if (record) setModal(null);
+  }
+  async function chooseRestore(backup: Backup, id: string) {
+    const record = await w.run(() => api<NodeRecord>('/nodes/' + id));
+    if (record) {
+      setRestoreChoice({ nodeId: id, backupId: backup.id });
+      await preview(record, 'restore', backup.id);
+    }
+  }
+  const nodeOptions = [
+    { value: '', label: 'Выбери ноду' },
+    ...w.nodes.filter((n) => n.state !== 'archived').map((n) => ({ value: n.id, label: n.name })),
+  ];
 
-  async function selectKey(id: string) {
-    await perform(async () => {
-      const result = await api<{ yaml: string }>('/config/ssh-key', { method: 'POST', body: JSON.stringify({ yaml: text, key_id: id || null }) });
-      setText(result.yaml); setPlan(null); setNotice(messages.connection.changed); setView('nodes');
-    });
+  function renderModal() {
+    if (!modal) return null;
+    const common = { busy: w.busy, error: w.error, onClose: closeModal };
+    switch (modal.kind) {
+      case 'node':
+        return (
+          <NodeFormModal
+            {...common}
+            record={modal.record}
+            template={modal.template}
+            nodes={w.nodes}
+            keys={w.keys}
+            onSave={saveNode}
+            onCreateKey={generateKey}
+          />
+        );
+      case 'deployment':
+        return (
+          <DeploymentModal
+            {...common}
+            record={modal.record}
+            report={modal.report}
+            onSave={async (text) => {
+              const saved = await w.run(() => w.saveNode(text, modal.record.id));
+              if (saved) setModal(null);
+            }}
+          />
+        );
+      case 'discovery':
+        return (
+          <DiscoveryModal
+            {...common}
+            record={modal.record}
+            report={modal.job.report!}
+            onSave={applySuggestions}
+          />
+        );
+      case 'plan':
+        return (
+          <PlanModal
+            {...common}
+            record={modal.record}
+            action={modal.action}
+            plan={modal.plan}
+            onReload={() => preview(modal.record, modal.action, modal.backupId)}
+            onLaunch={launch}
+          />
+        );
+      case 'import':
+        return <ImportModal {...common} onImport={importBackup} />;
+      case 'create-key':
+        return (
+          <SimpleForm
+            {...common}
+            title="Создать SSH-ключ"
+            description="Ed25519 без парольной фразы для фонового SSH. Приватная часть останется в локальном хранилище Nodekit."
+            fields={[
+              {
+                name: 'name',
+                label: 'Название ключа',
+                required: true,
+                maxLength: 80,
+                placeholder: 'Например, доступ к EU-серверам',
+              },
+            ]}
+            initial={{ name: '' }}
+            onSubmit={(values) => createKey(String(values.name))}
+            submit="Создать ключ"
+          />
+        );
+      case 'key-result':
+        return (
+          <Modal
+            title="SSH-ключ создан"
+            description="Добавь публичную часть в authorized_keys на сервере."
+            onClose={closeModal}
+            footer={
+              <Button
+                variant="primary"
+                onClick={() => showModal({ kind: 'assign-key', keyId: modal.key.id })}
+              >
+                Назначить ноде
+              </Button>
+            }
+          >
+            <CodeBlock value={modal.key.public_key} label="Публичный ключ" />
+            <p className="mono muted">{modal.key.fingerprint}</p>
+          </Modal>
+        );
+      case 'assign-key':
+        return (
+          <SimpleForm
+            key={modal.keyId}
+            {...common}
+            title="Назначить SSH-ключ"
+            fields={[
+              { name: 'node', label: 'Нода', type: 'select', required: true, options: nodeOptions },
+            ]}
+            initial={{ node: '' }}
+            onSubmit={(values) => assignKey(modal.keyId, String(values.node))}
+            submit="Сохранить привязку"
+          />
+        );
+      case 'restore':
+        return (
+          <SimpleForm
+            key={modal.backup.id}
+            {...common}
+            title="Восстановить из бэкапа"
+            description={modal.backup.filename}
+            fields={[
+              {
+                name: 'node',
+                label: 'Целевая нода',
+                type: 'select',
+                required: true,
+                options: nodeOptions,
+              },
+            ]}
+            initial={{ node: '' }}
+            onSubmit={(values) => chooseRestore(modal.backup, String(values.node))}
+            submit="Посмотреть план"
+          />
+        );
+      case 'confirm':
+        return (
+          <Modal
+            title={modal.title}
+            description={modal.description}
+            onClose={closeModal}
+            busy={w.busy}
+            footer={
+              <>
+                <Button onClick={closeModal} disabled={w.busy}>
+                  Отмена
+                </Button>
+                <Button
+                  className={modal.danger ? 'danger-button' : ''}
+                  variant="primary"
+                  loading={w.busy}
+                  onClick={async () => {
+                    const success = await w.run(async () => {
+                      await modal.confirm();
+                      return true;
+                    });
+                    if (success) setModal(null);
+                  }}
+                >
+                  Подтвердить
+                </Button>
+              </>
+            }
+          >
+            {w.error && <Alert tone="error">{w.error}</Alert>}
+          </Modal>
+        );
+      case 'manage':
+        return (
+          <NodeManagementModal
+            {...common}
+            node={modal.node}
+            onState={(state) => stateNode(modal.node, state)}
+            onDelete={() => deleteNode(modal.node)}
+          />
+        );
+    }
   }
-  async function selectInstallation(installation: Installation) {
-    await perform(async () => {
-      const result = await api<{ yaml: string }>('/config/installation', { method: 'POST', body: JSON.stringify({ yaml: text, installation }) });
-      setText(result.yaml); setPlan(null); setNotice(messages.connection.changed);
-    });
-  }
-
-  async function selectDeployment(target: DeploymentTarget) {
-    await perform(async () => {
-      const result = await api<{ yaml: string }>('/config/deployment', { method: 'POST', body: JSON.stringify({ yaml: text, target }) });
-      setText(result.yaml); setPlan(null); setTab('yaml'); setNotice(deploymentMessages.changed);
-    });
-  }
-  async function applyDiscovery(choice: DiscoveryChoice) {
-    if (!job || !currentReport) return;
-    await perform(async () => {
-      const result = await api<{ yaml: string }>('/config/from-discovery', { method: 'POST', body: JSON.stringify({ yaml: text, job_id: job.id, ...choice }) });
-      setText(result.yaml); setPlan(null); setTab('yaml'); setNotice(deploymentMessages.changed);
-    });
-  }
-
-  return <div className="shell">
-    <aside className="sidebar">
-      <a className="brand" href="/" aria-label="OMSI Nodekit"><span className="brand-icon"><Network size={23}/></span><span>omsi<span className="brand-light"> / nodekit</span></span></a>
-      <div className="workspace-label">{messages.ui.workspace} <span>v0.1</span></div>
-      <nav className="workspace-nav" aria-label={messages.navigation.label}>
-        <button type="button" className={`nav-item ${view === 'nodes' ? 'selected' : ''}`} aria-current={view === 'nodes' ? 'page' : undefined} onClick={() => setView('nodes')}><Server size={17}/>{messages.navigation.nodes}<span className="count">{nodes.length}</span></button>
-        <button type="button" className={`nav-item ${view === 'keys' ? 'selected' : ''}`} aria-current={view === 'keys' ? 'page' : undefined} onClick={() => setView('keys')}><KeyRound size={17}/>{messages.navigation.keys}<span className="count">{keys.length}</span></button>
-        <button type="button" className={`nav-item ${view === 'help' ? 'selected' : ''}`} aria-current={view === 'help' ? 'page' : undefined} onClick={() => openHelp()}><BookOpen size={17}/>{messages.navigation.help}</button>
-      </nav>
-      <div className="node-section"><span>{messages.ui.myNodes}</span><IconButton label={messages.ui.newNode} onClick={newNode} disabled={busy}><Plus size={17}/></IconButton></div>
-      <label className="node-filter"><span className="sr-only">Фильтр нод</span><select value={nodeFilter} onChange={event => setNodeFilter(event.target.value as NodeState | 'all')}>
-        {(['active', 'hidden', 'archived', 'all'] as const).map(state => <option key={state} value={state}>{messages.lifecycle.filters[state]} ({state === 'all' ? nodes.length : nodes.filter(node => node.state === state).length})</option>)}
-      </select></label>
-      <div className="node-list">{visibleNodes.length ? visibleNodes.map(node => <button key={node.id} className={`node-item ${selected?.id === node.id ? 'current' : ''}`} onClick={() => chooseNode(node.id)}><span className="node-avatar">{node.id.slice(0, 2).toUpperCase()}</span><span className="node-caption"><strong>{node.name}</strong><small>{node.id} · {messages.lifecycle.status[node.state]}</small></span><ChevronRight size={14}/></button>) : <div className="sidebar-empty">{nodes.length ? messages.lifecycle.filters[nodeFilter] : messages.ui.emptyNodesTitle}<br/>{!nodes.length && messages.ui.emptyNodesBody}</div>}</div>
-      <div className="sidebar-note"><ShieldCheck size={19}/><div><strong>{messages.ui.localControlTitle}</strong><p>{messages.ui.localControlBody}<br/>{messages.ui.sshConnection}</p></div></div>
-      <div className="backend-state"><span className={`dot ${online ? 'green' : ''}`}/>{online ? messages.ui.online : messages.ui.offline}<span>127.0.0.1</span></div>
-    </aside>
-    <main>
-      <header className="topbar"><span>{messages.ui.infrastructure} <ChevronRight size={13}/> {messages.navigation[view]}</span><span className="local-badge"><span className="dot green"/> {messages.ui.localWorkspace}</span></header>
-      <div className="page-content">
-        {error && <Alert tone="error" onClose={() => setError('')}>{error}</Alert>}
-        {notice && <Alert tone="success">{notice}</Alert>}
-        {view === 'keys' ? <SSHKeysPanel keys={keys} refresh={refreshKeys} onUse={selectKey} onHelp={() => openHelp('ssh')}/>
-          : view === 'help' ? <HelpPanel selected={guide} onSelect={setGuide} onBack={() => setView('nodes')}/>
-          : <>
-        <div className="page-heading"><div><div className="eyebrow">{messages.ui.slogan}</div><h1>{messages.ui.title}</h1><p>{messages.ui.subtitle}</p></div><Button onClick={newNode} disabled={busy} icon={<Plus size={16}/>}>{messages.ui.addNode}</Button></div>
-        <section className="metrics" aria-label={messages.ui.statistics}><div><Server size={19}/><span>{messages.ui.nodeCount}</span><strong>{nodes.length.toString().padStart(2, '0')}</strong></div><div><Activity size={19}/><span>{messages.ui.activeJobs}</span><strong>{jobs.filter(active).length.toString().padStart(2, '0')}</strong></div><div><Database size={19}/><span>{messages.ui.backupCount}</span><strong>{backups.length.toString().padStart(2, '0')}</strong></div><div><Check size={19}/><span>{messages.ui.completedJobs}</span><strong>{jobs.filter(j => j.status === 'succeeded').length.toString().padStart(2, '0')}</strong></div></section>
-        <div className="work-grid">
-          <section className="card config-card"><CardHeader title={selected?.name || messages.ui.newNode} subtitle={selected?.id || messages.ui.newNodeHelp} icon={<FileCode2 size={18}/>} trailing={<StatusBadge tone={dirty ? 'amber' : 'mint'}>{dirty ? messages.ui.unsaved : messages.ui.saved}</StatusBadge>}/>
-            <ConnectionSettings draft={draft} keys={keys} busy={busy} onKey={selectKey} onInstallation={selectInstallation} onManage={() => setView('keys')} onHelp={() => openHelp()}/>
-            <DeploymentSettings draft={draft} report={currentReport} busy={busy} onApply={selectDeployment}/>
-            <NodeLifecycle selected={selected} busy={busy} onState={changeNodeState} onDelete={deleteSelectedNode}/>
-            {archived && <p className="feature-hint">{messages.lifecycle.inactive}</p>}
-            <div className="editor-tabs"><button className={!showingFiles ? 'chosen' : ''} onClick={() => setTab('yaml')}><Code2 size={14}/> node.yaml</button><button className={showingFiles ? 'chosen' : ''} onClick={() => setTab('files')} disabled={!plan || !Object.keys(plan.files).length}><FolderOpen size={14}/> {messages.ui.planFiles}</button><span>YAML</span></div>
-            {!showingFiles ? <textarea className="yaml-editor" disabled={busy} aria-label={messages.ui.yamlLabel} value={text} onChange={event => { setText(event.target.value); setPlan(null); }} spellCheck={false}/> : <div className="files-preview"><div className="file-tabs">{plan && Object.keys(plan.files).map(name => <button key={name} className={file === name ? 'chosen' : ''} onClick={() => setFile(name)}>{name}</button>)}</div><pre>{plan?.files[file]}</pre></div>}
-            <div className="editor-footer"><span><Circle size={9}/> {messages.ui.validationHint}</span><Button small onClick={save} disabled={busy || !dirty} icon={<Save size={14}/>}>{messages.ui.save}</Button></div>
-          </section>
-          <section className="card operations-card"><CardHeader title={messages.ui.operations} subtitle={messages.ui.operationsHint} icon={<Play size={17}/>}/>
-            <div className="action-list">{actions.map(item => <button key={item.id} className={`action-option ${action === item.id ? 'active' : ''}`} onClick={() => { setAction(item.id); setPlan(null); }} disabled={busy || (!!draft && draft.panel.installation !== 'managed' && ['fresh', 'restore'].includes(item.id))}><span className="radio">{action === item.id && <span/>}</span><span><strong>{item.title}</strong><small>{item.description}</small></span>{action === item.id && <ArrowRight size={16}/>}</button>)}</div>
-            {action === 'restore' && <div className="backup-picker"><label htmlFor="backup">{messages.ui.restoreBackup}</label><select id="backup" value={backupId} onChange={e => setBackupId(e.target.value)}><option value="">{messages.ui.selectBackup}</option>{backups.map(backup => <option key={backup.id} value={backup.id}>{backup.filename} · {backup.id.slice(0, 6)}</option>)}</select><Button variant="text" onClick={() => upload.current?.click()} disabled={busy} icon={<Upload size={14}/>}>{messages.ui.uploadBackup}</Button></div>}
-            <input ref={upload} type="file" accept=".db" hidden onChange={event => { const picked = event.target.files?.[0]; if (picked) void importBackup(picked); event.target.value = ''; }}/>
-            <div className="operation-bottom"><p><ShieldCheck size={15}/>{dirty ? messages.ui.saveFirst : messages.ui.previewHint}</p><Button variant="primary" full loading={busy} onClick={preview} disabled={dirty || running || archived || (action === 'restore' && !backupId)} icon={<Play size={15}/>}>{messages.ui.preview}<ArrowRight size={15}/></Button></div>
-          </section>
+  let content;
+  if (w.loading) content = <Loading label="Загрузка рабочего пространства…" />;
+  else
+    switch (route.page) {
+      case 'dashboard':
+        content = <DashboardPage workspace={w} navigate={navigate} onCreate={newNode} />;
+        break;
+      case 'nodes':
+        content = (
+          <NodesPage
+            nodes={w.nodes}
+            jobs={w.jobs}
+            onOpen={(id) => navigate('/nodes/' + id)}
+            onCreate={newNode}
+            onManage={manageNode}
+          />
+        );
+        break;
+      case 'node':
+        content = (
+          <NodePage
+            route={route}
+            workspace={w}
+            reportJob={reportJob}
+            navigate={navigate}
+            onEdit={editNode}
+            onManage={() => w.selected && manageNode(w.selected)}
+            onDeployment={() => configure()}
+            onSuggest={suggest}
+            onPlan={(action, backupId) =>
+              w.selected && preview(w.selected, action, backupId || null)
+            }
+            onImport={openImport}
+            preferredBackup={
+              restoreChoice?.nodeId === route.id ? restoreChoice.backupId : undefined
+            }
+          />
+        );
+        break;
+      case 'operations':
+        content = route.id ? (
+          <OperationDetail
+            job={detail.job}
+            error={detail.error}
+            nodes={w.nodes}
+            navigate={navigate}
+            onConfigure={configure}
+            onSuggest={suggest}
+          />
+        ) : (
+          <OperationsPage jobs={w.jobs} nodes={w.nodes} navigate={navigate} />
+        );
+        break;
+      case 'backups':
+        content = (
+          <BackupsPage
+            backups={w.backups}
+            onImport={() => openImport()}
+            onRestore={(backup) => showModal({ kind: 'restore', backup })}
+          />
+        );
+        break;
+      case 'logs':
+        content = (
+          <LogsPage
+            jobs={w.jobs}
+            nodes={w.nodes}
+            job={detail.job}
+            error={detail.error}
+            navigate={navigate}
+          />
+        );
+        break;
+      case 'keys':
+        content = (
+          <SSHKeysPanel
+            keys={w.keys}
+            onCreate={() => showModal({ kind: 'create-key' })}
+            onDelete={deleteKey}
+            onUse={(keyId) => showModal({ kind: 'assign-key', keyId })}
+            onHelp={() => {
+              setGuide('ssh');
+              navigate('/help');
+            }}
+          />
+        );
+        break;
+      case 'help':
+        content = (
+          <HelpPanel selected={guide} onSelect={setGuide} onBack={() => navigate('/nodes')} />
+        );
+        break;
+      default:
+        content = (
+          <EmptyState
+            title="Страница не найдена"
+            action={
+              <Button onClick={() => navigate('/dashboard')} icon={<ArrowLeft size={17} />}>
+                На главную
+              </Button>
+            }
+          />
+        );
+    }
+  return (
+    <Shell route={route} nodes={w.nodes} online={w.online} navigate={navigate} onCreate={newNode}>
+      {!modal && w.error && (
+        <Alert tone="error" onClose={() => w.setError('')}>
+          {w.error}
+        </Alert>
+      )}
+      {w.notice && <Alert tone="success">{w.notice}</Alert>}
+      {!w.loading && !w.online && (
+        <div className="info-banner">
+          Нет связи с локальным API. Данные могут быть устаревшими.
+          <Button small onClick={() => w.run(w.refresh)}>
+            Повторить
+          </Button>
         </div>
-        {plan && <section className="card plan-card"><div className="plan-heading"><div><div className="eyebrow">{messages.ui.previewTitle}</div><h2>{actionTitle(plan.action)}</h2><p>{plan.remote_dir}</p></div><IconButton label={messages.ui.closePlan} onClick={() => setPlan(null)}><X size={18}/></IconButton></div><ol>{plan.steps.map(step => <li key={step}>{step}</li>)}</ol>{['fresh', 'restore'].includes(plan.action) && <p className="plan-warning">{messages.ui.deploymentHint}</p>}<div className="plan-footer"><Button variant="text" onClick={() => setTab('files')} disabled={!Object.keys(plan.files).length} icon={<FileCode2 size={15}/>}>{messages.ui.inspectFiles}</Button><Button variant="primary" loading={busy} onClick={launch} disabled={dirty || running || archived} icon={<Play size={15}/>}>{formatMessage(messages.ui.launch, { action: actionTitle(plan.action).toLowerCase() })}</Button></div></section>}
-        <section className="card journal-card"><CardHeader title={messages.ui.journal} subtitle={messages.ui.journalHint} icon={<Terminal size={18}/>} trailing={<span className="journal-live"><span className={`dot ${running ? 'green' : ''}`}/>{running ? messages.ui.running : messages.ui.idle}</span>}/><div className="journal-body"><div className="job-list">{jobs.length ? jobs.map(item => <button key={item.id} className={`job-row ${jobId === item.id ? 'current' : ''}`} onClick={() => { setJobId(item.id); setJob(null); }}><span className={`status-icon ${item.status}`}>{active(item) ? <Spinner size={15}/> : item.status === 'succeeded' ? <Check size={15}/> : <X size={15}/>}</span><span><strong>{actionTitle(item.action)}</strong><small>{item.node_id} · {date(item.created_at)}</small></span><span className={`job-status ${item.status}`}>{statusLabel(item.status)}</span></button>) : <div className="empty-jobs"><Activity size={22}/><strong>{messages.ui.emptyJobs}</strong><p>{messages.ui.emptyJobsHint}</p></div>}</div><div className="terminal" ref={terminal} aria-label={messages.ui.taskJournal} aria-live="polite"><div className="terminal-caption"><span className="terminal-dots"><i/><i/><i/></span><span>{job ? `${job.node_id} / ${job.action}` : messages.ui.terminalReady}</span>{job && <button type="button" className="journal-export" onClick={downloadJobLog}>{messages.ui.downloadJournal}</button>}</div>{job ? <><div className="terminal-line dim">$ {job.action} · {job.id.slice(0, 8)}</div>{job.events.map(event => <div key={event.seq} className={`terminal-line ${event.level}`}><span>{date(event.created_at)}</span>{event.message}</div>)}{active(job) && <div className="terminal-line dim"><Spinner size={13}/> {messages.ui.waitForVps}</div>}{job.backup_id && <a className="download-link" href={`/api/backups/${job.backup_id}/download`}><ArrowDownToLine size={14}/> {messages.ui.downloadBackup}</a>}</> : <div className="terminal-placeholder"><span className="terminal-prompt">›</span> {messages.ui.terminalEmpty}<br/><span>{messages.ui.terminalHint}</span></div>}</div></div></section>
-        {job?.report && <InstallationReportView report={job.report} node={job.node_id} suggestions={<DiscoverySuggestions report={job.report} disabled={busy || !draft || !currentReport || running} onApply={applyDiscovery}/>}/>}
-        {!!backups.length && <section className="backups-section"><h2><Database size={17}/> {messages.ui.backups}</h2><div className="backup-items">{backups.map(backup => <a key={backup.id} className="backup-item" href={`/api/backups/${backup.id}/download`}><Database size={17}/><span><strong>{backup.filename}</strong><small>{formatMessage(messages.ui.backupSize, { size: (backup.size / 1024).toFixed(0) })} · SHA256 {backup.sha256.slice(0, 10)}…</small></span><ArrowDownToLine size={16}/></a>)}</div></section>}
-        <footer className="page-footer"><span>OMSI NODEKIT <span> / </span> {messages.ui.footer}</span><span>{messages.ui.trafficHint}</span></footer>
-        </>}
-      </div>
-    </main>
-  </div>;
+      )}
+      {content}
+      {renderModal()}
+      {nav.pending && (
+        <Modal
+          title="Отменить изменения?"
+          description="В YAML есть несохранённые изменения. Они будут потеряны при переходе."
+          onClose={nav.cancel}
+          footer={
+            <>
+              <Button onClick={nav.cancel}>Продолжить редактирование</Button>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  w.setYaml(w.selected?.yaml || '');
+                  nav.discard();
+                }}
+              >
+                Отменить и перейти
+              </Button>
+            </>
+          }
+        >
+          {null}
+        </Modal>
+      )}
+    </Shell>
+  );
 }

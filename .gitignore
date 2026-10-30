@@ -28,6 +28,8 @@ dist/
 
 # Logs
 logs/
+!frontend/src/features/logs/
+!frontend/src/features/logs/**
 *.log
 
 # Local data

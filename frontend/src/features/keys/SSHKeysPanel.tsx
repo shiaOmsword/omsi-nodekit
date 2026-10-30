@@ -1,49 +1,74 @@
-import { useState } from 'react';
-import { KeyRound, Trash2 } from 'lucide-react';
-import { api, getErrorMessage } from '../../framework/api';
-import { Alert, Button, CardHeader, CodeBlock } from '../../framework/components';
-import { formatMessage, messages } from '../../framework/messages';
+import { KeyRound, Plus, Trash2 } from 'lucide-react';
+import { Button, CodeBlock, EmptyState, PageHeading } from '../../framework/components';
+import { messages } from '../../framework/messages';
 import type { SSHKey } from '../../types';
+import { formatDate } from '../../app/format';
 
-interface Props { keys: SSHKey[]; refresh: () => Promise<void>; onUse: (id: string) => void; onHelp: () => void }
-
-export function SSHKeysPanel({ keys, refresh, onUse, onHelp }: Props) {
-  const [name, setName] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
-  async function create(event: React.FormEvent) {
-    event.preventDefault(); setBusy(true); setError(''); setNotice('');
-    try {
-      await api<SSHKey>('/ssh-keys', { method: 'POST', body: JSON.stringify({ name }) });
-      setName(''); await refresh(); setNotice(messages.keys.createdNotice);
-    } catch (err) { setError(getErrorMessage(err)); }
-    finally { setBusy(false); }
-  }
-  async function remove(key: SSHKey) {
-    if (!window.confirm(formatMessage(messages.keys.deleteConfirm, { name: key.name }))) return;
-    setBusy(true); setError(''); setNotice('');
-    try { await api(`/ssh-keys/${key.id}`, { method: 'DELETE' }); await refresh(); setNotice(messages.keys.deletedNotice); }
-    catch (err) { setError(getErrorMessage(err)); }
-    finally { setBusy(false); }
-  }
-  return <>
-    <div className="page-heading"><div><div className="eyebrow">OMSI NODEKIT</div><h1>{messages.keys.title}</h1><p>{messages.keys.subtitle}</p></div>
-      <Button onClick={onHelp}>{messages.keys.manual}</Button></div>
-    {error && <Alert tone="error" onClose={() => setError('')}>{error}</Alert>}
-    {notice && <Alert tone="success">{notice}</Alert>}
-    <section className="card key-create"><CardHeader icon={<KeyRound size={18}/>} title={messages.keys.create}/>
-      <form onSubmit={create}><label className="form-field"><span>{messages.keys.name}</span>
-        <input required maxLength={80} value={name} onChange={e => setName(e.target.value)} placeholder={messages.keys.namePlaceholder} disabled={busy}/></label>
-        <Button type="submit" variant="primary" loading={busy} disabled={!name.trim()}>{messages.keys.generate}</Button></form>
-      <p className="feature-hint">{messages.keys.storage}</p><p className="feature-hint">{messages.keys.passphrase}</p>
-    </section>
-    {!keys.length && <div className="feature-empty"><KeyRound size={28}/><h2>{messages.keys.empty}</h2><p>{messages.keys.emptyBody}</p></div>}
-    <div className="keys-grid">{keys.map(key => <section className="card key-card" key={key.id}>
-      <CardHeader icon={<KeyRound size={18}/>} title={key.name} subtitle={key.fingerprint}/>
-      <CodeBlock value={key.public_key} label={messages.keys.publicKey}/>
-      <div className="key-actions"><Button small onClick={() => onUse(key.id)} disabled={busy}>{messages.keys.use}</Button>
-        <Button small variant="text" icon={<Trash2 size={14}/>} onClick={() => remove(key)} disabled={busy}>{messages.keys.delete}</Button></div>
-    </section>)}</div>
-  </>;
+interface Props {
+  keys: SSHKey[];
+  onCreate: () => void;
+  onDelete: (key: SSHKey) => void;
+  onUse: (id: string) => void;
+  onHelp: () => void;
+}
+export function SSHKeysPanel({ keys, onCreate, onDelete, onUse, onHelp }: Props) {
+  return (
+    <>
+      <PageHeading
+        title="SSH-ключи"
+        description="Ключи доступа к серверам и их публичные части."
+        actions={
+          <>
+            <Button onClick={onHelp}>Как подключить сервер</Button>
+            <Button variant="primary" onClick={onCreate} icon={<Plus size={18} />}>
+              Создать ключ
+            </Button>
+          </>
+        }
+      />
+      {!keys.length ? (
+        <section className="card">
+          <EmptyState
+            title="Пока нет SSH-ключей"
+            description="Создай ключ и добавь его публичную часть в authorized_keys на сервере. Можно также использовать существующий файл ключа в настройках ноды."
+            action={
+              <Button onClick={onCreate} variant="primary">
+                Создать ключ
+              </Button>
+            }
+          />
+        </section>
+      ) : (
+        <div className="keys-grid">
+          {keys.map((key) => (
+            <section className="card key-card" key={key.id}>
+              <div className="key-card-heading">
+                <span className="node-symbol">
+                  <KeyRound size={22} />
+                </span>
+                <div>
+                  <h2>{key.name}</h2>
+                  <span className="muted">Создан {formatDate(key.created_at)}</span>
+                </div>
+                <span className="tag">Ed25519</span>
+              </div>
+              <p className="key-fingerprint mono">{key.fingerprint}</p>
+              <CodeBlock value={key.public_key} label="Публичный ключ" />
+              <div className="key-actions">
+                <Button onClick={() => onUse(key.id)}>Назначить ноде</Button>
+                <Button variant="text" icon={<Trash2 size={17} />} onClick={() => onDelete(key)}>
+                  Удалить ключ
+                </Button>
+              </div>
+            </section>
+          ))}
+        </div>
+      )}
+      <details className="card storage-note">
+        <summary>Хранение и доступ к ключам</summary>
+        <p>{messages.keys.storage}</p>
+        <p>{messages.keys.passphrase}</p>
+      </details>
+    </>
+  );
 }
