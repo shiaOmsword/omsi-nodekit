@@ -26,10 +26,17 @@ class JobStatus(StrEnum):
     INTERRUPTED = "interrupted"
 
 
+class NodeState(StrEnum):
+    ACTIVE = "active"
+    HIDDEN = "hidden"
+    ARCHIVED = "archived"
+
+
 class NodeSummary(Entity):
     id: str
     name: str
     revision: str
+    state: NodeState = NodeState.ACTIVE
 
 
 class StoredNode(NodeSummary):
