@@ -26,6 +26,16 @@ export function InstallationReportView({ report, node }: { report: InstallationR
     subtitle={formatMessage(t.subtitle, { node })} trailing={<time dateTime={report.observed_at}>{new Date(report.observed_at).toLocaleString('ru-RU')}</time>}/>
     <div className="inventory-content">
       <div className="capabilities"><span>{t.capabilities}</span>{Object.entries(report.capabilities).map(([name, available]) => <StatusBadge key={name} tone={available ? 'mint' : 'amber'}>{name} · {available ? t.yes : t.no}</StatusBadge>)}</div>
+      {!!report.profiles?.length && <>
+        <h2>{t.profiles}</h2><p className="feature-hint">{t.profilesHint}</p>
+        <div className="table-scroll"><table><thead><tr>
+          <th>{t.panelRuntime}</th><th>{t.caddyRuntime}</th><th>{t.missingTools}</th>
+        </tr></thead><tbody>{report.profiles.map(profile => <tr key={`${profile.panel_runtime}-${profile.caddy_runtime}`}>
+          <td>{profile.panel_runtime === 'native' ? t.runtimeNative : t.runtimeDocker}</td>
+          <td>{profile.caddy_runtime === 'none' ? t.caddyNone : profile.caddy_runtime === 'native' ? t.runtimeNative : t.runtimeDocker}</td>
+          <td><StatusBadge tone={profile.ready ? 'mint' : 'amber'}>{profile.ready ? t.toolsReady : profile.missing.join(', ')}</StatusBadge></td>
+        </tr>)}</tbody></table></div>
+      </>}
       <Warnings values={report.warnings}/>
       {!report.selected_panel && <Alert tone="error">{t.notSelected}</Alert>}
       <h2>{t.panels}</h2>{!report.panels.length && <p className="feature-hint">{t.noPanels}</p>}
