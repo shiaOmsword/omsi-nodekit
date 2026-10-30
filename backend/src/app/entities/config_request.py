@@ -1,3 +1,5 @@
-from app.entities import StrictModel
+from .base import StrictModel
+
+
 class ConfigRequest(StrictModel):
     yaml: str

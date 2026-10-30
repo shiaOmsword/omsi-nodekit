@@ -36,7 +36,7 @@ npm run dev
 ```
 
 Открыть http://127.0.0.1:5173. Vite проксирует `/api` на backend. Для разработки backend
-можно запустить `poetry run uvicorn app.app:app --app-dir src --host 127.0.0.1 --port 8765 --reload`.
+можно запустить `poetry run uvicorn app.create_app:app --app-dir src --host 127.0.0.1 --port 8765 --reload`.
 Во время удалённых операций используй обычный `poetry run nodekit`, без hot reload.
 
 Настройки backend опциональны: скопируй `backend/.envs/.local.example.env` в
@@ -168,17 +168,20 @@ ssh -N -L 12053:127.0.0.1:2053 -p 22 -i ~/.ssh/id_ed25519 root@YOUR_VPS
 Таймаут SSH — 20 минут; после обрыва SSH или backend удалённая команда может ещё работать.
 Автоматического rollback, отмены операций и миграции существующей установки в v0.1 нет.
 
-## Где что находится
+## Архитектура и настройки
 
-| Файл | Ответственность |
-| --- | --- |
-| `backend/src/app/entities/node.py` | Pydantic-модели и проверка YAML |
-| `backend/src/app/rendering.py` | Compose, Caddyfile, systemd units и план |
-| `backend/src/app/remote_agent.py` | Самодостаточный Python-код, передаваемый на VPS по SSH stdin |
-| `backend/src/app/execution.py` | SSH-процесс, таймаут, события и приём бэкапа |
-| `backend/src/app/storage.py` | Локальная SQLite: ноды, задачи, журнал и каталог бэкапов |
-| `backend/src/app/app.py` | HTTP API и раздача собранного React |
-| `frontend/src/App.tsx` | React-панель и её состояние |
+Реализация разделена на общие компоненты `framework`, сущности/сценарии `app` и конкретные
+адаптеры `app/infrastructure`. Сборка зависимостей — `app/container.py` через punq.
+Подробности, граф зависимостей, публичные импорты и формат ошибок: [docs/architecture.md](docs/architecture.md).
+
+Дефолты нод находятся в `app/defaults.py`; настройки приложения — в `app/config.py`.
+Порты, SSH-таймауты, лимиты, каталоги VPS и другие параметры переопределяются через
+`.envs/.local.env`, например `NODEKIT_SSH__OPERATION_TIMEOUT=900`.
+Для другого окружения задай `NODEKIT_ENVIRONMENT=staging`: загрузится `.envs/.staging.env`.
+Публичные модели импортируются через `app.entities`, сценарии — через `app.services`.
+
+JSON API теперь возвращает `{ok, data, error, meta}` с `request_id`. Фронт адаптирован
+в одном `api.ts`; `.db` и манифесты продолжают скачиваться как файлы.
 
 Панель слушает только loopback. Не публикуй её на VPS: в ней есть доступ к SSH-ключам
 твоего пользователя. Browser origin и Host проверяются, изменяющие запросы требуют
@@ -194,6 +197,7 @@ poetry run ruff check src tests
 poetry run ruff format --check src tests
 cd ../frontend
 npm ci
+npm test
 npm run build
 ```
 

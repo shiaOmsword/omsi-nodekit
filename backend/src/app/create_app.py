@@ -1,50 +1,56 @@
-
-from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
-from pathlib import Path
-from typing import Literal
 
-import yaml
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse
+import punq
+from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from app.config import Settings, get_settings
-from app.entities import ConfigRequest, JobRequest, parse_node
-from app.execution import MAX_BACKUP, execute, validate_backup
-from app.rendering import plan
-from app.storage import Store
+from app.container import build_container
+from app.defaults import APP_TITLE, APP_VERSION
+from app.infrastructure.bootstrap import StorageBootstrap
+from app.middleware import LocalRequestMiddleware
+from app.routes import ApplicationRoutes
+from framework.logging import configure_logging
+from framework.routing import ApiResponse, ExceptionHandlers, Responses
+from framework.tasks import TaskScheduler
 
-Action = Literal["check", "doctor", "fresh", "restore", "backup"]
 
-
-def create_app(settings: Settings | None = None):
+def create_app(settings: Settings | None = None, *, container: punq.Container | None = None):
     settings = settings or get_settings()
+    container = container or build_container(settings)
+    container.register(ApplicationRoutes, scope=punq.Scope.singleton)
 
     @asynccontextmanager
-    async def lifespan(app):
-        app.state.store = Store(settings.data_dir)
-        app.state.store.recover_jobs()
-        app.state.pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="nodekit")
-        yield
-        # Finish active jobs before closing; a reload must not start a second worker.
-        app.state.pool.shutdown(wait=True)
-
-    app = FastAPI(title="OMSI Nodekit", version="0.1.0", lifespan=lifespan)
-
-    @app.exception_handler(KeyError)
-    async def not_found(request, exc):
-        return JSONResponse({"detail": str(exc.args[0])}, status_code=404)
-
-    @app.exception_handler(ValueError)
-    async def bad_value(request, exc):
-        return JSONResponse({"detail": str(exc)}, status_code=422)
-
-    def parse(text):
+    async def lifespan(application):
+        configure_logging(settings.log_level)
         try:
-            return parse_node(text)
-        except (ValueError, yaml.YAMLError, RecursionError) as exc:
-            raise HTTPException(422, str(exc)) from exc
+            container.resolve(StorageBootstrap).initialize()
+            yield
+        finally:
+            container.resolve(TaskScheduler).close()
+
+    application = FastAPI(title=APP_TITLE, version=APP_VERSION, lifespan=lifespan)
+    application.state.container = container
+    errors = container.resolve(ExceptionHandlers)
+    errors.install(application)
+    application.add_middleware(LocalRequestMiddleware, policy=settings.server, errors=errors)
+    application.include_router(container.resolve(ApplicationRoutes).create())
+    if settings.frontend_dir.is_dir():
+        application.mount(
+            "/", StaticFiles(directory=settings.frontend_dir, html=True), name="frontend"
+        )
+    else:
+
+        @application.get("/")
+        def frontend_missing() -> ApiResponse:
+            return Responses.success(
+                {
+                    "message": "Build the frontend: cd frontend && npm ci && npm run build",
+                    "docs": "/docs",
+                }
+            )
+
+    return application
 
 
 app = create_app()

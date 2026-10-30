@@ -1,30 +1,66 @@
-def ssh_command(node: Node):
-    identity = Path(node.ssh.identity_file).expanduser().resolve()
-    known_hosts = Path(node.ssh.known_hosts_file).expanduser().resolve()
-    for path in (identity, known_hosts):
-        if not path.is_file():
-            raise ValueError(f"Local SSH file does not exist: {path}")
-    return [
-        "ssh",
-        "-T",
-        "-p",
-        str(node.ssh.port),
-        "-i",
-        str(identity),
-        "-o",
-        "IdentitiesOnly=yes",
-        "-o",
-        "BatchMode=yes",
-        "-o",
-        "StrictHostKeyChecking=yes",
-        "-o",
-        f"UserKnownHostsFile={known_hosts}",
-        "-o",
-        "ConnectTimeout=10",
-        "-o",
-        "ServerAliveInterval=10",
-        "-o",
-        "ServerAliveCountMax=3",
-        f"{node.ssh.user}@{node.ssh.host}",
-        "sudo -n python3 -" if node.ssh.sudo else "python3 -",
-    ]
+from dataclasses import dataclass
+from pathlib import Path
+
+from .execute import CommandRunner, ProcessError
+
+
+@dataclass(frozen=True)
+class SSHConnection:
+    host: str
+    user: str
+    port: int
+    identity_file: str
+    known_hosts_file: str
+    sudo: bool = False
+
+
+@dataclass(frozen=True)
+class SSHOptions:
+    binary: str
+    connect_timeout: int
+    alive_interval: int
+    alive_count: int
+    python_command: str
+    sudo_python_command: str
+
+
+class SSHClient:
+    def __init__(self, runner: CommandRunner, options: SSHOptions):
+        self.runner = runner
+        self.options = options
+
+    def command(self, connection: SSHConnection) -> list[str]:
+        identity = Path(connection.identity_file).expanduser().resolve()
+        hosts = Path(connection.known_hosts_file).expanduser().resolve()
+        for path in (identity, hosts):
+            if not path.is_file():
+                raise ProcessError(f"Local SSH file does not exist: {path}")
+        # OpenSSH parses -o values itself; quoting also supports spaces in Windows paths.
+        known_hosts = str(hosts).replace("\\", "/").replace('"', '\\"')
+        return [
+            self.options.binary,
+            "-T",
+            "-p",
+            str(connection.port),
+            "-i",
+            str(identity),
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            f'UserKnownHostsFile="{known_hosts}"',
+            "-o",
+            f"ConnectTimeout={self.options.connect_timeout}",
+            "-o",
+            f"ServerAliveInterval={self.options.alive_interval}",
+            "-o",
+            f"ServerAliveCountMax={self.options.alive_count}",
+            f"{connection.user}@{connection.host}",
+            self.options.sudo_python_command if connection.sudo else self.options.python_command,
+        ]
+
+    def execute(self, connection: SSHConnection, script: str, *, timeout: float):
+        return self.runner.stream(self.command(connection), script, timeout=timeout)

@@ -1,70 +1,93 @@
-def execute(store: Store, job_id: str, node: Node, action: str, backup_id: str | None):
-    store.start(job_id)
-    received_backup = None
-    try:
-        backup = store.backup_path(backup_id).read_bytes() if backup_id else None
-        script = agent_source(node, action, backup)
-        command = ssh_command(node)
-        store.event(job_id, f"Connecting to {node.ssh.user}@{node.ssh.host}:{node.ssh.port}")
-        process = subprocess.Popen(
-            command,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-        )
-        timed_out = threading.Event()
+"""Generic subprocess execution. No application models, storage, or job states."""
 
-        def timeout():
-            timed_out.set()
-            process.kill()
+import subprocess
+import threading
+from collections.abc import Iterator
 
-        timer = threading.Timer(1200, timeout)
-        timer.start()
+
+class ProcessError(RuntimeError):
+    pass
+
+
+class CommandRunner:
+    def completed(self, args: list[str], *, timeout: float):
+        try:
+            return subprocess.run(
+                args,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=timeout,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise ProcessError(f"{args[0]} timed out after {timeout}s") from exc
+        except OSError as exc:
+            raise ProcessError(f"Cannot start executable: {args[0]}") from exc
+
+    def status(self, args: list[str], *, timeout: float) -> int:
+        return self.completed(args, timeout=timeout).returncode
+
+    def run(self, args: list[str], *, timeout: float, sensitive: bool = False) -> str:
+        result = self.completed(args, timeout=timeout)
+        if result.returncode:
+            detail = "Sensitive command failed" if sensitive else result.stderr[-1500:]
+            raise ProcessError(f"{args[0]} failed ({result.returncode}): {detail}")
+        return result.stdout.strip()
+
+    def stream(self, args: list[str], content: str, *, timeout: float) -> Iterator[str]:
+        try:
+            process = subprocess.Popen(
+                args,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+            )
+        except OSError as exc:
+            raise ProcessError(f"Cannot start executable: {args[0]}") from exc
+        expired = threading.Event()
+        write_errors = []
+
+        def kill():
+            expired.set()
+            if process.poll() is None:
+                process.kill()
 
         def send():
             try:
-                process.stdin.write(script)
-                process.stdin.close()
-            except (BrokenPipeError, OSError):
-                pass
+                process.stdin.write(content)
+            except (BrokenPipeError, OSError) as exc:
+                write_errors.append(exc)
+            finally:
+                try:
+                    process.stdin.close()
+                except OSError:
+                    pass
 
+        timer = threading.Timer(timeout, kill)
         sender = threading.Thread(target=send, daemon=True)
+        timer.start()
         sender.start()
         try:
-            for line in process.stdout:
-                try:
-                    event = json.loads(line)
-                except json.JSONDecodeError:
-                    store.event(job_id, line.strip(), "warning")
-                    continue
-                if "backup" in event:
-                    if action != "backup" or received_backup is not None:
-                        raise RuntimeError("Unexpected backup payload")
-                    raw = base64.b64decode(event["backup"], validate=True)
-                    validate_backup(raw)
-                    received_backup = store.add_backup(raw, f"{node.id}-x-ui.db")["id"]
-                    store.save_manifest(received_backup, node)
-                else:
-                    store.event(job_id, str(event.get("message", "")), event.get("level", "info"))
-            returncode = process.wait()
+            yield from process.stdout
+            code = process.wait()
             sender.join(timeout=3)
-            if timed_out.is_set():
-                raise RuntimeError(
-                    "SSH timed out after 20 minutes; inspect remote services before retrying"
+            if expired.is_set():
+                raise ProcessError(
+                    f"Process timed out after {timeout}s; inspect remote services before retrying"
                 )
-            if returncode:
-                raise RuntimeError(
-                    f"Remote operation failed (SSH exit {returncode}); see the journal"
-                )
-            if action == "backup" and not received_backup:
-                raise RuntimeError("Remote operation returned no backup")
+            if code:
+                raise ProcessError(f"Remote operation failed (SSH exit {code}); see the journal")
+            if write_errors:
+                raise ProcessError("Could not deliver the entire remote script")
         finally:
             timer.cancel()
             if process.poll() is None:
                 process.kill()
-                process.wait()
-        store.finish(job_id, "succeeded", backup_id=received_backup)
-    except Exception as exc:
-        store.event(job_id, str(exc), "error")
-        store.finish(job_id, "failed", str(exc), backup_id=received_backup)
+            process.wait()
+            sender.join(timeout=3)
+            process.stdout.close()

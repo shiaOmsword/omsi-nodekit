@@ -1,14 +1,21 @@
-from app.entities import Slug, Host, User, Port, StrictModel, field_validator, re
+import re
+
+from pydantic import field_validator
+
+from app.defaults import NODE_DEFAULTS as D
+
+from .base import Host, Port, Slug, StrictModel, User
+
 
 class Tunnel(StrictModel):
     name: Slug
     host: Host
-    user: User = "omsi"
-    ssh_port: Port = 22
-    local_port: Port = 15443
-    target_port: Port = 443
-    identity_file: str = "/home/omsi/.ssh/gb_xray_tunnel"
-    known_hosts_file: str = "/home/omsi/.ssh/known_hosts"
+    user: User = D.tunnel_user
+    ssh_port: Port = D.ssh_port
+    local_port: Port = D.tunnel_local_port
+    target_port: Port = D.xray_port
+    identity_file: str = D.tunnel_identity_file
+    known_hosts_file: str = D.tunnel_known_hosts
 
     @field_validator("identity_file", "known_hosts_file")
     @classmethod

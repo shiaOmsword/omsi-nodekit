@@ -1,7 +1,10 @@
-from app.entities import Port, StrictModel, Host
+from app.defaults import NODE_DEFAULTS as D
+
+from .base import Host, Port, StrictModel
+
 
 class Caddy(StrictModel):
     enabled: bool = False
-    image: str = "caddy:2.10.2-alpine"
-    domain: Host = "vpn.example.com"
-    https_port: Port = 2096
+    image: str = D.caddy_image
+    domain: Host = D.caddy_domain
+    https_port: Port = D.caddy_https_port

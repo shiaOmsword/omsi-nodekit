@@ -1,8 +1,15 @@
-from app.entities import StrictModel, Port, field_validator, re
+import re
+
+from pydantic import field_validator
+
+from app.defaults import NODE_DEFAULTS as D
+
+from .base import Port, StrictModel
+
 
 class Probe(StrictModel):
-    socks_port: Port = 10808
-    url: str = "https://www.cloudflare.com/cdn-cgi/trace"
+    socks_port: Port = D.probe_socks_port
+    url: str = D.probe_url
 
     @field_validator("url")
     @classmethod

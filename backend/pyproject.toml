@@ -3,7 +3,7 @@ name = "backend"
 version = "0.1.0"
 description = "Local control panel for reproducible 3x-ui nodes"
 authors = ["Omsi"]
-packages = [{ include = "app", from = "src" }]
+packages = [{ include = "app", from = "src" }, { include = "framework", from = "src" }]
 
 [tool.poetry.scripts]
 nodekit = "app.main:main"

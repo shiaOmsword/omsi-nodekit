@@ -1,16 +1,16 @@
-from app.entities import (
-    StrictModel, 
-    Field,
-    Slug,
-    Panel,
-    Caddy,
-    Tunnel,
-    Probe,
-    SSH,
-    model_validator,
-    re,
-    yaml,
-)
+import re
+
+from pydantic import Field, model_validator
+
+from app.defaults import NODE_DEFAULTS as D
+
+from .base import Slug, StrictModel
+from .caddy import Caddy
+from .panel import Panel
+from .probe import Probe
+from .ssh import SSH
+from .tunnel import Tunnel
+
 
 class Node(StrictModel):
     id: Slug
@@ -18,7 +18,7 @@ class Node(StrictModel):
     ssh: SSH
     panel: Panel = Field(default_factory=Panel)
     caddy: Caddy = Field(default_factory=Caddy)
-    tunnels: list[Tunnel] = Field(default_factory=list, max_length=12)
+    tunnels: list[Tunnel] = Field(default_factory=list)
     probe: Probe | None = None
 
     @model_validator(mode="after")
@@ -29,9 +29,9 @@ class Node(StrictModel):
         ports = [self.panel.port, self.panel.subscription_port]
         ports += [t.local_port for t in self.tunnels]
         if self.caddy.enabled:
-            ports += [80, self.caddy.https_port]
-        if len(ports) != len(set(ports)) or 443 in ports:
-            raise ValueError("Ports must be unique; port 443 is reserved for Xray")
+            ports += [D.acme_http_port, self.caddy.https_port]
+        if len(ports) != len(set(ports)) or D.xray_port in ports:
+            raise ValueError(f"Ports must be unique; port {D.xray_port} is reserved for Xray")
         for image in (self.panel.image, self.caddy.image):
             if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9./_:@-]+", image):
                 raise ValueError("Invalid Docker image reference")
@@ -39,11 +39,3 @@ class Node(StrictModel):
             if ":" not in last or last.endswith(":latest"):
                 raise ValueError("Pin Docker images to a version or digest; latest is not accepted")
         return self
-
-def parse_node(text: str) -> Node:
-    if len(text.encode()) > 65536:
-        raise ValueError("Configuration exceeds 64 KiB")
-    data = yaml.safe_load(text)
-    if not isinstance(data, dict):
-        raise ValueError("YAML must contain an object")
-    return Node.model_validate(data)

@@ -1,100 +1,159 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from app.app import create_app
-from app.config import Settings
-from app.storage import Store
+from app.create_app import create_app
+from app.entities import ExecutionEvent, Job, JobAction, JobStatus, StoredNode
+from app.ports import JobRepository, NodeExecutor, NodeRepository
+from framework.entities import ConflictError
 
 HEADERS = {"X-Nodekit-Request": "1"}
 
 
 @pytest.fixture
-def client(tmp_path):
-    app = create_app(Settings(data_dir=tmp_path / "data", frontend_dir=tmp_path / "absent"))
-    with TestClient(app, base_url="http://127.0.0.1:8765", headers=HEADERS) as client:
+def client(settings, container):
+    application = create_app(settings, container=container)
+    with TestClient(
+        application, base_url=f"http://127.0.0.1:{settings.server.port}", headers=HEADERS
+    ) as client:
         yield client
+
+
+def data(response):
+    body = response.json()
+    assert set(body) == {"ok", "data", "error", "meta"}
+    assert body["ok"] is True and body["error"] is None
+    assert body["meta"]["request_id"] == response.headers["x-request-id"]
+    return body["data"]
 
 
 def test_save_preview_and_stale_revision(client, node_yaml):
     saved = client.put("/api/nodes/test-node", json={"yaml": node_yaml})
     assert saved.status_code == 200
-    plan = client.get("/api/nodes/test-node/plan?action=fresh").json()
-    assert plan["revision"] == saved.json()["revision"]
-    assert "compose.yaml" in plan["files"]
-    changed = node_yaml.replace("Test node", "Renamed node")
-    assert client.put("/api/nodes/test-node", json={"yaml": changed}).status_code == 200
+    preview = data(client.get("/api/nodes/test-node/plan?action=fresh"))
+    assert preview["revision"] == data(saved)["revision"]
+    assert "compose.yaml" in preview["files"]
+    assert (
+        client.put(
+            "/api/nodes/test-node", json={"yaml": node_yaml.replace("Test node", "Renamed node")}
+        ).status_code
+        == 200
+    )
     rejected = client.post(
-        "/api/nodes/test-node/jobs", json={"action": "fresh", "revision": plan["revision"]}
+        "/api/nodes/test-node/jobs", json={"action": "fresh", "revision": preview["revision"]}
     )
     assert rejected.status_code == 409
+    assert rejected.json()["error"]["code"] == "conflict"
 
 
 def test_restore_has_no_silent_fresh_fallback(client, node_yaml):
-    saved = client.put("/api/nodes/test-node", json={"yaml": node_yaml}).json()
+    saved = data(client.put("/api/nodes/test-node", json={"yaml": node_yaml}))
     result = client.post(
         "/api/nodes/test-node/jobs", json={"action": "restore", "revision": saved["revision"]}
     )
     assert result.status_code == 422
-    assert client.get("/api/jobs").json() == []
+    assert result.json()["error"]["code"] == "validation_error"
+    assert data(client.get("/api/jobs")) == []
 
 
 def test_backup_upload_validation_and_download(client, db_file):
     invalid = client.post("/api/backups?filename=test.db", content=b"broken")
     assert invalid.status_code == 422
-    result = client.post("/api/backups?filename=x-ui.db", content=db_file.read_bytes())
-    assert result.status_code == 201
-    backup = result.json()
+    backup = data(client.post("/api/backups?filename=x-ui.db", content=db_file.read_bytes()))
     assert len(backup["sha256"]) == 64
-    assert client.get(f"/api/backups/{backup['id']}/download").content == db_file.read_bytes()
+    downloaded = client.get(f"/api/backups/{backup['id']}/download")
+    assert downloaded.content == db_file.read_bytes()
+    assert downloaded.headers["content-type"] == "application/octet-stream"
 
 
-def test_browser_security_blocks_foreign_origin_and_missing_header(client, node_yaml):
-    assert (
-        client.post(
-            "/api/config/validate",
-            json={"yaml": node_yaml},
-            headers={"Origin": "https://evil.example"},
-        ).status_code
-        == 403
-    )
-    assert (
-        client.post(
-            "/api/config/validate", json={"yaml": node_yaml}, headers={"X-Nodekit-Request": ""}
-        ).status_code
-        == 403
-    )
-    assert client.get("/api/nodes", headers={"Host": "evil.example"}).status_code == 403
+@pytest.mark.parametrize(
+    "headers",
+    [{"Origin": "https://evil.example"}, {"X-Nodekit-Request": ""}, {"Host": "evil.example"}],
+)
+def test_browser_security_is_an_enveloped_error(client, node_yaml, headers):
+    response = client.post("/api/config/validate", json={"yaml": node_yaml}, headers=headers)
+    assert response.status_code == 403
+    body = response.json()
+    assert body["ok"] is False and body["data"] is None
+    assert body["error"]["code"] == "forbidden"
+    assert body["meta"]["request_id"] == response.headers["x-request-id"]
 
 
 def test_unknown_yaml_keys_fail_instead_of_being_ignored(client, node_yaml):
-    result = client.post("/api/config/validate", json={"yaml": node_yaml + "typo: true\n"})
+    result = client.post("/api/config/validate", json={"yaml": node_yaml + "typo: secret-value\n"})
     assert result.status_code == 422
+    assert "secret-value" not in result.text
+    assert result.json()["error"]["details"][0]["field"] == "typo"
 
 
-def test_job_runs_in_background_and_failure_is_visible(client, node_yaml, monkeypatch):
-    def fake_execute(store, job_id, node, action, backup):
-        store.start(job_id)
-        store.event(job_id, "SSH host-key verification failed", "error")
-        store.finish(job_id, "failed", "SSH failed")
+def test_dependency_replacement_runs_background_job_without_ssh(settings, node_yaml):
+    from app.container import build_container
+    from framework.tasks import TaskScheduler
 
-    monkeypatch.setattr("app.app.execute", fake_execute)
-    saved = client.put("/api/nodes/test-node", json={"yaml": node_yaml}).json()
-    result = client.post(
-        "/api/nodes/test-node/jobs", json={"action": "check", "revision": saved["revision"]}
+    class FakeExecutor(NodeExecutor):
+        def execute(self, node, action, backup):
+            yield ExecutionEvent(message="Injected executor ran")
+
+    container = build_container(settings, overrides={NodeExecutor: FakeExecutor()})
+    with TestClient(
+        create_app(settings, container=container), base_url="http://127.0.0.1:8765", headers=HEADERS
+    ) as client:
+        saved = data(client.put("/api/nodes/test-node", json={"yaml": node_yaml}))
+        result = client.post(
+            "/api/nodes/test-node/jobs", json={"action": "check", "revision": saved["revision"]}
+        )
+        assert result.status_code == 202
+        job_id = data(result)["id"]
+        container.resolve(TaskScheduler).close()
+        job = data(client.get(f"/api/jobs/{job_id}"))
+        assert job["status"] == "succeeded"
+        assert job["events"][0]["message"] == "Injected executor ran"
+
+
+def test_job_lock_and_restart_recovery(container, node, node_yaml):
+    nodes = container.resolve(NodeRepository)
+    jobs = container.resolve(JobRepository)
+    revision = nodes.save(StoredNode.create(node, node_yaml)).revision
+    job = Job.create(node.id, JobAction.BACKUP)
+    jobs.enqueue(job, revision)
+    with pytest.raises(ConflictError, match="Another operation"):
+        jobs.enqueue(Job.create(node.id, JobAction.FRESH), revision)
+    jobs.recover()
+    assert jobs.get(job.id).status == JobStatus.INTERRUPTED
+    assert "check remote services" in jobs.get(job.id).error
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/api/no-such-route",
+        "/api/nodes/missing",
+        "/api/jobs/missing",
+        "/api/backups/missing/download",
+    ],
+)
+def test_not_found_uses_same_contract(client, path):
+    response = client.get(path)
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "not_found"
+
+
+def test_request_schema_errors_do_not_echo_input(client):
+    response = client.post(
+        "/api/nodes/test/jobs", json={"action": "SECRET", "revision": "not-a-hash"}
     )
-    assert result.status_code == 202
-    client.app.state.pool.shutdown(wait=True)
-    job = client.get(f"/api/jobs/{result.json()['id']}").json()
-    assert job["status"] == "failed"
-    assert job["events"][0]["level"] == "error"
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "validation_error"
+    assert "SECRET" not in response.text
 
 
-def test_job_lock_and_restart_recovery(tmp_path, node, node_yaml):
-    store = Store(tmp_path / "data")
-    revision = store.save_node(node, node_yaml)["revision"]
-    job_id = store.create_job(node.id, "backup", revision)
-    with pytest.raises(ValueError, match="Another operation"):
-        store.create_job(node.id, "fresh", revision)
-    store.recover_jobs()
-    assert store.job(job_id)["status"] == "interrupted"
-    assert "check remote services" in store.job(job_id)["error"]
+def test_unexpected_failure_does_not_leak_details(client, container, monkeypatch):
+    from app.services import NodeService
+
+    def fail():
+        raise RuntimeError("super-secret-password")
+
+    monkeypatch.setattr(container.resolve(NodeService), "list", fail)
+    response = client.get("/api/nodes")
+    assert response.status_code == 500
+    assert response.json()["error"]["code"] == "internal_error"
+    assert "super-secret-password" not in response.text

@@ -1,8 +1,17 @@
 import uvicorn
 
+from app.config import get_settings
+
 
 def main():
-    uvicorn.run("app.app:app", host="127.0.0.1", port=8765, proxy_headers=False)
+    settings = get_settings()
+    uvicorn.run(
+        "app.create_app:app",
+        host=settings.server.host,
+        port=settings.server.port,
+        log_level=settings.log_level.lower(),
+        proxy_headers=False,
+    )
 
 
 if __name__ == "__main__":

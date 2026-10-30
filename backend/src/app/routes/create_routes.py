@@ -1,128 +1,99 @@
+from fastapi import Request
+from fastapi.responses import FileResponse
+from starlette.concurrency import run_in_threadpool
 
-from concurrent.futures import ThreadPoolExecutor
-from contextlib import asynccontextmanager
-from pathlib import Path
-from typing import Literal
+from app.config import Limits
+from app.defaults import APP_VERSION
+from app.entities import ConfigRequest, JobAction, JobRequest
+from app.services import BackupService, JobService, NodeService
+from framework.entities import PayloadTooLargeError
+from framework.routing import ApiResponse, Responses, RouterFactory
 
-import yaml
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
 
-from app.config import Settings, get_settings
-from app.entities import ConfigRequest, JobRequest, parse_node
-from app.execution import MAX_BACKUP, execute, validate_backup
-from app.rendering import plan
-from app.storage import Store
+class ApplicationRoutes:
+    """HTTP adapters only: parsing, use-case invocation and response serialization."""
 
-    @app.get("/api/health")
-    def health():
-        return {"status": "ok", "version": "0.1.0"}
+    def __init__(
+        self,
+        factory: RouterFactory,
+        nodes: NodeService,
+        jobs: JobService,
+        backups: BackupService,
+        limits: Limits,
+    ):
+        self.factory = factory
+        self.nodes = nodes
+        self.jobs = jobs
+        self.backups = backups
+        self.limits = limits
 
-    @app.get("/api/template")
-    def template():
-        return {"yaml": (Path(__file__).parents[2] / "config" / "config-example.yaml").read_text()}
+    def create(self):
+        router = self.factory.create(prefix="/api", tags=["Nodekit"])
 
-    @app.post("/api/config/validate")
-    def validate(body: ConfigRequest):
-        node = parse(body.yaml)
-        return {"node": node.model_dump(), "files": plan(node, "check")["files"]}
+        @router.get("/health")
+        def health() -> ApiResponse:
+            return Responses.success({"status": "ok", "version": APP_VERSION})
 
-    @app.get("/api/nodes")
-    def nodes(request: Request):
-        return request.app.state.store.nodes()
+        @router.get("/template")
+        def template() -> ApiResponse:
+            return Responses.success(self.nodes.template())
 
-    @app.get("/api/nodes/{node_id}")
-    def node(request: Request, node_id: str):
-        return request.app.state.store.node(node_id)
+        @router.post("/config/validate")
+        def validate(body: ConfigRequest) -> ApiResponse:
+            return Responses.success(self.nodes.validate(body.yaml))
 
-    @app.put("/api/nodes/{node_id}")
-    def save_node(request: Request, node_id: str, body: ConfigRequest):
-        node = parse(body.yaml)
-        if node.id != node_id:
-            raise HTTPException(422, "URL node ID must match YAML id")
-        return request.app.state.store.save_node(node, body.yaml)
+        @router.get("/nodes")
+        def nodes() -> ApiResponse:
+            return Responses.success(self.nodes.list())
 
-    @app.get("/api/nodes/{node_id}/plan")
-    def preview(request: Request, node_id: str, action: Action):
-        record = request.app.state.store.node(node_id)
-        result = plan(parse(record["yaml"]), action)
-        result["revision"] = record["revision"]
-        return result
+        @router.get("/nodes/{node_id}")
+        def node(node_id: str) -> ApiResponse:
+            return Responses.success(self.nodes.get(node_id))
 
-    @app.post("/api/nodes/{node_id}/jobs", status_code=202)
-    def start_job(request: Request, node_id: str, body: JobRequest):
-        store = request.app.state.store
-        record = store.node(node_id)
-        node = parse(record["yaml"])
-        if body.action == "restore":
-            if not body.backup_id:
-                raise HTTPException(
-                    422, "Restore requires an uploaded backup; there is no fresh fallback"
-                )
-            validate_backup(store.backup_path(body.backup_id).read_bytes())
-        elif body.backup_id:
-            raise HTTPException(422, "Only restore accepts backup_id")
-        try:
-            job_id = store.create_job(node_id, body.action, body.revision)
-        except ValueError as exc:
-            raise HTTPException(409, str(exc)) from exc
-        request.app.state.pool.submit(execute, store, job_id, node, body.action, body.backup_id)
-        return store.job(job_id)
+        @router.put("/nodes/{node_id}")
+        def save_node(node_id: str, body: ConfigRequest) -> ApiResponse:
+            return Responses.success(self.nodes.save(node_id, body.yaml))
 
-    @app.get("/api/jobs")
-    def jobs(request: Request):
-        return request.app.state.store.jobs()
+        @router.get("/nodes/{node_id}/plan")
+        def preview(node_id: str, action: JobAction) -> ApiResponse:
+            return Responses.success(self.nodes.preview(node_id, action))
 
-    @app.get("/api/jobs/{job_id}")
-    def job(request: Request, job_id: str):
-        return request.app.state.store.job(job_id)
+        @router.post("/nodes/{node_id}/jobs", status_code=202)
+        def start_job(node_id: str, body: JobRequest) -> ApiResponse:
+            return Responses.success(
+                self.jobs.start(node_id, body.action, body.revision, body.backup_id)
+            )
 
-    @app.get("/api/backups")
-    def backups(request: Request):
-        return request.app.state.store.list_backups()
+        @router.get("/jobs")
+        def jobs() -> ApiResponse:
+            return Responses.success(self.jobs.list())
 
-    @app.post("/api/backups", status_code=201)
-    async def upload(request: Request, filename: str = "x-ui.db"):
-        content = bytearray()
-        async for chunk in request.stream():
-            content.extend(chunk)
-            if len(content) > MAX_BACKUP:
-                raise HTTPException(413, "Backup exceeds 64 MiB")
-        validate_backup(bytes(content))
-        filename = filename.replace("\\", "/").rsplit("/", 1)[-1]
-        if not filename.endswith(".db") or len(filename) > 100:
-            raise HTTPException(422, "Filename must end with .db and be under 100 characters")
-        return request.app.state.store.add_backup(bytes(content), filename)
+        @router.get("/jobs/{job_id}")
+        def job(job_id: str) -> ApiResponse:
+            return Responses.success(self.jobs.get(job_id))
 
-    @app.get("/api/backups/{backup_id}/download")
-    def download(request: Request, backup_id: str):
-        store = request.app.state.store
-        record = store.backup(backup_id)
-        return FileResponse(
-            store.backup_path(backup_id),
-            filename=record["filename"],
-            media_type="application/octet-stream",
-        )
+        @router.get("/backups")
+        def backups() -> ApiResponse:
+            return Responses.success(self.backups.list())
 
-    @app.get("/api/backups/{backup_id}/manifest")
-    def manifest(request: Request, backup_id: str):
-        store = request.app.state.store
-        store.backup(backup_id)
-        path = store.backups / f"{backup_id}.json"
-        if not path.is_file():
-            raise HTTPException(404, "Imported database has no Nodekit manifest")
-        return FileResponse(path, filename="nodekit-manifest.json")
+        @router.post("/backups", status_code=201)
+        async def upload(request: Request, filename: str = "x-ui.db") -> ApiResponse:
+            content = bytearray()
+            async for chunk in request.stream():
+                if len(content) + len(chunk) > self.limits.backup_bytes:
+                    raise PayloadTooLargeError(f"Backup exceeds {self.limits.backup_bytes} bytes")
+                content.extend(chunk)
+            backup = await run_in_threadpool(self.backups.import_backup, bytes(content), filename)
+            return Responses.success(backup)
 
-    if settings.frontend_dir.is_dir():
-        app.mount("/", StaticFiles(directory=settings.frontend_dir, html=True), name="frontend")
-    else:
+        @router.get("/backups/{backup_id}/download", response_class=FileResponse)
+        def download(backup_id: str):
+            path, name = self.backups.download(backup_id)
+            return FileResponse(path, filename=name, media_type="application/octet-stream")
 
-        @app.get("/")
-        def frontend_missing():
-            return {
-                "message": "Build the frontend: cd frontend && npm ci && npm run build",
-                "docs": "/docs",
-            }
+        @router.get("/backups/{backup_id}/manifest", response_class=FileResponse)
+        def manifest(backup_id: str):
+            path, name = self.backups.download(backup_id, manifest=True)
+            return FileResponse(path, filename=name, media_type="application/json")
 
-    return app
+        return router

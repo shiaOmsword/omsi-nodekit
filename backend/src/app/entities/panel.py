@@ -1,11 +1,18 @@
-from app.entities import Port, StrictModel, field_validator, re
+import re
+
+from pydantic import field_validator
+
+from app.defaults import NODE_DEFAULTS as D
+
+from .base import Port, StrictModel
+
 
 class Panel(StrictModel):
-    image: str = "ghcr.io/mhsanaei/3x-ui:3.11.0"
-    port: Port = 2053
-    base_path: str = "/nodekit/"
-    subscription_port: Port = 2097
-    subscription_path: str = "/sub/"
+    image: str = D.panel_image
+    port: Port = D.panel_port
+    base_path: str = D.panel_path
+    subscription_port: Port = D.subscription_port
+    subscription_path: str = D.subscription_path
 
     @field_validator("base_path", "subscription_path")
     @classmethod
