@@ -4,8 +4,15 @@ from starlette.concurrency import run_in_threadpool
 
 from app.config import Limits
 from app.defaults import APP_VERSION
-from app.entities import ConfigRequest, JobAction, JobRequest
-from app.services import BackupService, JobService, NodeService
+from app.entities import (
+    ConfigRequest,
+    InstallationSelection,
+    JobAction,
+    JobRequest,
+    KeySelection,
+    SSHKeyRequest,
+)
+from app.services import BackupService, JobService, NodeService, SSHKeyService
 from framework.entities import PayloadTooLargeError
 from framework.messages import MessageKey
 from framework.messages import text as message_text
@@ -22,12 +29,14 @@ class ApplicationRoutes:
         jobs: JobService,
         backups: BackupService,
         limits: Limits,
+        keys: SSHKeyService,
     ):
         self.factory = factory
         self.nodes = nodes
         self.jobs = jobs
         self.backups = backups
         self.limits = limits
+        self.keys = keys
 
     def create(self):
         router = self.factory.create(prefix="/api", tags=["Nodekit"])
@@ -43,6 +52,27 @@ class ApplicationRoutes:
         @router.post("/config/validate")
         def validate(body: ConfigRequest) -> ApiResponse:
             return Responses.success(self.nodes.validate(body.yaml))
+
+        @router.post("/config/ssh-key")
+        def select_key(body: KeySelection) -> ApiResponse:
+            return Responses.success(self.nodes.select_key(body.yaml, body.key_id))
+
+        @router.post("/config/installation")
+        def select_installation(body: InstallationSelection) -> ApiResponse:
+            return Responses.success(self.nodes.select_installation(body.yaml, body.installation))
+
+        @router.get("/ssh-keys")
+        def ssh_keys() -> ApiResponse:
+            return Responses.success(self.keys.list())
+
+        @router.post("/ssh-keys", status_code=201)
+        def create_key(body: SSHKeyRequest) -> ApiResponse:
+            return Responses.success(self.keys.create(body))
+
+        @router.delete("/ssh-keys/{key_id}")
+        def delete_key(key_id: str) -> ApiResponse:
+            self.keys.delete(key_id)
+            return Responses.success({"deleted": True})
 
         @router.get("/nodes")
         def nodes() -> ApiResponse:

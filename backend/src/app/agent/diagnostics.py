@@ -30,6 +30,14 @@ class Diagnostics:
             self.context.emit(message_text(MessageKey.SUBSCRIPTION_TCP_OK))
         else:
             failures.append(message_text(MessageKey.SUBSCRIPTION_TCP_FAILED))
+        for failure in failures:
+            self.context.emit(failure, "error")
+        if failures:
+            raise RuntimeError(message_text(MessageKey.DIAGNOSTICS_FAILED, count=len(failures)))
+        self.check_transport(node)
+
+    def check_transport(self, node):
+        failures = []
         for tunnel in node["tunnels"]:
             unit = self.context.unit(tunnel["name"])
             state = self.context.status(["systemctl", "is-active", "--quiet", unit])

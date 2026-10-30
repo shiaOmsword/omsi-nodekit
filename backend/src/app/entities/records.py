@@ -7,6 +7,8 @@ from framework.messages import MessageKey
 from framework.messages import text as message_text
 from framework.utils import new_id, sha256, utc_timestamp
 
+from .installation import InstallationReport
+
 
 class JobAction(StrEnum):
     CHECK = "check"
@@ -80,6 +82,7 @@ class JobEvent(Entity):
 
 
 class JobDetails(Job):
+    report: InstallationReport | None = None
     events: list[JobEvent] = Field(default_factory=list)
 
 
@@ -96,13 +99,14 @@ class Backup(Entity):
 
 
 class ExecutionEvent(Entity):
+    report: InstallationReport | None = None
     message: str | None = None
     level: str = "info"
     backup: bytes | None = None
 
     @model_validator(mode="after")
     def one_kind(self):
-        if (self.message is None) == (self.backup is None):
+        if sum(value is not None for value in (self.message, self.backup, self.report)) != 1:
             raise ValueError(message_text(MessageKey.EVENT_CONTENT_INVALID))
         if self.level not in {"info", "warning", "error"}:
             raise ValueError(message_text(MessageKey.EVENT_LEVEL_INVALID))

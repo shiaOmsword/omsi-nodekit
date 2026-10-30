@@ -1,6 +1,7 @@
 import os
 import shutil
 import socket
+import sys
 from pathlib import Path
 
 from framework.messages import MessageKey
@@ -30,8 +31,12 @@ class HostEnvironment:
                 raise RuntimeError(message_text(MessageKey.PORT_OCCUPIED, port=port)) from exc
 
     def environment(self):
+        if sys.platform != "linux":
+            raise RuntimeError(message_text(MessageKey.REMOTE_LINUX_REQUIRED))
         if os.geteuid() != 0:
             raise RuntimeError(message_text(MessageKey.ROOT_REQUIRED))
+        if self.context.payload["action"] not in {"fresh", "restore"}:
+            return
         if not Path(self.context.policy["systemd_directory"]).exists():
             raise RuntimeError(message_text(MessageKey.SYSTEMD_REQUIRED))
         for executable in ("docker", "ssh", "systemctl"):

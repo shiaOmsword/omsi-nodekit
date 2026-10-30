@@ -4,6 +4,7 @@ from .base import Host, Port, Slug, StrictModel, User
 from .caddy import Caddy
 from .config_request import ConfigRequest
 from .factory import NodeFactory
+from .installation import Installation, InstallationReport, InstallationSelection, KeySelection
 from .job_request import JobRequest
 from .node import Node
 from .panel import Panel
@@ -20,10 +21,17 @@ from .records import (
     StoredNode,
 )
 from .ssh import SSH
+from .ssh_key import SSHKey, SSHKeyRequest
 from .tunnel import Tunnel
 
 __all__ = [
     "SSH",
+    "SSHKey",
+    "SSHKeyRequest",
+    "Installation",
+    "InstallationReport",
+    "InstallationSelection",
+    "KeySelection",
     "Backup",
     "Caddy",
     "ConfigRequest",

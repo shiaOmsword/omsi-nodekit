@@ -6,10 +6,15 @@ ssh:
   user: root
   port: 22
   identity_file: ~/.ssh/id_ed25519
+  # key_id: <ID выбранного ключа из локальной панели; identity_file тогда не используется>
   known_hosts_file: ~/.ssh/known_hosts
   sudo: false  # true for a non-root user with passwordless sudo
 
 panel:
+  installation: managed  # existing installation: auto, native or docker
+  # service: x-ui               # native systemd service
+  # container: my-3x-ui         # existing Docker container
+  # database_path: /etc/x-ui/x-ui.db  # native host path / Docker container path
   # For restore, set EXACTLY the version that created your backup.
   image: ghcr.io/mhsanaei/3x-ui:3.11.0
   port: 2053
@@ -18,7 +23,9 @@ panel:
   subscription_path: /sub/  # must match the backup when restoring
 
 caddy:
-  enabled: false  # enable after pointing domain DNS to this VPS
+  enabled: false  # controls creation; existing Caddy is discovered independently
+  # service: caddy
+  # config_path: /etc/caddy/Caddyfile  # existing config (container path in Docker)
   image: caddy:2.10.2-alpine
   domain: vpn.example.com
   https_port: 2096  # 443 is reserved for Xray; ACME HTTP challenge needs port 80

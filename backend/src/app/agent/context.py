@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+from app.defaults import DISCOVERY_DEFAULTS
 from framework.database import SQLiteSnapshots
 from framework.network.execute import CommandRunner
 
@@ -11,6 +12,7 @@ class AgentContext:
         self.node = payload["node"]
         self.policy = payload["runtime"]["deployment"]
         self.limits = payload["runtime"]["limits"]
+        self.discovery = {**DISCOVERY_DEFAULTS, **payload["runtime"].get("discovery", {})}
         self.snapshots = SQLiteSnapshots()
         self.runner = CommandRunner()
 

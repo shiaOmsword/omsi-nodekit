@@ -7,11 +7,13 @@ from app.entities import NodeFactory
 from app.infrastructure.backups import LocalBackupFiles, XuiBackupValidator
 from app.infrastructure.bootstrap import StorageBootstrap
 from app.infrastructure.execution import RemoteAgentBuilder, SSHNodeExecutor
+from app.infrastructure.keys import LocalSSHKeyFiles
 from app.infrastructure.rendering import NodeArtifacts
 from app.infrastructure.repositories import (
     SQLiteBackupRepository,
     SQLiteJobRepository,
     SQLiteNodeRepository,
+    SQLiteSSHKeyRepository,
 )
 from app.infrastructure.template import FileNodeTemplate
 from app.ports import (
@@ -23,11 +25,13 @@ from app.ports import (
     NodeExecutor,
     NodeRepository,
     NodeTemplate,
+    SSHKeyFiles,
+    SSHKeyRepository,
 )
-from app.services import BackupService, ExecuteJob, JobService, NodeService
+from app.services import BackupService, ExecuteJob, JobService, NodeService, SSHKeyService
 from framework.database import SQLiteDatabase, SQLiteSnapshots
 from framework.entities import EntityFactory, JsonCodec, YamlCodec
-from framework.network import CommandRunner, SSHClient, SSHOptions
+from framework.network import CommandRunner, KeyOptions, OpenSSHKeys, SSHClient, SSHOptions
 from framework.routing import ExceptionHandlers, RouterFactory
 from framework.tasks import TaskScheduler, ThreadTaskScheduler
 from framework.utils import PrivateFiles
@@ -39,6 +43,14 @@ def build_container(settings: Settings, *, overrides: dict | None = None) -> pun
     container.register(Limits, instance=settings.limits)
     container.register(DeploymentSettings, instance=settings.deployment)
     container.register(SSHSettings, instance=settings.ssh)
+    container.register(
+        KeyOptions,
+        instance=KeyOptions(
+            directory=settings.data_dir / settings.keys_directory,
+            binary=settings.ssh.keygen_binary,
+            timeout=settings.ssh.keygen_timeout,
+        ),
+    )
     container.register(
         SSHOptions,
         instance=SSHOptions(
@@ -69,6 +81,8 @@ def build_container(settings: Settings, *, overrides: dict | None = None) -> pun
         (ArtifactRenderer, NodeArtifacts),
         (NodeExecutor, SSHNodeExecutor),
         (NodeTemplate, FileNodeTemplate),
+        (SSHKeyRepository, SQLiteSSHKeyRepository),
+        (SSHKeyFiles, LocalSSHKeyFiles),
     ):
         container.register(interface, implementation, scope=punq.Scope.singleton)
     for implementation in (
@@ -79,6 +93,8 @@ def build_container(settings: Settings, *, overrides: dict | None = None) -> pun
         SQLiteSnapshots,
         CommandRunner,
         SSHClient,
+        OpenSSHKeys,
+        SSHKeyService,
         RemoteAgentBuilder,
         BackupService,
         ExecuteJob,

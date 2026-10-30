@@ -12,7 +12,7 @@ const output = mkdtempSync(join(root, '.cache', 'tests-'));
 after(() => rmSync(output, { recursive: true, force: true }));
 writeFileSync(join(output, 'package.json'), '{"type":"commonjs"}');
 execFileSync(process.execPath, [require.resolve('typescript/bin/tsc'),
-  'src/api.ts', 'src/framework/components/index.ts', 'src/framework/messages/index.ts',
+  'src/api.ts', 'src/App.tsx', 'src/framework/components/index.ts', 'src/framework/messages/index.ts',
   '--outDir', output, '--rootDir', 'src', '--module', 'commonjs', '--target', 'ES2022',
   '--jsx', 'react-jsx', '--esModuleInterop', '--skipLibCheck', '--strict'], { cwd: root, stdio: 'pipe' });
 

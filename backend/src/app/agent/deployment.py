@@ -30,8 +30,6 @@ class DeploymentService:
         self.diagnostics = diagnostics
 
     def deploy(self, payload, base):
-        import pwd
-
         node, action = payload["node"], payload["action"]
         if base.exists() and any(base.iterdir()):
             raise RuntimeError(message_text(MessageKey.TARGET_NOT_EMPTY))
@@ -55,6 +53,8 @@ class DeploymentService:
         for port in ports:
             self.host.require_free(port)
         for tunnel in node["tunnels"]:
+            import pwd
+
             pwd.getpwnam(tunnel["user"])
             for key in ("identity_file", "known_hosts_file"):
                 self.context.command(

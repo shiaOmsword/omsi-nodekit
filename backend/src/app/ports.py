@@ -5,12 +5,14 @@ from pathlib import Path
 from app.entities import (
     Backup,
     ExecutionEvent,
+    InstallationReport,
     Job,
     JobAction,
     JobDetails,
     JobEvent,
     Node,
     NodeSummary,
+    SSHKey,
     StoredNode,
 )
 
@@ -27,6 +29,9 @@ class NodeRepository(ABC):
 
 
 class JobRepository(ABC):
+    @abstractmethod
+    def save_report(self, job_id: str, report: InstallationReport): ...
+
     @abstractmethod
     def enqueue(self, job: Job, revision: str): ...
 
@@ -100,3 +105,28 @@ class NodeExecutor(ABC):
 class NodeTemplate(ABC):
     @abstractmethod
     def read(self) -> str: ...
+
+
+class SSHKeyRepository(ABC):
+    @abstractmethod
+    def save(self, key: SSHKey) -> SSHKey: ...
+
+    @abstractmethod
+    def get(self, key_id: str) -> SSHKey: ...
+
+    @abstractmethod
+    def list(self) -> list[SSHKey]: ...
+
+    @abstractmethod
+    def delete(self, key_id: str): ...
+
+
+class SSHKeyFiles(ABC):
+    @abstractmethod
+    def generate(self, key_id: str) -> tuple[str, str]: ...
+
+    @abstractmethod
+    def identity(self, key_id: str) -> Path: ...
+
+    @abstractmethod
+    def remove(self, key_id: str): ...

@@ -5,8 +5,9 @@ import zipfile
 from pathlib import Path
 
 from app.config import Settings
-from app.entities import ExecutionEvent
+from app.entities import ExecutionEvent, InstallationReport
 from app.ports import ArtifactRenderer, NodeExecutor
+from app.services.keys import SSHKeyService
 from framework.entities import InfrastructureError, JsonCodec
 from framework.messages import MessageKey
 from framework.messages import text as message_text
@@ -36,6 +37,7 @@ class RemoteAgentBuilder:
         files += [
             path.relative_to(root).as_posix() for path in (root / "framework/messages").glob("*.py")
         ]
+        files.append("framework/network/keys.py")
         archive = io.BytesIO()
         with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
             for name in ("app/__init__.py", "framework/__init__.py"):
@@ -49,6 +51,7 @@ class RemoteAgentBuilder:
             "runtime": {
                 "deployment": self.settings.deployment.model_dump(mode="json"),
                 "limits": self.settings.limits.model_dump(mode="json"),
+                "discovery": self.settings.discovery.model_dump(mode="json"),
             },
         }
         if backup is not None:
@@ -73,15 +76,24 @@ with tempfile.TemporaryDirectory(prefix="nodekit-agent-") as folder:
 
 class SSHNodeExecutor(NodeExecutor):
     def __init__(
-        self, ssh: SSHClient, builder: RemoteAgentBuilder, codec: JsonCodec, settings: Settings
+        self,
+        ssh: SSHClient,
+        builder: RemoteAgentBuilder,
+        codec: JsonCodec,
+        settings: Settings,
+        keys: SSHKeyService,
     ):
         self.ssh = ssh
         self.builder = builder
         self.codec = codec
         self.settings = settings
+        self.keys = keys
 
     def execute(self, node, action, backup):
-        connection = SSHConnection(**node.ssh.model_dump())
+        connection_fields = node.ssh.model_dump(exclude={"key_id"})
+        if node.ssh.key_id:
+            connection_fields["identity_file"] = str(self.keys.require(node.ssh.key_id))
+        connection = SSHConnection(**connection_fields)
         try:
             script = self.builder.build(node, action, backup)
             yield ExecutionEvent(
@@ -102,7 +114,11 @@ class SSHNodeExecutor(NodeExecutor):
                     continue
                 if not isinstance(event, dict):
                     raise InfrastructureError(message_text(MessageKey.REMOTE_EVENT_INVALID))
-                if "backup" in event:
+                if "report" in event:
+                    if len(line.encode("utf-8")) > self.settings.discovery.metadata_bytes:
+                        raise InfrastructureError(message_text(MessageKey.INSPECTION_TOO_LARGE))
+                    yield ExecutionEvent(report=InstallationReport.model_validate(event["report"]))
+                elif "backup" in event:
                     encoded = event["backup"]
                     if not isinstance(encoded, str) or len(encoded) > (
                         self.settings.limits.backup_bytes * 4 // 3 + 8
