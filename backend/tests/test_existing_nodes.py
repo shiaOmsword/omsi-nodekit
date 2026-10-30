@@ -493,10 +493,14 @@ def test_doctor_tls_trust_failure_is_warning_and_disabled_subscriptions_are_skip
     import ssl
 
     inventory, _ = native_panel(
-        context, tmp_path, monkeypatch,
+        context,
+        tmp_path,
+        monkeypatch,
         {
-            "webPort": "8443", "webBasePath": "/panel/",
-            "webDomain": "panel.example.com", "webCertFile": "/example/cert",
+            "webPort": "8443",
+            "webBasePath": "/panel/",
+            "webDomain": "panel.example.com",
+            "webCertFile": "/example/cert",
             "subEnable": "false",
         },
     )
@@ -514,7 +518,9 @@ def test_doctor_tls_trust_failure_is_warning_and_disabled_subscriptions_are_skip
     events = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
     assert any("Panel TLS:" in event["message"] and event["level"] == "warning" for event in events)
     assert any("disabled" in event["message"] for event in events)
-    assert not any("Subscription listener connection failed" in event["message"] for event in events)
+    assert not any(
+        "Subscription listener connection failed" in event["message"] for event in events
+    )
 
 
 def test_doctor_private_docker_listener_is_not_false_host_port_failure(
@@ -540,7 +546,9 @@ def test_doctor_subscriptions_with_explicit_unreachable_port_are_reported(
     context, tmp_path, monkeypatch, capsys
 ):
     inventory, _ = native_panel(
-        context, tmp_path, monkeypatch,
+        context,
+        tmp_path,
+        monkeypatch,
         {"webPort": "8443", "webBasePath": "/", "subEnable": "true", "subPort": "2097"},
     )
     panels = PanelInspector(inventory)
@@ -548,7 +556,8 @@ def test_doctor_subscriptions_with_explicit_unreachable_port_are_reported(
     inspector = InstallationInspector(context)
     inspector.panels, inspector.selected = panels, finding
     monkeypatch.setattr(
-        ExistingDiagnostics, "_socket",
+        ExistingDiagnostics,
+        "_socket",
         lambda self, *args: (_ for _ in ()).throw(ConnectionRefusedError("unavailable")),
     )
     failures = ExistingDiagnostics(context, inspector).check(raise_on_failure=False)
