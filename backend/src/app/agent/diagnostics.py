@@ -26,7 +26,13 @@ class Diagnostics:
             self.context.emit(message_text(MessageKey.PANEL_HTTP_OK))
         except (OSError, urllib.error.URLError, RuntimeError) as exc:
             failures.append(message_text(MessageKey.PANEL_HTTP_FAILED, reason=exc))
-        if self.host.port_open(panel["subscription_port"]):
+        target = node.get("deployment")
+        subscription_open = (
+            self.host.port_open(panel["subscription_port"], target["subscription_bind"])
+            if target
+            else self.host.port_open(panel["subscription_port"])
+        )
+        if subscription_open:
             self.context.emit(message_text(MessageKey.SUBSCRIPTION_TCP_OK))
         else:
             failures.append(message_text(MessageKey.SUBSCRIPTION_TCP_FAILED))

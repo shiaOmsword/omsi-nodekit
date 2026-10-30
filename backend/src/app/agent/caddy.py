@@ -140,6 +140,12 @@ class CaddyInspector:
             if image != "caddy" and "caddy" not in name and "caddy" not in command:
                 continue
             finding = {"id": f"docker:{container['Id']}", "installation": "docker", **details}
+            gateways = {
+                n.get("Gateway")
+                for n in container.get("NetworkSettings", {}).get("Networks", {}).values()
+                if n.get("Gateway")
+            }
+            finding["host_gateway"] = next(iter(gateways)) if len(gateways) == 1 else None
             self._config(finding, command, container)
             result.append(finding)
         return result

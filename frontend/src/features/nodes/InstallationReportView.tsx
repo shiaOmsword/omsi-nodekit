@@ -2,6 +2,8 @@ import { Network, ShieldCheck } from 'lucide-react';
 import { Alert, CardHeader, StatusBadge } from '../../framework/components';
 import { formatMessage, messages } from '../../framework/messages';
 import type { CertificateFinding, InstallationReport } from '../../types';
+import { deploymentMessages } from './deploymentMessages';
+import type { ReactNode } from 'react';
 
 const t = messages.report;
 const empty = (value: string | null | undefined) => value || t.empty;
@@ -21,7 +23,7 @@ function Certificate({ item }: { item: CertificateFinding }) {
   </div>;
 }
 
-export function InstallationReportView({ report, node }: { report: InstallationReport; node: string }) {
+export function InstallationReportView({ report, node, suggestions }: { report: InstallationReport; node: string; suggestions?: ReactNode }) {
   return <section className="card inventory-card"><CardHeader icon={<Network size={18}/>} title={t.title}
     subtitle={formatMessage(t.subtitle, { node })} trailing={<time dateTime={report.observed_at}>{new Date(report.observed_at).toLocaleString('ru-RU')}</time>}/>
     <div className="inventory-content">
@@ -37,7 +39,9 @@ export function InstallationReportView({ report, node }: { report: InstallationR
         </tr>)}</tbody></table></div>
       </>}
       <Warnings values={report.warnings}/>
-      {!report.selected_panel && <Alert tone="error">{t.notSelected}</Alert>}
+      {!report.panels.length && <p className="feature-hint">{deploymentMessages.noPanel}</p>}
+      {!!report.panels.length && !report.selected_panel && <Alert tone="error">{t.notSelected}</Alert>}
+      {suggestions}
       <h2>{t.panels}</h2>{!report.panels.length && <p className="feature-hint">{t.noPanels}</p>}
       {report.panels.map(panel => <article className="finding" key={panel.id}>
         <div className="finding-heading"><strong>{panel.container || panel.service || panel.id}</strong><span>{panel.installation}</span>

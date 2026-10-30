@@ -27,6 +27,8 @@ class InstallationInspector:
         capabilities = prerequisites.capabilities()
         self.report = {
             "observed_at": datetime.now(timezone.utc).isoformat(),
+            "ssh_host": self.context.node["ssh"]["host"],
+            "ssh_port": self.context.node["ssh"]["port"],
             "panels": findings,
             "selected_panel": self.selected["id"] if self.selected else None,
             "caddy": CaddyInspector(inventory).discover(containers),

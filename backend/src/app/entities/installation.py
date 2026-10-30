@@ -82,6 +82,7 @@ class CaddyFinding(Entity):
     network_mode: str | None = None
     networks: list[str] = Field(default_factory=list)
     published_ports: list[str] = Field(default_factory=list)
+    host_gateway: str | None = None
     routes: list[ProxyRoute] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
 
@@ -96,6 +97,8 @@ class DeploymentProfileFinding(Entity):
 
 class InstallationReport(Entity):
     observed_at: str
+    ssh_host: str | None = None
+    ssh_port: int | None = None
     panels: list[PanelFinding] = Field(default_factory=list)
     selected_panel: str | None = None
     caddy: list[CaddyFinding] = Field(default_factory=list)

@@ -1,0 +1,18 @@
+export const deploymentMessages = {
+  title: 'Сценарий развёртывания',
+  hint: 'Выбери целевую установку, примени к черновику YAML, сохрани и посмотри план Fresh. Существующая панель защищена от перезаписи.',
+  role: 'Роль ноды', ingress: 'Входная нода (Москва / РФ)', exit: 'Выходная нода (Европа / другие регионы)',
+  panel: 'Новая 3x-ui', native: 'В системе · systemd', docker: 'Docker Compose',
+  caddy: 'HTTPS подписок', none: 'Без Caddy · панель через SSH', own: 'Новый Caddy в Docker', existing: 'Использовать найденный Caddy',
+  caddyHint: 'Домен и HTTPS-порт задаются в caddy в YAML. Для общего Caddy нужен отдельный домен. В Docker порт должен быть уже опубликован; сеть и активная конфигурация проверяются перед записью.',
+  installDocker: 'Установить недостающий Docker (Ubuntu/Debian, пакеты docker.io + docker-compose-v2)',
+  inbounds: 'VLESS / REALITY для SSH-туннелей', addInbound: 'Добавить inbound', remove: 'Удалить inbound',
+  name: 'Имя', port: 'Порт на выходной ноде', listen: 'Адрес приёма', local: '127.0.0.1 · только через туннель', public: '0.0.0.0 · публичный доступ', sni: 'REALITY serverName / target',
+  inboundHint: 'SNI задай явно. По умолчанию inbound доступен через SSH forwarding. UUID, ключи и параметры outbound будут в tunnel-connections.json на VPS. Это не проверка трафика от Москвы.',
+  apply: 'Подставить в YAML', discovery: 'Подставить найденные настройки',
+  discoveryHint: 'Меняет только черновик. Пароли, ключи и значения, взятые из дефолтов 3x-ui, не копируются. При изменении SSH-адреса запусти обнаружение заново.',
+  panelChoice: 'Найденная панель', newPanel: 'Панели нет · подготовить новую', choosePanel: 'Выбери панель',
+  caddyChoice: 'Caddy для новой панели', noCaddy: 'Не подключать Caddy',
+  noPanel: '3x-ui пока не установлена. Можно подготовить новую панель и при необходимости подключить существующий Caddy.',
+  changed: 'Значения подставлены в черновик. Проверь YAML и сохрани конфигурацию.',
+} as const;

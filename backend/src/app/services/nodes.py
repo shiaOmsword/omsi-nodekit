@@ -79,3 +79,15 @@ class NodeService:
         updated = self.yaml.dumps(document)
         self.factory.from_yaml(updated)
         return {"yaml": updated}
+
+    def select_deployment(self, text, target):
+        self.factory.from_yaml(text)
+        document = self.yaml.loads(text)
+        document.setdefault("panel", {}).update(
+            installation="managed", container=None, database_path=None
+        )
+        document["deployment"] = target.model_dump(mode="json")
+        document.setdefault("caddy", {})["enabled"] = target.caddy_mode != "none"
+        updated = self.yaml.dumps(document)
+        self.factory.from_yaml(updated)
+        return {"yaml": updated}

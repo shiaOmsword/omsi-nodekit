@@ -67,3 +67,15 @@ DISCOVERY_DEFAULTS = {
     "max_containers": 100,
     "max_routes": 100,
 }
+
+# Official v3.11.0 release asset digests, verified through GitHub Releases.
+NATIVE_RELEASE = {
+    "version": "3.11.0",
+    "repository": "https://github.com/MHSanaei/3x-ui/releases/download/v3.11.0",
+    "sha256": {
+        "amd64": "0ddfa4702f595442e2962acd81addc768fdacaa4ff2672c971a0463dae744916",
+        "arm64": "f50b4c30fd919d018f2f4c3d8db53a4ca027503d581328727770afb116a79d90",
+    },
+    "archive_bytes": 160 * 1024 * 1024,
+    "unpacked_bytes": 512 * 1024 * 1024,
+}

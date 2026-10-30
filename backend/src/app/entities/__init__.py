@@ -3,6 +3,7 @@
 from .base import Host, Port, Slug, StrictModel, User
 from .caddy import Caddy
 from .config_request import ConfigRequest
+from .deployment import DeploymentSelection, DeploymentTarget, DiscoverySelection, TunnelInbound
 from .factory import NodeFactory
 from .installation import Installation, InstallationReport, InstallationSelection, KeySelection
 from .job_request import JobRequest
@@ -37,6 +38,10 @@ __all__ = [
     "Backup",
     "Caddy",
     "ConfigRequest",
+    "DeploymentSelection",
+    "DeploymentTarget",
+    "DiscoverySelection",
+    "TunnelInbound",
     "ExecutionEvent",
     "Host",
     "Job",

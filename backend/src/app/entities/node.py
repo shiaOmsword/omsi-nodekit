@@ -8,6 +8,7 @@ from framework.messages import text as message_text
 
 from .base import Slug, StrictModel
 from .caddy import Caddy
+from .deployment import DeploymentTarget
 from .panel import Panel
 from .probe import Probe
 from .ssh import SSH
@@ -22,6 +23,7 @@ class Node(StrictModel):
     caddy: Caddy = Field(default_factory=Caddy)
     tunnels: list[Tunnel] = Field(default_factory=list)
     probe: Probe | None = None
+    deployment: DeploymentTarget | None = None
 
     def export_config(self):
         """Portable node settings; elevation credentials belong only to the local SSH session."""
@@ -38,7 +40,15 @@ class Node(StrictModel):
         ports += [t.local_port for t in self.tunnels]
         if self.caddy.enabled:
             ports += [D.acme_http_port, self.caddy.https_port]
-        if len(ports) != len(set(ports)) or D.xray_port in ports:
+        if self.deployment:
+            ports += [i.port for i in self.deployment.inbounds]
+            if self.deployment.caddy_mode == "existing" and self.caddy.enabled:
+                ports.remove(D.acme_http_port)
+            if self.caddy.enabled != (self.deployment.caddy_mode != "none"):
+                raise ValueError(message_text(MessageKey.DEPLOYMENT_CADDY_MISMATCH))
+            if self.deployment.inbounds and self.panel.image != D.panel_image:
+                raise ValueError(message_text(MessageKey.DEPLOYMENT_API_VERSION))
+        if len(ports) != len(set(ports)) or (not self.deployment and D.xray_port in ports):
             raise ValueError(message_text(MessageKey.PORTS_CONFLICT, port=D.xray_port))
         for image in (self.panel.image, self.caddy.image):
             if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9./_:@-]+", image):

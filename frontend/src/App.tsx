@@ -3,7 +3,7 @@ import { Activity, BookOpen, KeyRound, ArrowDownToLine, ArrowRight, Check, Chevr
 import { api, getErrorMessage } from './framework/api';
 import { messages, formatMessage, statusLabel } from './framework/messages';
 import { Alert, Button, CardHeader, IconButton, Spinner, StatusBadge } from './framework/components';
-import type { Action, Backup, Job, JobDetail, NodeRecord, NodeSummary, Plan, DraftConfig, Installation, SSHKey, NodeState } from './types';
+import type { Action, Backup, Job, JobDetail, NodeRecord, NodeSummary, Plan, DraftConfig, Installation, SSHKey, NodeState, DeploymentTarget } from './types';
 
 import { SSHKeysPanel } from './features/keys/SSHKeysPanel';
 import { HelpPanel } from './features/help/HelpPanel';
@@ -11,6 +11,10 @@ import { ConnectionSettings } from './features/nodes/ConnectionSettings';
 import { NodeLifecycle } from './features/nodes/NodeLifecycle';
 import { getNodeErrorMessage } from './features/nodes/configErrors';
 import { InstallationReportView } from './features/nodes/InstallationReportView';
+import { DeploymentSettings } from './features/nodes/DeploymentSettings';
+import { DiscoverySuggestions } from './features/nodes/DiscoverySuggestions';
+import type { DiscoveryChoice } from './features/nodes/DiscoverySuggestions';
+import { deploymentMessages } from './features/nodes/deploymentMessages';
 
 const actions = (Object.keys(messages.action) as Action[]).map(id => ({ id, ...messages.action[id] }));
 const actionTitle = (action: Action) => messages.action[action].title;
@@ -46,6 +50,7 @@ export default function App() {
   const showingFiles = tab === 'files' && !!plan && !!Object.keys(plan.files).length;
   const visibleNodes = nodes.filter(node => nodeFilter === 'all' || node.state === nodeFilter);
   const archived = selected?.state === 'archived';
+  const currentReport = job?.node_id === selected?.id && job?.report?.ssh_host === draft?.ssh.host && job?.report?.ssh_port === draft?.ssh.port ? job?.report || null : null;
 
   function downloadJobLog() {
     if (!job) return;
@@ -232,6 +237,20 @@ export default function App() {
     });
   }
 
+  async function selectDeployment(target: DeploymentTarget) {
+    await perform(async () => {
+      const result = await api<{ yaml: string }>('/config/deployment', { method: 'POST', body: JSON.stringify({ yaml: text, target }) });
+      setText(result.yaml); setPlan(null); setTab('yaml'); setNotice(deploymentMessages.changed);
+    });
+  }
+  async function applyDiscovery(choice: DiscoveryChoice) {
+    if (!job || !currentReport) return;
+    await perform(async () => {
+      const result = await api<{ yaml: string }>('/config/from-discovery', { method: 'POST', body: JSON.stringify({ yaml: text, job_id: job.id, ...choice }) });
+      setText(result.yaml); setPlan(null); setTab('yaml'); setNotice(deploymentMessages.changed);
+    });
+  }
+
   return <div className="shell">
     <aside className="sidebar">
       <a className="brand" href="/" aria-label="OMSI Nodekit"><span className="brand-icon"><Network size={23}/></span><span>omsi<span className="brand-light"> / nodekit</span></span></a>
@@ -262,6 +281,7 @@ export default function App() {
         <div className="work-grid">
           <section className="card config-card"><CardHeader title={selected?.name || messages.ui.newNode} subtitle={selected?.id || messages.ui.newNodeHelp} icon={<FileCode2 size={18}/>} trailing={<StatusBadge tone={dirty ? 'amber' : 'mint'}>{dirty ? messages.ui.unsaved : messages.ui.saved}</StatusBadge>}/>
             <ConnectionSettings draft={draft} keys={keys} busy={busy} onKey={selectKey} onInstallation={selectInstallation} onManage={() => setView('keys')} onHelp={() => openHelp()}/>
+            <DeploymentSettings draft={draft} report={currentReport} busy={busy} onApply={selectDeployment}/>
             <NodeLifecycle selected={selected} busy={busy} onState={changeNodeState} onDelete={deleteSelectedNode}/>
             {archived && <p className="feature-hint">{messages.lifecycle.inactive}</p>}
             <div className="editor-tabs"><button className={!showingFiles ? 'chosen' : ''} onClick={() => setTab('yaml')}><Code2 size={14}/> node.yaml</button><button className={showingFiles ? 'chosen' : ''} onClick={() => setTab('files')} disabled={!plan || !Object.keys(plan.files).length}><FolderOpen size={14}/> {messages.ui.planFiles}</button><span>YAML</span></div>
@@ -277,7 +297,7 @@ export default function App() {
         </div>
         {plan && <section className="card plan-card"><div className="plan-heading"><div><div className="eyebrow">{messages.ui.previewTitle}</div><h2>{actionTitle(plan.action)}</h2><p>{plan.remote_dir}</p></div><IconButton label={messages.ui.closePlan} onClick={() => setPlan(null)}><X size={18}/></IconButton></div><ol>{plan.steps.map(step => <li key={step}>{step}</li>)}</ol>{['fresh', 'restore'].includes(plan.action) && <p className="plan-warning">{messages.ui.deploymentHint}</p>}<div className="plan-footer"><Button variant="text" onClick={() => setTab('files')} disabled={!Object.keys(plan.files).length} icon={<FileCode2 size={15}/>}>{messages.ui.inspectFiles}</Button><Button variant="primary" loading={busy} onClick={launch} disabled={dirty || running || archived} icon={<Play size={15}/>}>{formatMessage(messages.ui.launch, { action: actionTitle(plan.action).toLowerCase() })}</Button></div></section>}
         <section className="card journal-card"><CardHeader title={messages.ui.journal} subtitle={messages.ui.journalHint} icon={<Terminal size={18}/>} trailing={<span className="journal-live"><span className={`dot ${running ? 'green' : ''}`}/>{running ? messages.ui.running : messages.ui.idle}</span>}/><div className="journal-body"><div className="job-list">{jobs.length ? jobs.map(item => <button key={item.id} className={`job-row ${jobId === item.id ? 'current' : ''}`} onClick={() => { setJobId(item.id); setJob(null); }}><span className={`status-icon ${item.status}`}>{active(item) ? <Spinner size={15}/> : item.status === 'succeeded' ? <Check size={15}/> : <X size={15}/>}</span><span><strong>{actionTitle(item.action)}</strong><small>{item.node_id} · {date(item.created_at)}</small></span><span className={`job-status ${item.status}`}>{statusLabel(item.status)}</span></button>) : <div className="empty-jobs"><Activity size={22}/><strong>{messages.ui.emptyJobs}</strong><p>{messages.ui.emptyJobsHint}</p></div>}</div><div className="terminal" ref={terminal} aria-label={messages.ui.taskJournal} aria-live="polite"><div className="terminal-caption"><span className="terminal-dots"><i/><i/><i/></span><span>{job ? `${job.node_id} / ${job.action}` : messages.ui.terminalReady}</span>{job && <button type="button" className="journal-export" onClick={downloadJobLog}>{messages.ui.downloadJournal}</button>}</div>{job ? <><div className="terminal-line dim">$ {job.action} · {job.id.slice(0, 8)}</div>{job.events.map(event => <div key={event.seq} className={`terminal-line ${event.level}`}><span>{date(event.created_at)}</span>{event.message}</div>)}{active(job) && <div className="terminal-line dim"><Spinner size={13}/> {messages.ui.waitForVps}</div>}{job.backup_id && <a className="download-link" href={`/api/backups/${job.backup_id}/download`}><ArrowDownToLine size={14}/> {messages.ui.downloadBackup}</a>}</> : <div className="terminal-placeholder"><span className="terminal-prompt">›</span> {messages.ui.terminalEmpty}<br/><span>{messages.ui.terminalHint}</span></div>}</div></div></section>
-        {job?.report && <InstallationReportView report={job.report} node={job.node_id}/>}
+        {job?.report && <InstallationReportView report={job.report} node={job.node_id} suggestions={<DiscoverySuggestions report={job.report} disabled={busy || !draft || !currentReport || running} onApply={applyDiscovery}/>}/>}
         {!!backups.length && <section className="backups-section"><h2><Database size={17}/> {messages.ui.backups}</h2><div className="backup-items">{backups.map(backup => <a key={backup.id} className="backup-item" href={`/api/backups/${backup.id}/download`}><Database size={17}/><span><strong>{backup.filename}</strong><small>{formatMessage(messages.ui.backupSize, { size: (backup.size / 1024).toFixed(0) })} · SHA256 {backup.sha256.slice(0, 10)}…</small></span><ArrowDownToLine size={16}/></a>)}</div></section>}
         <footer className="page-footer"><span>OMSI NODEKIT <span> / </span> {messages.ui.footer}</span><span>{messages.ui.trafficHint}</span></footer>
         </>}
