@@ -3,6 +3,8 @@ from contextlib import closing
 
 from app.defaults import NODE_DEFAULTS as D
 from app.defaults import XUI_LEGACY_PANEL_PATH, XUI_SETTINGS_COLUMNS, XUI_TABLES
+from framework.messages import MessageKey
+from framework.messages import text as message_text
 
 from .context import AgentContext
 
@@ -42,12 +44,10 @@ class PanelDatabase:
                 current = dict(db.execute("SELECT key,value FROM settings"))
                 expected = current.get("subPath", D.subscription_path)
                 if expected != panel["subscription_path"]:
-                    raise RuntimeError(
-                        "YAML subscription_path must match the backup; refusing URL changes"
-                    )
+                    raise RuntimeError(message_text(MessageKey.SUBSCRIPTION_PATH_MISMATCH))
                 actual = current.get("webBasePath", XUI_LEGACY_PANEL_PATH)
                 if actual != panel["base_path"]:
-                    raise RuntimeError("YAML base_path must match the backup; refusing URL changes")
+                    raise RuntimeError(message_text(MessageKey.PANEL_PATH_MISMATCH))
             if node["caddy"]["enabled"]:
                 caddy = node["caddy"]
                 changes["subURI"] = (

@@ -4,6 +4,9 @@ from typing import TypeVar
 from pydantic import BaseModel
 from pydantic import ValidationError as PydanticValidationError
 
+from framework.messages import MessageKey
+from framework.messages import text as message_text
+
 from .exception import ValidationError
 from .json import JsonCodec
 from .yaml import YamlCodec
@@ -26,19 +29,21 @@ class EntityFactory:
                 {"field": ".".join(map(str, item["loc"])), "code": item["type"]}
                 for item in exc.errors(include_input=False, include_context=False)
             ]
-            raise ValidationError("Entity validation failed", details=details) from exc
+            raise ValidationError(
+                message_text(MessageKey.ENTITY_VALIDATION_FAILED), details=details
+            ) from exc
 
     def from_yaml(self, model: type[Model], text: str) -> Model:
         data = self.yaml.loads(text)
         if not isinstance(data, dict):
-            raise ValidationError("YAML must contain an object")
+            raise ValidationError(message_text(MessageKey.YAML_OBJECT_REQUIRED))
         return self.create(model, data)
 
     def from_json(self, model: type[Model], text: str) -> Model:
         try:
             data = self.json.loads(text)
         except (ValueError, RecursionError) as exc:
-            raise ValidationError("Invalid JSON document") from exc
+            raise ValidationError(message_text(MessageKey.JSON_INVALID)) from exc
         if not isinstance(data, dict):
-            raise ValidationError("JSON must contain an object")
+            raise ValidationError(message_text(MessageKey.JSON_OBJECT_REQUIRED))
         return self.create(model, data)

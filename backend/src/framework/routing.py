@@ -18,6 +18,8 @@ from framework.entities import (
     ValidationError,
 )
 from framework.logging import log_context
+from framework.messages import ErrorCode, MessageKey
+from framework.messages import text as message_text
 
 logger = logging.getLogger("nodekit.http")
 
@@ -101,8 +103,8 @@ class ExceptionHandlers:
             for item in exc.errors()
         ]
         return Responses.error(
-            "validation_error",
-            "Request validation failed",
+            ErrorCode.VALIDATION_ERROR,
+            message_text(MessageKey.REQUEST_VALIDATION_FAILED),
             422,
             details=details,
             request_id=getattr(request.state, "request_id", ""),
@@ -110,20 +112,20 @@ class ExceptionHandlers:
 
     async def http(self, request: Request, exc: HTTPException):
         return Responses.error(
-            "not_found" if exc.status_code == 404 else "http_error",
-            str(exc.detail),
+            ErrorCode.NOT_FOUND if exc.status_code == 404 else ErrorCode.HTTP_ERROR,
+            message_text(MessageKey.HTTP_NOT_FOUND) if exc.status_code == 404 else str(exc.detail),
             exc.status_code,
             request_id=getattr(request.state, "request_id", ""),
         )
 
     async def unexpected(self, request: Request, exc: Exception):
         logger.error(
-            "Unhandled request error",
-            extra={"error_code": "internal_error", "error_type": type(exc).__name__},
+            message_text(MessageKey.UNHANDLED_REQUEST_LOG),
+            extra={"error_code": ErrorCode.INTERNAL_ERROR, "error_type": type(exc).__name__},
         )
         return Responses.error(
-            "internal_error",
-            "Unexpected internal error",
+            ErrorCode.INTERNAL_ERROR,
+            message_text(MessageKey.INTERNAL_ERROR),
             500,
             request_id=getattr(request.state, "request_id", ""),
         )

@@ -4,6 +4,9 @@ import subprocess
 import threading
 from collections.abc import Iterator
 
+from framework.messages import MessageKey
+from framework.messages import text as message_text
+
 
 class ProcessError(RuntimeError):
     pass
@@ -22,9 +25,13 @@ class CommandRunner:
                 check=False,
             )
         except subprocess.TimeoutExpired as exc:
-            raise ProcessError(f"{args[0]} timed out after {timeout}s") from exc
+            raise ProcessError(
+                message_text(MessageKey.COMMAND_TIMED_OUT, command=args[0], timeout=timeout)
+            ) from exc
         except OSError as exc:
-            raise ProcessError(f"Cannot start executable: {args[0]}") from exc
+            raise ProcessError(
+                message_text(MessageKey.EXECUTABLE_UNAVAILABLE, command=args[0])
+            ) from exc
 
     def status(self, args: list[str], *, timeout: float) -> int:
         return self.completed(args, timeout=timeout).returncode
@@ -32,8 +39,19 @@ class CommandRunner:
     def run(self, args: list[str], *, timeout: float, sensitive: bool = False) -> str:
         result = self.completed(args, timeout=timeout)
         if result.returncode:
-            detail = "Sensitive command failed" if sensitive else result.stderr[-1500:]
-            raise ProcessError(f"{args[0]} failed ({result.returncode}): {detail}")
+            detail = (
+                message_text(MessageKey.PROCESS_SENSITIVE_FAILED)
+                if sensitive
+                else result.stderr[-1500:]
+            )
+            raise ProcessError(
+                message_text(
+                    MessageKey.COMMAND_FAILED,
+                    command=args[0],
+                    status=result.returncode,
+                    detail=detail,
+                )
+            )
         return result.stdout.strip()
 
     def stream(self, args: list[str], content: str, *, timeout: float) -> Iterator[str]:
@@ -48,7 +66,9 @@ class CommandRunner:
                 errors="replace",
             )
         except OSError as exc:
-            raise ProcessError(f"Cannot start executable: {args[0]}") from exc
+            raise ProcessError(
+                message_text(MessageKey.EXECUTABLE_UNAVAILABLE, command=args[0])
+            ) from exc
         expired = threading.Event()
         write_errors = []
 
@@ -77,13 +97,11 @@ class CommandRunner:
             code = process.wait()
             sender.join(timeout=3)
             if expired.is_set():
-                raise ProcessError(
-                    f"Process timed out after {timeout}s; inspect remote services before retrying"
-                )
+                raise ProcessError(message_text(MessageKey.PROCESS_TIMED_OUT, timeout=timeout))
             if code:
-                raise ProcessError(f"Remote operation failed (SSH exit {code}); see the journal")
+                raise ProcessError(message_text(MessageKey.SSH_EXIT_FAILED, status=code))
             if write_errors:
-                raise ProcessError("Could not deliver the entire remote script")
+                raise ProcessError(message_text(MessageKey.PROCESS_SCRIPT_INCOMPLETE))
         finally:
             timer.cancel()
             if process.poll() is None:

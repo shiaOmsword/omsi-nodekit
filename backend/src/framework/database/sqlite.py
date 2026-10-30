@@ -5,6 +5,9 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
+from framework.messages import MessageKey
+from framework.messages import text as message_text
+
 
 @dataclass(frozen=True)
 class Migration:
@@ -23,7 +26,7 @@ class SQLiteDatabase:
         with self.connect() as db:
             version = db.execute("PRAGMA user_version").fetchone()[0]
             if migrations and version > max(m.version for m in migrations):
-                raise RuntimeError("Database schema is newer than this application")
+                raise RuntimeError(message_text(MessageKey.SQLITE_SCHEMA_NEWER))
             for migration in sorted(migrations, key=lambda item: item.version):
                 if migration.version > version:
                     db.executescript(

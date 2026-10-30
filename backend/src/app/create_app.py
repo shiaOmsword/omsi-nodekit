@@ -11,6 +11,8 @@ from app.infrastructure.bootstrap import StorageBootstrap
 from app.middleware import LocalRequestMiddleware
 from app.routes import ApplicationRoutes
 from framework.logging import configure_logging
+from framework.messages import MessageKey
+from framework.messages import text as message_text
 from framework.routing import ApiResponse, ExceptionHandlers, Responses
 from framework.tasks import TaskScheduler
 
@@ -45,7 +47,7 @@ def create_app(settings: Settings | None = None, *, container: punq.Container | 
         def frontend_missing() -> ApiResponse:
             return Responses.success(
                 {
-                    "message": "Build the frontend: cd frontend && npm ci && npm run build",
+                    "message": message_text(MessageKey.FRONTEND_BUILD_REQUIRED),
                     "docs": "/docs",
                 }
             )

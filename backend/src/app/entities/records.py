@@ -3,6 +3,8 @@ from enum import StrEnum
 from pydantic import Field, model_validator
 
 from framework.entities import ConflictError, Entity
+from framework.messages import MessageKey
+from framework.messages import text as message_text
 from framework.utils import new_id, sha256, utc_timestamp
 
 
@@ -56,7 +58,9 @@ class Job(Entity):
             JobStatus.RUNNING: {JobStatus.SUCCEEDED, JobStatus.FAILED, JobStatus.INTERRUPTED},
         }
         if status not in allowed.get(self.status, set()):
-            raise ConflictError(f"Cannot move job from {self.status} to {status}")
+            raise ConflictError(
+                message_text(MessageKey.JOB_TRANSITION_INVALID, current=self.status, target=status)
+            )
         return self.model_copy(
             update={
                 "status": status,
@@ -99,7 +103,7 @@ class ExecutionEvent(Entity):
     @model_validator(mode="after")
     def one_kind(self):
         if (self.message is None) == (self.backup is None):
-            raise ValueError("Execution event must contain a message or a backup")
+            raise ValueError(message_text(MessageKey.EVENT_CONTENT_INVALID))
         if self.level not in {"info", "warning", "error"}:
-            raise ValueError("Unsupported event level")
+            raise ValueError(message_text(MessageKey.EVENT_LEVEL_INVALID))
         return self

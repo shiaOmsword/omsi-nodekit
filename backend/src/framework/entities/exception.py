@@ -1,5 +1,8 @@
+from framework.messages import ErrorCode
+
+
 class ApplicationError(Exception):
-    code = "application_error"
+    code = ErrorCode.APPLICATION_ERROR
 
     def __init__(self, message: str, *, details: list[dict] | None = None):
         super().__init__(message)
@@ -8,24 +11,24 @@ class ApplicationError(Exception):
 
 
 class ValidationError(ApplicationError):
-    code = "validation_error"
+    code = ErrorCode.VALIDATION_ERROR
 
 
 class NotFoundError(ApplicationError):
-    code = "not_found"
+    code = ErrorCode.NOT_FOUND
 
 
 class ConflictError(ApplicationError):
-    code = "conflict"
+    code = ErrorCode.CONFLICT
 
 
 class PayloadTooLargeError(ApplicationError):
-    code = "payload_too_large"
+    code = ErrorCode.PAYLOAD_TOO_LARGE
 
 
 class InfrastructureError(ApplicationError):
-    code = "infrastructure_error"
+    code = ErrorCode.INFRASTRUCTURE_ERROR
 
 
 class ConfigurationError(ApplicationError):
-    code = "configuration_error"
+    code = ErrorCode.CONFIGURATION_ERROR

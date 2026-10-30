@@ -8,6 +8,8 @@ from app.config import Settings
 from app.entities import ExecutionEvent
 from app.ports import ArtifactRenderer, NodeExecutor
 from framework.entities import InfrastructureError, JsonCodec
+from framework.messages import MessageKey
+from framework.messages import text as message_text
 from framework.network import ProcessError, SSHClient, SSHConnection
 
 
@@ -31,6 +33,9 @@ class RemoteAgentBuilder:
             "framework/network/ssh.py",
         ]
         files += [path.relative_to(root).as_posix() for path in (root / "app/agent").glob("*.py")]
+        files += [
+            path.relative_to(root).as_posix() for path in (root / "framework/messages").glob("*.py")
+        ]
         archive = io.BytesIO()
         with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
             for name in ("app/__init__.py", "framework/__init__.py"):
@@ -50,6 +55,9 @@ class RemoteAgentBuilder:
             payload["backup"] = base64.b64encode(backup).decode()
         encoded = base64.b64encode(archive.getvalue()).decode()
         return f"""import base64, io, json, sys, tempfile, zipfile
+if sys.version_info < (3, 11):
+    print(json.dumps({{"message": {message_text(MessageKey.REMOTE_PYTHON_REQUIRED)!r}, "level": "error"}}), flush=True)
+    raise SystemExit(1)
 with tempfile.TemporaryDirectory(prefix="nodekit-agent-") as folder:
     zipfile.ZipFile(io.BytesIO(base64.b64decode({encoded!r}))).extractall(folder)
     sys.path.insert(0, folder)
@@ -77,7 +85,12 @@ class SSHNodeExecutor(NodeExecutor):
         try:
             script = self.builder.build(node, action, backup)
             yield ExecutionEvent(
-                message=f"Connecting to {node.ssh.user}@{node.ssh.host}:{node.ssh.port}"
+                message=message_text(
+                    MessageKey.SSH_CONNECTING,
+                    user=node.ssh.user,
+                    host=node.ssh.host,
+                    port=node.ssh.port,
+                )
             )
             for line in self.ssh.execute(
                 connection, script, timeout=self.settings.ssh.operation_timeout
@@ -88,13 +101,13 @@ class SSHNodeExecutor(NodeExecutor):
                     yield ExecutionEvent(message=line.strip(), level="warning")
                     continue
                 if not isinstance(event, dict):
-                    raise InfrastructureError("Invalid remote event")
+                    raise InfrastructureError(message_text(MessageKey.REMOTE_EVENT_INVALID))
                 if "backup" in event:
                     encoded = event["backup"]
                     if not isinstance(encoded, str) or len(encoded) > (
                         self.settings.limits.backup_bytes * 4 // 3 + 8
                     ):
-                        raise InfrastructureError("Remote backup exceeds configured size limit")
+                        raise InfrastructureError(message_text(MessageKey.REMOTE_BACKUP_TOO_LARGE))
                     yield ExecutionEvent(backup=base64.b64decode(encoded, validate=True))
                 else:
                     yield ExecutionEvent(
@@ -103,4 +116,6 @@ class SSHNodeExecutor(NodeExecutor):
         except ProcessError as exc:
             raise InfrastructureError(str(exc)) from exc
         except (binascii.Error, ValueError) as exc:
-            raise InfrastructureError("Invalid remote event payload") from exc
+            raise InfrastructureError(
+                message_text(MessageKey.REMOTE_EVENT_PAYLOAD_INVALID)
+            ) from exc

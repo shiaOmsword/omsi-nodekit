@@ -5,6 +5,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.config import ServerSettings
 from framework.logging import bind_context
+from framework.messages import ErrorCode, MessageKey
+from framework.messages import text as message_text
 from framework.routing import ExceptionHandlers, Responses
 from framework.utils import new_id
 
@@ -36,7 +38,7 @@ class LocalRequestMiddleware(BaseHTTPMiddleware):
                 }
             )
             logger.info(
-                "HTTP request",
+                message_text(MessageKey.HTTP_REQUEST_LOG),
                 extra={
                     "method": request.method,
                     "path": request.url.path,
@@ -49,14 +51,14 @@ class LocalRequestMiddleware(BaseHTTPMiddleware):
     def reject(self, request):
         message = None
         if request.url.hostname not in self.policy.allowed_hosts:
-            message = "Nodekit accepts configured local hosts only"
+            message = message_text(MessageKey.LOCAL_HOST_REQUIRED)
         elif request.url.path.startswith("/api/"):
             origin = request.headers.get("origin")
             if origin and origin not in self.policy.origins():
-                message = "Untrusted browser origin"
+                message = message_text(MessageKey.UNTRUSTED_ORIGIN)
             elif (
                 request.method not in {"GET", "HEAD"}
                 and request.headers.get("x-nodekit-request") != "1"
             ):
-                message = "Missing X-Nodekit-Request header"
-        return Responses.error("forbidden", message, 403) if message else None
+                message = message_text(MessageKey.REQUEST_HEADER_REQUIRED)
+        return Responses.error(ErrorCode.FORBIDDEN, message, 403) if message else None

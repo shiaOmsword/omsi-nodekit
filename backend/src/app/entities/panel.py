@@ -3,6 +3,8 @@ import re
 from pydantic import field_validator
 
 from app.defaults import NODE_DEFAULTS as D
+from framework.messages import MessageKey
+from framework.messages import text as message_text
 
 from .base import Port, StrictModel
 
@@ -18,5 +20,5 @@ class Panel(StrictModel):
     @classmethod
     def safe_url_path(cls, value: str) -> str:
         if not re.fullmatch(r"/(?:[a-zA-Z0-9_-]+/)*", value):
-            raise ValueError("Use a path such as /nodekit/ or /sub/")
+            raise ValueError(message_text(MessageKey.URL_PATH_INVALID))
         return value

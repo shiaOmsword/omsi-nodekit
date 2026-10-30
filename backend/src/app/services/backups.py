@@ -2,6 +2,8 @@ from app.config import Limits
 from app.entities import Backup, Node
 from app.ports import BackupFiles, BackupRepository, BackupValidator
 from framework.entities import NotFoundError, ValidationError
+from framework.messages import MessageKey
+from framework.messages import text as message_text
 from framework.utils import sha256
 
 
@@ -25,7 +27,7 @@ class BackupService:
             or len(filename) > self.limits.filename_length
             or any(ord(c) < 32 for c in filename)
         ):
-            raise ValidationError("Expected a .db filename within the configured length limit")
+            raise ValidationError(message_text(MessageKey.BACKUP_FILENAME_INVALID))
         self.validator.validate(content)
         backup = Backup.create(content, filename)
         self.files.write(backup.id, content)
@@ -45,9 +47,9 @@ class BackupService:
         try:
             content = self.files.read(backup_id)
         except FileNotFoundError as exc:
-            raise NotFoundError("Backup file is missing") from exc
+            raise NotFoundError(message_text(MessageKey.BACKUP_FILE_MISSING)) from exc
         if sha256(content) != metadata.sha256:
-            raise ValidationError("Backup checksum no longer matches its metadata")
+            raise ValidationError(message_text(MessageKey.BACKUP_CHECKSUM_INVALID))
         self.validator.validate(content)
         return content
 

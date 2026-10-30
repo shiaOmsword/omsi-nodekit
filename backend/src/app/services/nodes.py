@@ -1,6 +1,8 @@
 from app.entities import JobAction, NodeFactory, StoredNode
 from app.ports import ArtifactRenderer, NodeRepository, NodeTemplate
 from framework.entities import ValidationError
+from framework.messages import MessageKey
+from framework.messages import text as message_text
 
 
 class NodeService:
@@ -26,7 +28,7 @@ class NodeService:
     def save(self, node_id: str, text: str):
         node = self.factory.from_yaml(text)
         if node.id != node_id:
-            raise ValidationError("URL node ID must match YAML id")
+            raise ValidationError(message_text(MessageKey.NODE_ID_MISMATCH))
         return self.nodes.save(StoredNode.create(node, text))
 
     def get(self, node_id):

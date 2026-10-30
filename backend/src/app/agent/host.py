@@ -3,6 +3,9 @@ import shutil
 import socket
 from pathlib import Path
 
+from framework.messages import MessageKey
+from framework.messages import text as message_text
+
 from .context import AgentContext
 
 
@@ -24,18 +27,16 @@ class HostEnvironment:
             try:
                 sock.bind(("0.0.0.0", port))
             except OSError as exc:
-                raise RuntimeError(
-                    f"Port {port} already occupied; existing services will not be stopped"
-                ) from exc
+                raise RuntimeError(message_text(MessageKey.PORT_OCCUPIED, port=port)) from exc
 
     def environment(self):
         if os.geteuid() != 0:
-            raise RuntimeError("Use root or ssh.sudo: true with non-interactive sudo")
+            raise RuntimeError(message_text(MessageKey.ROOT_REQUIRED))
         if not Path(self.context.policy["systemd_directory"]).exists():
-            raise RuntimeError("Target must be a Linux VPS running systemd")
+            raise RuntimeError(message_text(MessageKey.SYSTEMD_REQUIRED))
         for executable in ("docker", "ssh", "systemctl"):
             if not shutil.which(executable):
-                raise RuntimeError(f"Missing prerequisite: {executable}")
+                raise RuntimeError(message_text(MessageKey.PREREQUISITE_MISSING, name=executable))
         self.context.command(["docker", "info", "--format", "{{.ServerVersion}}"])
         self.context.command(["docker", "compose", "version"])
-        self.context.emit("Docker daemon, Compose, OpenSSH and systemd available")
+        self.context.emit(message_text(MessageKey.ENVIRONMENT_AVAILABLE))

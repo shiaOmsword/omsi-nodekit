@@ -2,6 +2,9 @@ import os
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
+from framework.messages import MessageKey
+from framework.messages import text as message_text
+
 
 class PrivateFiles:
     def __init__(self, root: Path):
@@ -13,10 +16,10 @@ class PrivateFiles:
 
     def path(self, name: str) -> Path:
         if not name or name in {".", ".."} or any(c in name for c in ("/", "\\", "\x00")):
-            raise ValueError("Invalid managed filename")
+            raise ValueError(message_text(MessageKey.MANAGED_FILENAME_INVALID))
         path = self.root / name
         if path.is_symlink():
-            raise ValueError("Managed files must not be symbolic links")
+            raise ValueError(message_text(MessageKey.MANAGED_SYMLINK_FORBIDDEN))
         return path
 
     def write(self, name: str, content: bytes) -> Path:

@@ -7,6 +7,8 @@ from app.defaults import APP_VERSION
 from app.entities import ConfigRequest, JobAction, JobRequest
 from app.services import BackupService, JobService, NodeService
 from framework.entities import PayloadTooLargeError
+from framework.messages import MessageKey
+from framework.messages import text as message_text
 from framework.routing import ApiResponse, Responses, RouterFactory
 
 
@@ -81,7 +83,9 @@ class ApplicationRoutes:
             content = bytearray()
             async for chunk in request.stream():
                 if len(content) + len(chunk) > self.limits.backup_bytes:
-                    raise PayloadTooLargeError(f"Backup exceeds {self.limits.backup_bytes} bytes")
+                    raise PayloadTooLargeError(
+                        message_text(MessageKey.BACKUP_TOO_LARGE, limit=self.limits.backup_bytes)
+                    )
                 content.extend(chunk)
             backup = await run_in_threadpool(self.backups.import_backup, bytes(content), filename)
             return Responses.success(backup)

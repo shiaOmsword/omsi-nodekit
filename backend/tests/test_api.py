@@ -157,3 +157,11 @@ def test_unexpected_failure_does_not_leak_details(client, container, monkeypatch
     assert response.status_code == 500
     assert response.json()["error"]["code"] == "internal_error"
     assert "super-secret-password" not in response.text
+
+
+def test_node_id_mismatch_is_a_catalogue_validation_error(client, node_yaml):
+    from framework.messages import MessageKey, text
+
+    response = client.put("/api/nodes/different", json={"yaml": node_yaml})
+    assert response.status_code == 422
+    assert response.json()["error"]["message"] == text(MessageKey.NODE_ID_MISMATCH)

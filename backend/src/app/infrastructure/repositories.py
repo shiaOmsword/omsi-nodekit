@@ -3,6 +3,8 @@ from app.entities import Backup, Job, JobDetails, JobEvent, JobStatus, NodeSumma
 from app.ports import BackupRepository, JobRepository, NodeRepository
 from framework.database import SQLiteDatabase
 from framework.entities import ConflictError, NotFoundError
+from framework.messages import MessageKey
+from framework.messages import text as message_text
 
 
 class SQLiteNodeRepository(NodeRepository):
@@ -21,7 +23,7 @@ class SQLiteNodeRepository(NodeRepository):
         with self.database.connect() as db:
             row = db.execute("SELECT * FROM nodes WHERE id=?", (node_id,)).fetchone()
         if row is None:
-            raise NotFoundError("Node not found")
+            raise NotFoundError(message_text(MessageKey.NODE_NOT_FOUND))
         return StoredNode.model_validate(dict(row))
 
     def list(self) -> list[NodeSummary]:
@@ -43,10 +45,10 @@ class SQLiteJobRepository(JobRepository):
                 "SELECT 1 FROM jobs WHERE status IN (?,?)", (JobStatus.QUEUED, JobStatus.RUNNING)
             ).fetchone()
             if active:
-                raise ConflictError("Another operation is running; wait for it to finish")
+                raise ConflictError(message_text(MessageKey.JOB_ALREADY_RUNNING))
             row = db.execute("SELECT revision FROM nodes WHERE id=?", (job.node_id,)).fetchone()
             if row is None or row[0] != revision:
-                raise ConflictError("Configuration changed; refresh and preview the plan again")
+                raise ConflictError(message_text(MessageKey.CONFIGURATION_CHANGED))
             db.execute(
                 "INSERT INTO jobs (id,node_id,action,status,created_at) VALUES (?,?,?,?,?)",
                 (job.id, job.node_id, job.action, job.status, job.created_at),
@@ -56,7 +58,7 @@ class SQLiteJobRepository(JobRepository):
         with self.database.connect() as db:
             row = db.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
         if row is None:
-            raise NotFoundError("Job not found")
+            raise NotFoundError(message_text(MessageKey.JOB_NOT_FOUND))
         return Job.model_validate(dict(row))
 
     def details(self, job_id: str) -> JobDetails:
@@ -75,7 +77,7 @@ class SQLiteJobRepository(JobRepository):
                 (job.status, job.error, job.backup_id, job.finished_at, job.id),
             )
             if not cursor.rowcount:
-                raise NotFoundError("Job not found")
+                raise NotFoundError(message_text(MessageKey.JOB_NOT_FOUND))
 
     def list(self) -> list[Job]:
         with self.database.connect() as db:
@@ -106,7 +108,7 @@ class SQLiteJobRepository(JobRepository):
             for row in rows:
                 job = Job.model_validate(dict(row)).transition(
                     JobStatus.INTERRUPTED,
-                    error="Local backend restarted; check remote services before retrying",
+                    error=message_text(MessageKey.JOB_INTERRUPTED),
                 )
                 db.execute(
                     "UPDATE jobs SET status=?,error=?,finished_at=? WHERE id=?",
@@ -130,7 +132,7 @@ class SQLiteBackupRepository(BackupRepository):
         with self.database.connect() as db:
             row = db.execute("SELECT * FROM backups WHERE id=?", (backup_id,)).fetchone()
         if row is None:
-            raise NotFoundError("Backup not found")
+            raise NotFoundError(message_text(MessageKey.BACKUP_NOT_FOUND))
         return Backup.model_validate(dict(row))
 
     def list(self) -> list[Backup]:

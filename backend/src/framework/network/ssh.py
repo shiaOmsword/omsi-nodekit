@@ -1,6 +1,9 @@
 from dataclasses import dataclass
 from pathlib import Path
 
+from framework.messages import MessageKey
+from framework.messages import text as message_text
+
 from .execute import CommandRunner, ProcessError
 
 
@@ -34,7 +37,7 @@ class SSHClient:
         hosts = Path(connection.known_hosts_file).expanduser().resolve()
         for path in (identity, hosts):
             if not path.is_file():
-                raise ProcessError(f"Local SSH file does not exist: {path}")
+                raise ProcessError(message_text(MessageKey.SSH_FILE_MISSING, path=path))
         # OpenSSH parses -o values itself; quoting also supports spaces in Windows paths.
         known_hosts = str(hosts).replace("\\", "/").replace('"', '\\"')
         return [

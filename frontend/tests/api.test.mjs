@@ -1,11 +1,8 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import test from 'node:test';
-import ts from 'typescript';
+import { compiled } from './helpers/compiled.mjs';
 
-const source = await readFile(new URL('../src/api.ts', import.meta.url), 'utf8');
-const { outputText } = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } });
-const { api, ApiError } = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
+const { api, ApiError, ErrorCode } = compiled('api.js');
 
 async function withFetch(fake, run) {
   const original = globalThis.fetch;
@@ -50,10 +47,30 @@ test('handles a non-JSON upstream error', async () => {
 test('keeps binary upload headers and the local request marker', async () => {
   await withFetch(async (path, options) => {
     assert.equal(path, '/api/backups');
-    assert.equal(options.headers['X-Nodekit-Request'], '1');
-    assert.equal(options.headers['Content-Type'], 'application/octet-stream');
+    assert.equal(options.headers.get('X-Nodekit-Request'), '1');
+    assert.equal(options.headers.get('Content-Type'), 'application/octet-stream');
     return new Response(JSON.stringify({ ok: true, data: { id: 'backup' }, error: null, meta }), { status: 201 });
   }, async () => {
     assert.deepEqual(await api('/backups', { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: new Uint8Array([1, 2]) }), { id: 'backup' });
+  });
+});
+
+
+test('network failures have a stable client code and no raw exception leakage', async () => {
+  await withFetch(async () => { throw new TypeError('private proxy details'); }, async () => {
+    await assert.rejects(api('/nodes'), error => error instanceof ApiError && error.code === ErrorCode.NetworkError && !error.message.includes('private proxy'));
+  });
+});
+
+test('malformed error details are rejected before reaching the UI', async () => {
+  await withFetch(async () => new Response(JSON.stringify({ok:false,data:null,error:{code:'validation_error',message:'bad',details:'not-an-array'},meta}), {status:422}), async () => {
+    await assert.rejects(api('/nodes'), error => error.code === ErrorCode.InvalidResponse);
+  });
+});
+
+test('request cancellation is preserved', async () => {
+  const abort = new DOMException('aborted', 'AbortError');
+  await withFetch(async () => { throw abort; }, async () => {
+    await assert.rejects(api('/nodes'), error => error === abort);
   });
 });

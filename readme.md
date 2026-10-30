@@ -58,9 +58,12 @@ npm run dev
 
 ## Подготовка VPS
 
+Пошаговый первый прогон: [docs/faq.md](docs/faq.md). Каталоги сообщений и общий UI:
+[docs/messages.md](docs/messages.md).
+
 На целевой Ubuntu/Debian VPS должны быть установлены:
 
-- Python 3 со стандартным модулем `sqlite3`;
+- Python 3.11+ со стандартным модулем `sqlite3`;
 - Docker Engine и Compose plugin;
 - OpenSSH и systemd; `runuser`, если нужны туннели;
 - `curl`, если включена проверка трафика через SOCKS.

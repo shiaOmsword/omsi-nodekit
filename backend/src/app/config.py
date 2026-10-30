@@ -7,6 +7,8 @@ from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from framework.entities import Entity
+from framework.messages import MessageKey
+from framework.messages import text as message_text
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 
@@ -22,7 +24,7 @@ class ServerSettings(Entity):
     @classmethod
     def loopback(cls, value):
         if value not in {"127.0.0.1", "::1", "localhost"}:
-            raise ValueError("This desktop application must bind to loopback")
+            raise ValueError(message_text(MessageKey.LOOPBACK_REQUIRED))
         return value
 
     def origins(self) -> set[str]:
@@ -84,16 +86,16 @@ class DeploymentSettings(Entity):
     @classmethod
     def absolute_safe_path(cls, value):
         if not re.fullmatch(r"/(?:[a-zA-Z0-9_.-]+/)*[a-zA-Z0-9_.-]+", value):
-            raise ValueError("Deployment paths must be absolute and contain no expansions")
+            raise ValueError(message_text(MessageKey.ABSOLUTE_PATH_REQUIRED))
         if ".." in value.split("/"):
-            raise ValueError("Parent path components are not allowed")
+            raise ValueError(message_text(MessageKey.PARENT_PATH_FORBIDDEN))
         return value
 
     @field_validator("service_prefix")
     @classmethod
     def simple_name(cls, value):
         if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_.-]*", value):
-            raise ValueError("Expected a simple filename or service prefix")
+            raise ValueError(message_text(MessageKey.SIMPLE_NAME_REQUIRED))
         return value
 
 
@@ -122,7 +124,7 @@ class Settings(BaseSettings):
     @classmethod
     def local_name(cls, value):
         if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_.-]*", value):
-            raise ValueError("Use a filename or directory name without path components")
+            raise ValueError(message_text(MessageKey.LOCAL_NAME_REQUIRED))
         return value
 
 
@@ -130,5 +132,5 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     environment = os.getenv("NODEKIT_ENVIRONMENT", "local")
     if not re.fullmatch(r"[a-zA-Z0-9_-]+", environment):
-        raise ValueError("Invalid environment name")
+        raise ValueError(message_text(MessageKey.INVALID_ENVIRONMENT))
     return Settings(_env_file=BASE_DIR / ".envs" / f".{environment}.env")

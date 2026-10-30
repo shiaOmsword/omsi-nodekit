@@ -2,6 +2,8 @@ from app.config import DeploymentSettings, SSHSettings
 from app.entities import Node
 from app.ports import ArtifactRenderer
 from framework.entities import YamlCodec
+from framework.messages import MessageKey
+from framework.messages import text as message_text
 
 
 class NodeArtifacts(ArtifactRenderer):
@@ -98,35 +100,38 @@ WantedBy=multi-user.target
 
     def plan(self, node: Node, action: str) -> dict:
         steps = [
-            "SSH connection with strict host-key verification",
-            "Check Docker Compose and systemd",
+            message_text(MessageKey.PLAN_SSH_CHECK),
+            message_text(MessageKey.PLAN_ENVIRONMENT_CHECK),
         ]
         if action in {"fresh", "restore"}:
-            steps += ["Refuse unmanaged or existing installations", "Pull pinned Docker images"]
             steps += [
-                "Initialize private panel credentials"
-                if action == "fresh"
-                else "Validate and restore SQLite snapshot"
+                message_text(MessageKey.PLAN_EXISTING_GUARD),
+                message_text(MessageKey.PLAN_IMAGES_PULL),
             ]
             steps += [
-                "Bind panel and subscription backend to localhost",
-                "Install configured SSH tunnel units",
-                "Start services and verify HTTP endpoints",
+                message_text(MessageKey.PLAN_CREDENTIALS_CREATE)
+                if action == "fresh"
+                else message_text(MessageKey.PLAN_DATABASE_RESTORE)
+            ]
+            steps += [
+                message_text(MessageKey.PLAN_LISTENERS_CONFIGURE),
+                message_text(MessageKey.PLAN_TUNNELS_INSTALL),
+                message_text(MessageKey.PLAN_SERVICES_VERIFY),
             ]
         elif action == "backup":
             steps += [
-                "Create consistent SQLite snapshot",
-                "Download snapshot and configuration manifest",
+                message_text(MessageKey.PLAN_SNAPSHOT_CREATE),
+                message_text(MessageKey.PLAN_SNAPSHOT_DOWNLOAD),
             ]
         elif action == "doctor":
             steps += [
-                "Check panel HTTP and subscription listener",
-                "Check tunnel units and local ports",
+                message_text(MessageKey.PLAN_PANEL_CHECK),
+                message_text(MessageKey.PLAN_TUNNELS_CHECK),
             ]
             steps += [
-                "Send HTTPS request through configured SOCKS proxy"
+                message_text(MessageKey.PLAN_PROXY_CHECK)
                 if node.probe
-                else "End-to-end proxy probe: not configured"
+                else message_text(MessageKey.PLAN_PROXY_NOT_CONFIGURED)
             ]
         return {
             "action": action,

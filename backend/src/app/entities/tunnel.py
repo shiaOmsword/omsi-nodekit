@@ -3,6 +3,8 @@ import re
 from pydantic import field_validator
 
 from app.defaults import NODE_DEFAULTS as D
+from framework.messages import MessageKey
+from framework.messages import text as message_text
 
 from .base import Host, Port, Slug, StrictModel, User
 
@@ -21,7 +23,7 @@ class Tunnel(StrictModel):
     @classmethod
     def remote_path(cls, value: str) -> str:
         if not re.fullmatch(r"/(?:[a-zA-Z0-9_.-]+/)*[a-zA-Z0-9_.-]+", value):
-            raise ValueError("Remote key paths must be absolute without spaces or expansions")
+            raise ValueError(message_text(MessageKey.REMOTE_KEY_PATH_INVALID))
         if ".." in value.split("/"):
-            raise ValueError("Parent path components are not allowed")
+            raise ValueError(message_text(MessageKey.PARENT_PATH_FORBIDDEN))
         return value

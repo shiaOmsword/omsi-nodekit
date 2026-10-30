@@ -6,6 +6,8 @@ import tempfile
 from pathlib import Path
 
 from app.defaults import XUI_DATABASE_FILE
+from framework.messages import MessageKey
+from framework.messages import text as message_text
 
 from .context import AgentContext
 from .database import PanelDatabase
@@ -34,28 +36,26 @@ class RemoteAgent:
             try:
                 fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError as exc:
-                raise RuntimeError("Another Nodekit operation is running on this VPS") from exc
+                raise RuntimeError(message_text(MessageKey.REMOTE_OPERATION_RUNNING)) from exc
             if action in {"fresh", "restore"}:
                 self.deployment.deploy(context.payload, base)
             elif action == "doctor":
                 self.diagnostics.check(context.node, base)
             elif action == "check":
-                context.emit("SSH/environment check complete; no services changed")
+                context.emit(message_text(MessageKey.ENVIRONMENT_CHECK_COMPLETED))
             elif action == "backup":
                 source = base / "db" / XUI_DATABASE_FILE
                 if not source.is_file():
-                    raise RuntimeError("No managed database found; refusing an empty backup")
+                    raise RuntimeError(message_text(MessageKey.MANAGED_DATABASE_MISSING))
                 with tempfile.TemporaryDirectory() as temporary:
                     destination = Path(temporary) / XUI_DATABASE_FILE
                     self.database.snapshot(source, destination)
                     if destination.stat().st_size > context.limits["backup_bytes"]:
-                        raise RuntimeError("Database exceeds configured backup limit")
+                        raise RuntimeError(message_text(MessageKey.DATABASE_TOO_LARGE))
                     print(
                         json.dumps({"backup": base64.b64encode(destination.read_bytes()).decode()}),
                         flush=True,
                     )
-                context.emit(
-                    "Consistent SQLite snapshot downloaded; external certificates and SSH keys are separate"
-                )
+                context.emit(message_text(MessageKey.BACKUP_DOWNLOADED))
             else:
-                raise RuntimeError("Unknown action")
+                raise RuntimeError(message_text(MessageKey.ACTION_UNKNOWN))
