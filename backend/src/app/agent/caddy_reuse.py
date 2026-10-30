@@ -1,5 +1,6 @@
 """Transactional addition of one site to an explicitly selected shared Caddy."""
 
+import fnmatch
 import json
 import urllib.request
 from pathlib import Path
@@ -8,6 +9,7 @@ from framework.messages import MessageKey
 from framework.messages import text as message_text
 
 from .discovery import SystemInventory
+from .host import HostEnvironment
 
 
 class ExistingCaddy:
@@ -83,8 +85,16 @@ class ExistingCaddy:
         self.original = self.source.read_bytes()
         self._require_unchanged()
         for route in found["routes"]:
-            if any(h == node["caddy"]["domain"] or h.startswith("*.") for h in route["hosts"]):
+            if any(fnmatch.fnmatchcase(node["caddy"]["domain"], h) for h in route["hosts"]):
                 raise RuntimeError(message_text(MessageKey.DEPLOYMENT_CADDY_COLLISION))
+        if found.get("network_mode") in {None, "host"}:
+            port = node["caddy"]["https_port"]
+            if not any(
+                address.endswith(f":{port}")
+                for route in found["routes"]
+                for address in route.get("listen", [])
+            ):
+                HostEnvironment(self.context).require_endpoint(port, "0.0.0.0")
 
     def _require_unchanged(self):
         try:

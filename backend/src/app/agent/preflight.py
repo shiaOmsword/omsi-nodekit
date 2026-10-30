@@ -45,7 +45,7 @@ class PrerequisiteInspector:
             for caddy in ("none", "native", "docker"):
                 needed = {"python3", "root"}
                 if panel == "native":
-                    needed.update({"systemctl", "curl", "tar"})
+                    needed.add("systemctl")
                 if panel == "docker" or caddy == "docker":
                     needed.update({"docker", "docker_engine", "compose"})
                 if caddy == "native":

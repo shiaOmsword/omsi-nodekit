@@ -1,3 +1,9 @@
+# Реализованный этап
+Native/Docker 3x-ui, новый Docker Caddy, подключение общего native/Docker Caddy,
+автоподстановка и создание REALITY inbound описаны в
+[adaptive-deployment.md](adaptive-deployment.md). Ниже сохранены остальные цели,
+включая установку нового native Caddy и Python.
+
 # Nodekit deployment topologies — design and rollout plan
 
 This is a design contract, **not** a claim that native and hybrid deployments are

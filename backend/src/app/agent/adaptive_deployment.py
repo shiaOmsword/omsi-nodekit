@@ -63,7 +63,10 @@ class AdaptiveDeployment:
             raise RuntimeError(message_text(MessageKey.TARGET_NOT_EMPTY))
         if report["panels"]:
             raise RuntimeError(message_text(MessageKey.DEPLOYMENT_EXISTS))
-        if report["warnings"] or not report["capabilities"].get("systemctl"):
+        needs_systemd = (
+            target["panel_runtime"] == "native" or node["tunnels"] or target["install_docker"]
+        )
+        if report["warnings"] or (needs_systemd and not report["capabilities"].get("systemctl")):
             raise RuntimeError(message_text(MessageKey.DEPLOYMENT_DISCOVERY_INCOMPLETE))
         if target["panel_runtime"] == "native":
             architecture()

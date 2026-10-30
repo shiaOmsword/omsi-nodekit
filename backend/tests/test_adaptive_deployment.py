@@ -1,3 +1,4 @@
+import base64
 import io
 import json
 import os
@@ -32,6 +33,8 @@ from app.services import NodeService
 from app.services.discovery_config import DiscoveryConfigService
 from framework.entities import ValidationError
 from tests.conftest import create_database
+
+ORIGINAL_NATIVE_INSTALL = NativeRelease.install
 
 
 def report(**changes):
@@ -357,8 +360,9 @@ def test_shared_caddy_drift_is_rejected_before_writing(shared_caddy):
 
 
 class FakeAPI:
-    def __init__(self):
+    def __init__(self, objects=False):
         self.items, self.calls = [], []
+        self.objects = objects
 
     def request(self, path, data=None):
         self.calls.append((path, data))
@@ -371,10 +375,18 @@ class FakeAPI:
             self.items.append(item)
             return item
         if path.startswith("inbounds/get/"):
-            return self.items[int(path.rsplit("/", 1)[1]) - 1]
+            item = self.items[int(path.rsplit("/", 1)[1]) - 1]
+            if self.objects:
+                return {
+                    **item,
+                    "settings": json.loads(item["settings"]),
+                    "streamSettings": json.loads(item["streamSettings"]),
+                }
+            return item
 
 
-def test_inbounds_export_only_public_key_and_tunnel_parameters(adaptive, capsys):
+@pytest.mark.parametrize("object_response", [False, True])
+def test_inbounds_export_only_public_key_and_tunnel_parameters(adaptive, capsys, object_response):
     deployment, base, _ = adaptive
     base.mkdir()
     deployment.context.node["deployment"]["inbounds"] = [
@@ -386,7 +398,7 @@ def test_inbounds_export_only_public_key_and_tunnel_parameters(adaptive, capsys)
             "target_port": 443,
         }
     ]
-    api = FakeAPI()
+    api = FakeAPI(object_response)
     provisioner = InboundProvisioner(deployment.context, api, deployment.host)
     provisioner.apply(base)
     exported = (base / "tunnel-connections.json").read_text()
@@ -446,3 +458,39 @@ def test_preflight_detects_udp_occupancy(adaptive):
             HostEnvironment.require_endpoint(
                 deployment.host, occupied.getsockname()[1], "127.0.0.1"
             )
+
+
+def test_native_restore_preserves_database_identities(adaptive, db_file, monkeypatch):
+    deployment, base, calls = adaptive
+    deployment.context.payload.update(
+        action="restore", backup=base64.b64encode(db_file.read_bytes()).decode()
+    )
+    monkeypatch.setattr(
+        deployment.context, "command", lambda args, **kwargs: calls.append(args) or ""
+    )
+    deployment.deploy(base)
+    assert not any("setting" in call for call in calls)
+    import sqlite3
+
+    with sqlite3.connect(base / "db/x-ui.db") as db:
+        assert db.execute("SELECT username FROM users").fetchone()[0] == "original-admin"
+        assert (
+            db.execute("SELECT stream_settings FROM inbounds").fetchone()[0]
+            == "reality-private-key"
+        )
+
+
+def test_native_digest_failure_never_extracts_an_archive(adaptive, monkeypatch):
+    from contextlib import nullcontext
+
+    deployment, base, _ = adaptive
+    base.mkdir()
+    monkeypatch.setattr("app.agent.native_release.architecture", lambda: "amd64")
+    monkeypatch.setattr(
+        "app.agent.native_release.urllib.request.urlopen",
+        lambda *a, **k: nullcontext(io.BytesIO(b"tampered archive")),
+    )
+    # Exercise the real installer rather than the deployment fixture's stub.
+    with pytest.raises(RuntimeError, match="checksum mismatch"):
+        ORIGINAL_NATIVE_INSTALL(NativeRelease(deployment.context), base)
+    assert not (base / "runtime").exists()

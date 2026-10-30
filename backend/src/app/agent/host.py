@@ -46,12 +46,21 @@ class HostEnvironment:
             raise RuntimeError(message_text(MessageKey.ROOT_REQUIRED))
         if self.context.payload["action"] not in {"fresh", "restore"}:
             return
-        if not Path(self.context.policy["systemd_directory"]).exists():
-            raise RuntimeError(message_text(MessageKey.SYSTEMD_REQUIRED))
         if self.context.node.get("deployment"):
-            if not shutil.which("systemctl"):
+            target = self.context.node["deployment"]
+            needs_systemd = (
+                target["panel_runtime"] == "native"
+                or self.context.node["tunnels"]
+                or target["install_docker"]
+            )
+            if needs_systemd and (
+                not Path(self.context.policy["systemd_directory"]).exists()
+                or not shutil.which("systemctl")
+            ):
                 raise RuntimeError(message_text(MessageKey.SYSTEMD_REQUIRED))
             return
+        if not Path(self.context.policy["systemd_directory"]).exists():
+            raise RuntimeError(message_text(MessageKey.SYSTEMD_REQUIRED))
         for executable in ("docker", "ssh", "systemctl"):
             if not shutil.which(executable):
                 raise RuntimeError(message_text(MessageKey.PREREQUISITE_MISSING, name=executable))

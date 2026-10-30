@@ -1,3 +1,5 @@
+import json
+
 from app.config import DeploymentSettings, SSHSettings
 from app.entities import Node
 from app.ports import ArtifactRenderer
@@ -86,7 +88,7 @@ After=network-online.target
 [Service]
 Type=simple
 WorkingDirectory={base}/runtime
-Environment=XUI_DB_TYPE=sqlite XUI_DB_FOLDER={base}/db XUI_BIN_FOLDER={base}/runtime/bin XUI_LOG_FOLDER={base}/logs TZ={self.policy.timezone}
+Environment=XUI_DB_TYPE=sqlite XUI_DB_FOLDER={base}/db XUI_BIN_FOLDER={base}/runtime/bin XUI_LOG_FOLDER={base}/logs XUI_ENABLE_FAIL2BAN=false TZ={self.policy.timezone}
 ExecStart={base}/runtime/x-ui
 Restart=on-failure
 RestartSec=3
@@ -119,6 +121,8 @@ WantedBy=multi-user.target
         if node.panel.installation != "managed":
             return {}
         files = {"compose.yaml": self.compose_config(node)}
+        if node.deployment:
+            files["deployment.json"] = json.dumps(node.deployment.model_dump(mode="json"), indent=2)
         if node.deployment and node.deployment.panel_runtime == "native":
             files[f"{self.policy.service_prefix}-{node.id}-panel.service"] = self.panel_unit(node)
             if node.deployment.caddy_mode != "docker":
