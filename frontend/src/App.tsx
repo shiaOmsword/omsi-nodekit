@@ -8,6 +8,7 @@ import type { Action, Backup, Job, JobDetail, NodeRecord, NodeSummary, Plan, Dra
 import { SSHKeysPanel } from './features/keys/SSHKeysPanel';
 import { HelpPanel } from './features/help/HelpPanel';
 import { ConnectionSettings } from './features/nodes/ConnectionSettings';
+import { getNodeErrorMessage } from './features/nodes/configErrors';
 import { InstallationReportView } from './features/nodes/InstallationReportView';
 
 const actions = (Object.keys(messages.action) as Action[]).map(id => ({ id, ...messages.action[id] }));
@@ -107,7 +108,7 @@ export default function App() {
 
   async function perform(task: () => Promise<void>) {
     setBusy(true); setError(''); setNotice('');
-    try { await task(); } catch (err) { setError(getErrorMessage(err)); }
+    try { await task(); } catch (err) { setError(getNodeErrorMessage(err)); }
     finally { setBusy(false); }
   }
   async function chooseNode(id: string) {
