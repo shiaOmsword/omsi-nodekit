@@ -10,6 +10,7 @@ from app.entities import (
     JobAction,
     JobRequest,
     KeySelection,
+    NodeStateRequest,
     SSHKeyRequest,
 )
 from app.services import BackupService, JobService, NodeService, SSHKeyService
@@ -85,6 +86,14 @@ class ApplicationRoutes:
         @router.put("/nodes/{node_id}")
         def save_node(node_id: str, body: ConfigRequest) -> ApiResponse:
             return Responses.success(self.nodes.save(node_id, body.yaml))
+
+        @router.patch("/nodes/{node_id}/state")
+        def set_node_state(node_id: str, body: NodeStateRequest) -> ApiResponse:
+            return Responses.success(self.nodes.set_state(node_id, body.state))
+
+        @router.delete("/nodes/{node_id}")
+        def delete_node(node_id: str) -> ApiResponse:
+            return Responses.success(self.nodes.delete(node_id))
 
         @router.get("/nodes/{node_id}/plan")
         def preview(node_id: str, action: JobAction) -> ApiResponse:
