@@ -37,7 +37,11 @@ export const messages = {
     manual: 'Как добавить ключ на сервер',
   },
   report: {
-    title: 'Обнаруженная конфигурация', subtitle: 'Снимок настроек ноды {node} на момент этой задачи',
+    title: 'Обнаруженная конфигурация',
+    profiles: 'Готовность к установке по сценариям',
+    profilesHint: 'Только наличие инструментов. Порты, DNS, сертификаты и существующие сервисы проверяются отдельно. Это не запуск установки.',
+    panelRuntime: '3x-ui', caddyRuntime: 'Caddy', missingTools: 'Не хватает', toolsReady: 'Инструменты доступны',
+    caddyNone: 'Без Caddy', runtimeNative: 'В системе', runtimeDocker: 'Docker', subtitle: 'Снимок настроек ноды {node} на момент этой задачи',
     panels: 'Панели 3x-ui', caddy: 'Caddy', capabilities: 'Доступные инструменты',
     noPanels: 'Установки 3x-ui не обнаружены', noCaddy: 'Caddy не обнаружен. Для встроенного TLS панели он не обязателен.',
     selected: 'Выбрана для операции', notSelected: 'Панель не выбрана однозначно. Укажи тип установки и panel.container в YAML.',
