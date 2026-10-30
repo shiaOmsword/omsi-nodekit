@@ -9,7 +9,9 @@ def test_example_is_valid(factory):
     from pathlib import Path
 
     assert (
-        factory.from_yaml((Path(__file__).parents[1] / "config/config-example.yaml").read_text()).id
+        factory.from_yaml(
+            (Path(__file__).parents[1] / "config/config-example.yaml").read_text(encoding="utf-8")
+        ).id
         == "moscow-1"
     )
 

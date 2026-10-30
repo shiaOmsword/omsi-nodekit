@@ -1,4 +1,5 @@
 import base64
+import os
 import sqlite3
 import subprocess
 import sys
@@ -165,7 +166,9 @@ def test_fresh_initializes_credentials_before_start(payload, deployment, tmp_pat
     assert next(i for i, c in enumerate(calls) if "setting" in c) < next(
         i for i, c in enumerate(calls) if "up" in c
     )
-    assert (base / "credentials.json").stat().st_mode & 0o777 == 0o600
+    assert (base / "credentials.json").is_file()
+    if os.name != "nt":  # The deployment target is Linux; Windows stat cannot model its modes.
+        assert (base / "credentials.json").stat().st_mode & 0o777 == 0o600
 
 
 def test_existing_compose_project_is_not_replaced(payload, deployment, tmp_path, monkeypatch):
@@ -193,10 +196,12 @@ def test_remote_bundle_works_without_site_packages(node, container, tmp_path):
     compile(script, "remote-agent", "exec")
     script = script.replace("agent.run()", 'agent.context.emit("isolated bundle imported")')
     result = subprocess.run(
-        [sys.executable, "-I", "-S", "-c", script],
+        [sys.executable, "-I", "-S", "-"],
+        input=script,
         cwd=tmp_path,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=10,
         check=False,
     )

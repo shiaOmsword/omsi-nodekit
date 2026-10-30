@@ -2,7 +2,7 @@ import json
 import re
 import shlex
 import shutil
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from urllib.parse import urlsplit
 
 from framework.messages import MessageKey
@@ -81,7 +81,7 @@ class CaddyInspector:
         if not path and not any(value in {"--resume", "-r"} for value in args):
             path = self.inventory.policy["caddy_config"]
         finding.update(config_path=path, config_source="unavailable", routes=[], warnings=[])
-        if not path or not Path(path).is_absolute():
+        if not path or not (PurePosixPath(path).is_absolute() or Path(path).is_absolute()):
             finding["warnings"].append(message_text(MessageKey.INSPECTION_CADDY_UNSUPPORTED))
             return
         resolve = (lambda p: self.inventory.container_path(container, p)) if container else Path
