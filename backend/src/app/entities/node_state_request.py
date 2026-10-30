@@ -1,4 +1,5 @@
 from app.entities.records import NodeState
+
 from .base import StrictModel
 
 
