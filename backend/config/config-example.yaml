@@ -1,0 +1,52 @@
+# Local computer -> VPS. Paths here refer to YOUR computer (WSL is supported).
+id: moscow-1
+name: Москва · основная
+ssh:
+  host: 203.0.113.10
+  user: root
+  port: 22
+  identity_file: ~/.ssh/id_ed25519
+  known_hosts_file: ~/.ssh/known_hosts
+  sudo: false  # true for a non-root user with passwordless sudo
+
+panel:
+  # For restore, set EXACTLY the version that created your backup.
+  image: ghcr.io/mhsanaei/3x-ui:3.11.0
+  port: 2053
+  base_path: /nodekit/  # must match the backup when restoring
+  subscription_port: 2097
+  subscription_path: /sub/  # must match the backup when restoring
+
+caddy:
+  enabled: false  # enable after pointing domain DNS to this VPS
+  image: caddy:2.10.2-alpine
+  domain: vpn.example.com
+  https_port: 2096  # 443 is reserved for Xray; ACME HTTP challenge needs port 80
+
+# Tunnel keys and known_hosts below must already exist ON THE VPS.
+# SSH ports 22 and 2222 are pre-configured on the destination manually.
+# Each entry starts a separate systemd/SSH process.
+tunnels: []
+#  - name: gb-22
+#    host: 203.0.113.20
+#    user: omsi
+#    ssh_port: 22
+#    local_port: 15443
+#    target_port: 443
+#    identity_file: /home/omsi/.ssh/gb_xray_tunnel
+#    known_hosts_file: /home/omsi/.ssh/known_hosts
+#  - name: gb-2222
+#    host: 203.0.113.20
+#    user: omsi
+#    ssh_port: 2222
+#    local_port: 15444
+#    target_port: 443
+#    identity_file: /home/omsi/.ssh/gb_xray_tunnel
+#    known_hosts_file: /home/omsi/.ssh/known_hosts
+
+# Optional: existing SOCKS inbound ON THE VPS routed through your outbound.
+# A successful TCP connection alone does not prove that VPN traffic works.
+probe: null
+# probe:
+#   socks_port: 10808
+#   url: https://www.cloudflare.com/cdn-cgi/trace
