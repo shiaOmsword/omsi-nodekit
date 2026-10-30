@@ -1,8 +1,18 @@
 from app.config import Limits
-from app.entities import Backup, Job, JobDetails, JobEvent, JobStatus, NodeSummary, StoredNode
-from app.ports import BackupRepository, JobRepository, NodeRepository
+from app.entities import (
+    Backup,
+    InstallationReport,
+    Job,
+    JobDetails,
+    JobEvent,
+    JobStatus,
+    NodeSummary,
+    SSHKey,
+    StoredNode,
+)
+from app.ports import BackupRepository, JobRepository, NodeRepository, SSHKeyRepository
 from framework.database import SQLiteDatabase
-from framework.entities import ConflictError, NotFoundError
+from framework.entities import ConflictError, JsonCodec, NotFoundError
 from framework.messages import MessageKey
 from framework.messages import text as message_text
 
@@ -35,9 +45,10 @@ class SQLiteNodeRepository(NodeRepository):
 
 
 class SQLiteJobRepository(JobRepository):
-    def __init__(self, database: SQLiteDatabase, limits: Limits):
+    def __init__(self, database: SQLiteDatabase, limits: Limits, codec: JsonCodec):
         self.database = database
         self.limits = limits
+        self.codec = codec
 
     def enqueue(self, job: Job, revision: str):
         with self.database.connect(immediate=True) as db:
@@ -68,7 +79,17 @@ class SQLiteJobRepository(JobRepository):
                 JobEvent.model_validate(dict(row))
                 for row in db.execute("SELECT * FROM events WHERE job_id=? ORDER BY seq", (job_id,))
             ]
-        return JobDetails(**job.model_dump(), events=events)
+            row = db.execute("SELECT report FROM job_reports WHERE job_id=?", (job_id,)).fetchone()
+        report = InstallationReport.model_validate(self.codec.loads(row[0])) if row else None
+        return JobDetails(**job.model_dump(), events=events, report=report)
+
+    def save_report(self, job_id, report):
+        with self.database.connect() as db:
+            db.execute(
+                "INSERT INTO job_reports (job_id,report) VALUES (?,?) "
+                "ON CONFLICT(job_id) DO UPDATE SET report=excluded.report",
+                (job_id, self.codec.dumps(report.model_dump(mode="json"))),
+            )
 
     def update(self, job: Job):
         with self.database.connect() as db:
@@ -141,3 +162,34 @@ class SQLiteBackupRepository(BackupRepository):
                 Backup.model_validate(dict(row))
                 for row in db.execute("SELECT * FROM backups ORDER BY rowid DESC")
             ]
+
+
+class SQLiteSSHKeyRepository(SSHKeyRepository):
+    def __init__(self, database: SQLiteDatabase):
+        self.database = database
+
+    def save(self, key):
+        with self.database.connect() as db:
+            db.execute(
+                "INSERT INTO ssh_keys (id,name,public_key,fingerprint,created_at) VALUES (?,?,?,?,?)",
+                (key.id, key.name, key.public_key, key.fingerprint, key.created_at),
+            )
+        return key
+
+    def get(self, key_id):
+        with self.database.connect() as db:
+            row = db.execute("SELECT * FROM ssh_keys WHERE id=?", (key_id,)).fetchone()
+        if row is None:
+            raise NotFoundError(message_text(MessageKey.SSH_KEY_NOT_FOUND))
+        return SSHKey.model_validate(dict(row))
+
+    def list(self):
+        with self.database.connect() as db:
+            return [
+                SSHKey.model_validate(dict(row))
+                for row in db.execute("SELECT * FROM ssh_keys ORDER BY created_at DESC, id")
+            ]
+
+    def delete(self, key_id):
+        with self.database.connect() as db:
+            db.execute("DELETE FROM ssh_keys WHERE id=?", (key_id,))

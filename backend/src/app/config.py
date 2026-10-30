@@ -6,6 +6,7 @@ from pathlib import Path
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.defaults import DISCOVERY_DEFAULTS as DISCOVERY
 from framework.entities import Entity
 from framework.messages import MessageKey
 from framework.messages import text as message_text
@@ -54,8 +55,24 @@ class SSHSettings(Entity):
     alive_interval: int = Field(default=10, ge=1)
     alive_count: int = Field(default=3, ge=1)
     operation_timeout: int = Field(default=1200, ge=1)
+    keygen_binary: str = "ssh-keygen"
+    keygen_timeout: int = Field(default=30, ge=1)
     python_command: str = "python3 -"
     sudo_python_command: str = "sudo -n python3 -"
+
+
+class DiscoverySettings(Entity):
+    panel_defaults: dict[str, str] = Field(
+        default_factory=lambda: dict(DISCOVERY["panel_defaults"])
+    )
+    native_database: str = DISCOVERY["native_database"]
+    native_binary: str = DISCOVERY["native_binary"]
+    native_environment_files: tuple[str, ...] = DISCOVERY["native_environment_files"]
+    container_database: str = DISCOVERY["container_database"]
+    caddy_config: str = DISCOVERY["caddy_config"]
+    metadata_bytes: int = Field(default=DISCOVERY["metadata_bytes"], ge=1024, le=8 * 1024 * 1024)
+    max_containers: int = Field(default=DISCOVERY["max_containers"], ge=1, le=500)
+    max_routes: int = Field(default=DISCOVERY["max_routes"], ge=1, le=500)
 
 
 class DeploymentSettings(Entity):
@@ -106,6 +123,7 @@ class Settings(BaseSettings):
     template_file: Path = BASE_DIR / "config" / "config-example.yaml"
     database_name: str = "nodekit.db"
     backups_directory: str = "backups"
+    keys_directory: str = "ssh-keys"
     sqlite_timeout: float = Field(default=10, gt=0)
     worker_count: int = Field(default=1, ge=1)
     log_level: str = "INFO"
@@ -113,6 +131,7 @@ class Settings(BaseSettings):
     limits: Limits = Field(default_factory=Limits)
     ssh: SSHSettings = Field(default_factory=SSHSettings)
     deployment: DeploymentSettings = Field(default_factory=DeploymentSettings)
+    discovery: DiscoverySettings = Field(default_factory=DiscoverySettings)
     model_config = SettingsConfigDict(
         env_prefix="NODEKIT_",
         env_nested_delimiter="__",
@@ -120,7 +139,7 @@ class Settings(BaseSettings):
         extra="forbid",
     )
 
-    @field_validator("database_name", "backups_directory")
+    @field_validator("database_name", "backups_directory", "keys_directory")
     @classmethod
     def local_name(cls, value):
         if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_.-]*", value):

@@ -1,7 +1,7 @@
 from app.config import DeploymentSettings, SSHSettings
 from app.entities import Node
 from app.ports import ArtifactRenderer
-from framework.entities import YamlCodec
+from framework.entities import ValidationError, YamlCodec
 from framework.messages import MessageKey
 from framework.messages import text as message_text
 
@@ -89,6 +89,8 @@ WantedBy=multi-user.target
 """
 
     def artifacts(self, node: Node) -> dict[str, str]:
+        if node.panel.installation != "managed":
+            return {}
         files = {"compose.yaml": self.compose_config(node)}
         if node.caddy.enabled:
             files["Caddyfile"] = self.caddyfile(node)
@@ -99,9 +101,11 @@ WantedBy=multi-user.target
         return files
 
     def plan(self, node: Node, action: str) -> dict:
+        if action in {"fresh", "restore"} and node.panel.installation != "managed":
+            raise ValidationError(message_text(MessageKey.EXISTING_READ_ONLY))
         steps = [
             message_text(MessageKey.PLAN_SSH_CHECK),
-            message_text(MessageKey.PLAN_ENVIRONMENT_CHECK),
+            message_text(MessageKey.PLAN_DISCOVERY),
         ]
         if action in {"fresh", "restore"}:
             steps += [
@@ -120,12 +124,13 @@ WantedBy=multi-user.target
             ]
         elif action == "backup":
             steps += [
+                message_text(MessageKey.PLAN_EXISTING_BACKUP),
                 message_text(MessageKey.PLAN_SNAPSHOT_CREATE),
                 message_text(MessageKey.PLAN_SNAPSHOT_DOWNLOAD),
             ]
         elif action == "doctor":
             steps += [
-                message_text(MessageKey.PLAN_PANEL_CHECK),
+                message_text(MessageKey.PLAN_EXISTING_DIAGNOSTICS),
                 message_text(MessageKey.PLAN_TUNNELS_CHECK),
             ]
             steps += [
@@ -133,9 +138,11 @@ WantedBy=multi-user.target
                 if node.probe
                 else message_text(MessageKey.PLAN_PROXY_NOT_CONFIGURED)
             ]
+        if action not in {"fresh", "restore"}:
+            steps.append(message_text(MessageKey.PLAN_READ_ONLY))
         return {
             "action": action,
             "remote_dir": self.remote_dir(node),
             "steps": steps,
-            "files": self.artifacts(node),
+            "files": self.artifacts(node) if action in {"fresh", "restore"} else {},
         }

@@ -25,6 +25,8 @@ class Node(StrictModel):
 
     @model_validator(mode="after")
     def no_collisions(self):
+        if self.panel.installation != "managed":
+            return self
         names = [t.name for t in self.tunnels]
         if len(names) != len(set(names)):
             raise ValueError(message_text(MessageKey.TUNNEL_NAMES_DUPLICATE))

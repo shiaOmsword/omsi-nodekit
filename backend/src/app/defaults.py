@@ -5,6 +5,8 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class NodeDefaults:
+    panel_service: str = "x-ui"
+    caddy_service: str = "caddy"
     panel_image: str = "ghcr.io/mhsanaei/3x-ui:3.11.0"
     panel_port: int = 2053
     panel_path: str = "/nodekit/"
@@ -35,3 +37,33 @@ XUI_TABLES = ("settings", "inbounds", "users")
 XUI_SETTINGS_COLUMNS = {"settings": ("key", "value")}
 XUI_LEGACY_PANEL_PATH = "/"
 XUI_DATABASE_FILE = "x-ui.db"
+
+# Upstream settings may omit rows whose values still use these conventional defaults.
+XUI_READ_DEFAULTS = {
+    "webListen": "",
+    "webPort": "2053",
+    "webBasePath": "/",
+    "webDomain": "",
+    "webCertFile": "",
+    "webKeyFile": "",
+    "subListen": "",
+    "subPort": "2096",
+    "subPath": "/sub/",
+    "subDomain": "",
+    "subCertFile": "",
+    "subKeyFile": "",
+    "subEnable": "true",
+}
+
+# Default locations are shared with the stdlib-only remote agent.
+DISCOVERY_DEFAULTS = {
+    "panel_defaults": XUI_READ_DEFAULTS,
+    "native_database": "/etc/x-ui/x-ui.db",
+    "native_binary": "/usr/local/x-ui/x-ui",
+    "native_environment_files": ("/etc/default/x-ui", "/etc/conf.d/x-ui", "/etc/sysconfig/x-ui"),
+    "container_database": "/etc/x-ui/x-ui.db",
+    "caddy_config": "/etc/caddy/Caddyfile",
+    "metadata_bytes": 1024 * 1024,
+    "max_containers": 100,
+    "max_routes": 100,
+}

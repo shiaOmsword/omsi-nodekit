@@ -22,5 +22,17 @@ CREATE TABLE IF NOT EXISTS backups (
 );
 CREATE INDEX IF NOT EXISTS events_by_job ON events(job_id, seq);
 """,
-    )
+    ),
+    Migration(
+        2,
+        """
+CREATE TABLE ssh_keys (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL, public_key TEXT NOT NULL,
+    fingerprint TEXT NOT NULL, created_at TEXT NOT NULL
+);
+CREATE TABLE job_reports (
+    job_id TEXT PRIMARY KEY REFERENCES jobs(id), report TEXT NOT NULL
+);
+""",
+    ),
 ]

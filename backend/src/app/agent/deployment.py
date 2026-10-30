@@ -30,8 +30,6 @@ class DeploymentService:
         self.diagnostics = diagnostics
 
     def deploy(self, payload, base):
-        import pwd
-
         node, action = payload["node"], payload["action"]
         if base.exists() and any(base.iterdir()):
             raise RuntimeError(message_text(MessageKey.TARGET_NOT_EMPTY))
@@ -55,6 +53,8 @@ class DeploymentService:
         for port in ports:
             self.host.require_free(port)
         for tunnel in node["tunnels"]:
+            import pwd
+
             pwd.getpwnam(tunnel["user"])
             for key in ("identity_file", "known_hosts_file"):
                 self.context.command(
@@ -62,10 +62,10 @@ class DeploymentService:
                 )
         if action == "restore":
             raw = base64.b64decode(payload["backup"], validate=True)
-            with tempfile.NamedTemporaryFile(suffix=".db") as tmp:
-                tmp.write(raw)
-                tmp.flush()
-                self.database.validate(tmp.name)
+            with tempfile.TemporaryDirectory() as folder:
+                snapshot = Path(folder) / XUI_DATABASE_FILE
+                snapshot.write_bytes(raw)
+                self.database.validate(snapshot)
         self.context.emit(message_text(MessageKey.PREFLIGHT_COMPLETED))
         base.mkdir(parents=True, exist_ok=True, mode=0o700)
         base.chmod(0o700)

@@ -69,6 +69,8 @@ service = container.resolve(JobService)
 Названия ключей 3x-ui, структура Compose, HTTP-заголовки и защитная привязка backend
 панели к localhost — часть поддерживаемого протокола, а не произвольные переключатели.
 Docker host network сохраняется: смена этой схемы требует отдельной реализации транспорта.
+Это относится к развёртыванию Nodekit; обнаружение существующих Docker-установок
+также показывает bridge networks и published ports.
 
 ## SQLite
 
@@ -143,3 +145,23 @@ WAL, целостности бэкапа и HTTP-контракта. Реаль�
 
 Системные тексты и общий frontend framework описаны в [messages.md](messages.md);
 первый прогон на VPS — в [faq.md](faq.md).
+
+## Существующие установки и SSH-ключи
+
+`Installation` разделяет managed/auto/native/docker. `SystemInventory`, `PanelInspector`,
+`CertificateInspector` и `CaddyInspector` в stdlib-only агенте читают существующую
+конфигурацию. `ExistingDiagnostics` использует обнаруженный listener и проверяет HTTPS.
+Сборка отчёта не вызывает deploy/reload. `ExecutionEvent` передаёт ровно один из
+message/backup/report; локальная часть валидирует `InstallationReport` и сохраняет его
+в `job_reports` через JobRepository. `JobDetails.report` доступен после перезапуска.
+
+`SSHKeyService` работает через SSHKeyRepository/SSHKeyFiles. Общий OpenSSHKeys находится
+в `framework/network/keys.py`: генерация, приватные файлы и ACL. LocalSSHKeyFiles связывает
+его с приложением. SSHNodeExecutor разрешает `ssh.key_id` в локальный путь; приватное
+содержимое не проходит через HTTP или сериализованный отчёт. Миграция v2 добавляет
+таблицы ключей и отчётов. Регистрации — в том же punq composition root.
+
+Frontend feature-компоненты находятся в `src/features/keys`, `nodes`, `help`.
+CodeBlock с копированием и общие form styles находятся в `src/framework/components`;
+системные подписи — в framework/messages, предметные методички — в features/help/guides.ts.
+Полные сценарии и ограничения: [existing-nodes.md](existing-nodes.md).

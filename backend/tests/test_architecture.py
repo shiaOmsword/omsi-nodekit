@@ -148,7 +148,7 @@ def test_migration_preserves_existing_unversioned_database(tmp_path):
         container.resolve(StorageBootstrap).initialize()
         assert container.resolve(NodeRepository).get("legacy").name == "Legacy"
         with sqlite3.connect(path) as db:
-            assert db.execute("PRAGMA user_version").fetchone()[0] == 1
+            assert db.execute("PRAGMA user_version").fetchone()[0] == 2
     finally:
         container.resolve(TaskScheduler).close()
 

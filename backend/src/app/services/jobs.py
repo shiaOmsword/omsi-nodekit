@@ -28,7 +28,9 @@ class ExecuteJob:
                 logger.info(message_text(MessageKey.JOB_STARTED))
                 content = self.backups.content(backup_id) if backup_id else None
                 for event in self.executor.execute(node, job.action, content):
-                    if event.backup is not None:
+                    if event.report is not None:
+                        self.jobs.save_report(job.id, event.report)
+                    elif event.backup is not None:
                         if job.action != JobAction.BACKUP or received is not None:
                             raise InfrastructureError(
                                 message_text(MessageKey.REMOTE_BACKUP_UNEXPECTED)
@@ -84,6 +86,8 @@ class JobService:
     def start(self, node_id: str, action: JobAction, revision: str, backup_id: str | None):
         stored = self.nodes.get(node_id)
         node = self.factory.from_yaml(stored.yaml)
+        if action in {JobAction.FRESH, JobAction.RESTORE} and node.panel.installation != "managed":
+            raise ValidationError(message_text(MessageKey.EXISTING_READ_ONLY))
         if action == JobAction.RESTORE:
             if not backup_id:
                 raise ValidationError(message_text(MessageKey.RESTORE_BACKUP_REQUIRED))

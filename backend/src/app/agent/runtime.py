@@ -1,5 +1,4 @@
 import base64
-import fcntl
 import json
 import os
 import tempfile
@@ -13,7 +12,9 @@ from .context import AgentContext
 from .database import PanelDatabase
 from .deployment import DeploymentService
 from .diagnostics import Diagnostics
+from .existing_diagnostics import ExistingDiagnostics
 from .host import HostEnvironment
+from .inspection import InstallationInspector
 
 
 class RemoteAgent:
@@ -29,6 +30,8 @@ class RemoteAgent:
     def run(self):
         os.umask(0o077)
         self.host.environment()
+        import fcntl
+
         context = self.context
         action = context.payload["action"]
         base = context.directory()
@@ -37,14 +40,27 @@ class RemoteAgent:
                 fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError as exc:
                 raise RuntimeError(message_text(MessageKey.REMOTE_OPERATION_RUNNING)) from exc
+            inspector = InstallationInspector(context)
             if action in {"fresh", "restore"}:
+                if context.node["panel"]["installation"] != "managed":
+                    raise RuntimeError(message_text(MessageKey.EXISTING_READ_ONLY))
+                report = inspector.inspect()
+                if context.node["caddy"]["enabled"] and report["caddy"]:
+                    raise RuntimeError(message_text(MessageKey.CADDY_EXISTING_GUARD))
                 self.deployment.deploy(context.payload, base)
             elif action == "doctor":
-                self.diagnostics.check(context.node, base)
+                inspector.inspect()
+                if context.node["panel"]["installation"] == "managed":
+                    self.diagnostics.check(context.node, base)
+                else:
+                    ExistingDiagnostics(context, inspector).check()
+                    self.diagnostics.check_transport(context.node)
             elif action == "check":
+                inspector.inspect()
                 context.emit(message_text(MessageKey.ENVIRONMENT_CHECK_COMPLETED))
             elif action == "backup":
-                source = base / "db" / XUI_DATABASE_FILE
+                inspector.inspect()
+                source = inspector.database()
                 if not source.is_file():
                     raise RuntimeError(message_text(MessageKey.MANAGED_DATABASE_MISSING))
                 with tempfile.TemporaryDirectory() as temporary:

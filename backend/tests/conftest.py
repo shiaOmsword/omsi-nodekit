@@ -35,7 +35,7 @@ def node():
 
 @pytest.fixture
 def node_yaml(node):
-    return yaml.safe_dump(node.model_dump())
+    return yaml.safe_dump(node.model_dump(mode="json"))
 
 
 @pytest.fixture
