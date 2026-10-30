@@ -287,3 +287,26 @@ def test_real_nopasswd_sudo_keeps_password_out_of_python_source(connection, opti
         )
     )
     assert result == ["root=True\n"]
+
+
+def test_sudo_password_is_saved_and_loaded_in_node_yaml(settings, container, node):
+    from fastapi.testclient import TestClient
+
+    from app.create_app import create_app
+
+    config = node.model_dump(mode="json")
+    config["ssh"].update(sudo=True, sudo_password=PASSWORD)
+    raw_yaml = yaml.safe_dump(config, allow_unicode=True)
+    with TestClient(
+        create_app(settings, container=container),
+        base_url="http://127.0.0.1:8765",
+        headers={"X-Nodekit-Request": "1"},
+    ) as client:
+        validated = client.post("/api/config/validate", json={"yaml": raw_yaml})
+        assert validated.status_code == 200
+        saved = client.put("/api/nodes/test-node", json={"yaml": raw_yaml})
+        assert saved.status_code == 200
+        assert saved.json()["data"]["yaml"] == raw_yaml
+        loaded = client.get("/api/nodes/test-node")
+        assert loaded.status_code == 200
+        assert loaded.json()["data"]["yaml"] == raw_yaml
