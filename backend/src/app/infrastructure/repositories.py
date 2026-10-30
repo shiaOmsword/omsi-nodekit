@@ -86,7 +86,9 @@ class SQLiteJobRepository(JobRepository):
             ).fetchone()
             if active:
                 raise ConflictError(message_text(MessageKey.JOB_ALREADY_RUNNING))
-            row = db.execute("SELECT revision,state FROM nodes WHERE id=?", (job.node_id,)).fetchone()
+            row = db.execute(
+                "SELECT revision,state FROM nodes WHERE id=?", (job.node_id,)
+            ).fetchone()
             if row is None or row["revision"] != revision:
                 raise ConflictError(message_text(MessageKey.CONFIGURATION_CHANGED))
             if row["state"] == NodeState.ARCHIVED:
