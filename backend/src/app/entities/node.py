@@ -23,6 +23,10 @@ class Node(StrictModel):
     tunnels: list[Tunnel] = Field(default_factory=list)
     probe: Probe | None = None
 
+    def export_config(self):
+        """Portable node settings; elevation credentials belong only to the local SSH session."""
+        return self.model_dump(mode="json", exclude={"ssh": {"sudo_password", "sudo_password_env"}})
+
     @model_validator(mode="after")
     def no_collisions(self):
         if self.panel.installation != "managed":

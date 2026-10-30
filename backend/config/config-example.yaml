@@ -8,7 +8,10 @@ ssh:
   identity_file: ~/.ssh/id_ed25519
   # key_id: <ID выбранного ключа из локальной панели; identity_file тогда не используется>
   known_hosts_file: ~/.ssh/known_hosts
-  sudo: false  # true for a non-root user with passwordless sudo
+  sudo: false  # true for a non-root sudo user
+  # If sudo needs a password, choose ONE source:
+  # sudo_password: 'your sudo password'  # stored with the local YAML
+  # sudo_password_env: OMSI_SUDO_PASSWORD  # environment of the local backend process
 
 panel:
   installation: managed  # existing installation: auto, native or docker

@@ -10,6 +10,7 @@ from app.defaults import DISCOVERY_DEFAULTS as DISCOVERY
 from framework.entities import Entity
 from framework.messages import MessageKey
 from framework.messages import text as message_text
+from framework.network import SudoInput
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 
@@ -59,6 +60,7 @@ class SSHSettings(Entity):
     keygen_timeout: int = Field(default=30, ge=1)
     python_command: str = "python3 -"
     sudo_python_command: str = "sudo -n python3 -"
+    sudo_password_command: tuple[str, ...] = SudoInput.DEFAULT_COMMAND
 
 
 class DiscoverySettings(Entity):
