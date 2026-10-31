@@ -22,6 +22,7 @@ import { NodePage } from './features/nodes/NodePage';
 import { NodeFormModal } from './features/nodes/NodeFormModal';
 import { DeploymentModal } from './features/nodes/DeploymentModal';
 import { InboundModal } from './features/nodes/InboundModal';
+import { TunnelModal } from './features/nodes/TunnelModal';
 import { DiscoveryModal } from './features/nodes/DiscoveryModal';
 import { NodeManagementModal } from './features/nodes/NodeManagementModal';
 import { OperationsPage, OperationDetail } from './features/operations/OperationsPage';
@@ -58,6 +59,7 @@ type ModalState =
   | { kind: 'key-result'; key: SSHKey }
   | { kind: 'assign-key'; keyId: string }
   | { kind: 'deployment'; record: NodeRecord; report: InstallationReport | null }
+  | { kind: 'tunnel'; record: NodeRecord; report: InstallationReport }
   | { kind: 'inbound'; record: NodeRecord; inbound: InboundFinding; remove: boolean }
   | { kind: 'discovery'; record: NodeRecord; job: JobDetail }
   | { kind: 'plan'; record: NodeRecord; action: Action; backupId: string | null; plan: Plan | null; options?: JobOptions }
@@ -421,6 +423,9 @@ export default function App() {
             }}
           />
         );
+      case 'tunnel':
+        return <TunnelModal {...common} record={modal.record} report={modal.report}
+          onPreview={(options) => preview(modal.record, 'tunnel', null, options)} />;
       case 'inbound':
         return <InboundModal {...common} record={modal.record} inbound={modal.inbound} remove={modal.remove}
           onPreview={(options) => preview(modal.record, 'inbound', null, options)} />;
@@ -593,6 +598,9 @@ export default function App() {
             onDeployment={() => configure()}
             onInbound={(inbound, remove) => {
               if (w.selected && requireSaved()) showModal({ kind: 'inbound', record: w.selected, inbound, remove });
+            }}
+            onTunnel={() => {
+              if (w.selected && reportJob?.report && requireSaved()) showModal({ kind: 'tunnel', record: w.selected, report: reportJob.report });
             }}
             onTraffic={(inbound) => {
               if (w.selected) void preview(w.selected, 'traffic', null, { traffic: { id: inbound.id, expected_fingerprint: inbound.fingerprint! } });

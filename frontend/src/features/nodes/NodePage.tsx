@@ -33,6 +33,7 @@ const actionIcons = {
   configure: Settings2,
   inbound: Settings2,
   traffic: Activity,
+  tunnel: Activity,
 };
 type NodeRoute = Extract<Route, { page: 'node' }>;
 
@@ -50,6 +51,7 @@ export function NodePage({
   preferredBackup,
   onInbound,
   onTraffic,
+  onTunnel,
 }: {
   route: NodeRoute;
   workspace: Workspace;
@@ -64,6 +66,7 @@ export function NodePage({
   preferredBackup?: string;
   onInbound: (item: InboundFinding, remove: boolean) => void;
   onTraffic: (item: InboundFinding) => void;
+  onTunnel: () => void;
 }) {
   const [backupId, setBackupId] = useState(preferredBackup || '');
   useEffect(() => {
@@ -264,7 +267,7 @@ export function NodePage({
       {route.tab === 'operations' &&
         (!action ? (
           <div className="operation-grid">
-            {(Object.keys(actionLabels) as Action[]).filter((id) => !['inbound', 'traffic'].includes(id)).map((id) => {
+            {(Object.keys(actionLabels) as Action[]).filter((id) => !['inbound', 'traffic', 'tunnel'].includes(id)).map((id) => {
               const Icon = actionIcons[id];
               return (
                 <button
@@ -447,7 +450,7 @@ export function NodePage({
         </>
       )}
       {route.tab === 'inbounds' && <section className="card"><div className="section-heading"><div><h2>Inbound ноды</h2><p>Изменение порта, SNI и названия; проверка трафика и управление UFW.</p></div>
-        <div className="row-actions"><Button disabled={locked} onClick={() => onPlan('check')}>Обновить</Button><Button variant="primary" disabled={locked || !canDeploy} onClick={onDeployment}>Добавить inbound</Button></div></div>
+        <div className="row-actions"><Button disabled={locked || !canDeploy || !report} onClick={onTunnel}>SSH-выход</Button><Button disabled={locked} onClick={() => onPlan('check')}>Обновить</Button><Button variant="primary" disabled={locked || !canDeploy} onClick={onDeployment}>Добавить inbound</Button></div></div>
         <div className="card-content">{report?.selected_panel ? report.panels.filter((p) => p.id === report.selected_panel).map((panel) => <InboundReport key={panel.id} panel={panel} busy={locked}
           onEdit={panel.installation === 'managed' ? (item) => onInbound(item, false) : undefined}
           onDelete={(item) => onInbound(item, true)} onTest={onTraffic} />) :
