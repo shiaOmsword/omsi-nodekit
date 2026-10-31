@@ -42,7 +42,7 @@ def test_error_codes_do_not_depend_on_wording():
 
 def test_frontend_covers_all_backend_error_codes():
     frontend = Path(__file__).parents[2] / "frontend/src/framework/api/codes.ts"
-    values = set(re.findall(r"= '([^']+)'", frontend.read_text()))
+    values = set(re.findall(r"= '([^']+)'", frontend.read_text(encoding="utf-8")))
     assert {code.value for code in ErrorCode} <= values
 
 
@@ -51,7 +51,7 @@ def test_errors_and_progress_messages_are_not_inline_literals():
     for path in root.rglob("*.py"):
         if "messages" in path.relative_to(root).parts:
             continue
-        for node in ast.walk(ast.parse(path.read_text())):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
             call = node.exc if isinstance(node, ast.Raise) else None
             if (
                 isinstance(node, ast.Call)

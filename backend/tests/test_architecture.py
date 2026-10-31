@@ -31,7 +31,7 @@ from framework.tasks import TaskScheduler
 def test_framework_has_no_application_dependencies():
     root = Path(__file__).parents[1] / "src/framework"
     for path in root.rglob("*.py"):
-        for node in ast.walk(ast.parse(path.read_text())):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
             names = (
                 [node.module or ""]
                 if isinstance(node, ast.ImportFrom)
@@ -46,7 +46,7 @@ def test_entities_and_services_do_not_import_http_or_io_implementations():
     root = Path(__file__).parents[1] / "src/app"
     for directory in ("entities", "services"):
         for path in (root / directory).rglob("*.py"):
-            for node in ast.walk(ast.parse(path.read_text())):
+            for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
                 names = (
                     [node.module or ""]
                     if isinstance(node, ast.ImportFrom)
