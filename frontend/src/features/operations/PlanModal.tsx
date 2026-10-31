@@ -61,9 +61,9 @@ export function PlanModal({
           <>
             <div className="plan-context">
               <span
-                className={'tag ' + (['fresh', 'restore'].includes(action) ? 'tag-warning' : '')}
+                className={'tag ' + (['fresh', 'restore', 'configure'].includes(action) ? 'tag-warning' : '')}
               >
-                {['fresh', 'restore'].includes(action)
+                {['fresh', 'restore', 'configure'].includes(action)
                   ? 'Изменяет сервер'
                   : 'Сервисы на VPS не изменяются'}
               </span>
@@ -114,6 +114,10 @@ export function PlanModal({
                 установкой.
               </p>
             )}
+            {action === 'configure' && <p className="feature-hint">
+              Панель и Xray кратковременно перезапустятся; активные VPN-соединения могут прерваться. Будет заменён только сохранённый сайт этой ноды в Caddy.
+              Существующие inbound и клиенты не редактируются. Публикация портов и firewall общего Caddy не меняются.
+            </p>}
           </>
         )
       )}

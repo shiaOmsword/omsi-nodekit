@@ -15,6 +15,7 @@ from framework.messages import text as message_text
 from .caddy_reuse import ExistingCaddy
 from .native_release import NativeRelease, architecture
 from .panel_api import InboundProvisioner, PanelAPI
+from .subscriptions import preflight_caddy_network, verify_caddy_upstream
 
 
 class AdaptiveDeployment:
@@ -97,6 +98,8 @@ class AdaptiveDeployment:
                 and (Path(context.policy["unit_directory"]) / name).exists()
             ):
                 raise RuntimeError(message_text(MessageKey.UNIT_EXISTS, name=name))
+        if caddy:
+            preflight_caddy_network(context, caddy.finding)
         raw = None
         if action == "restore":
             raw = base64.b64decode(context.payload["backup"], validate=True)
@@ -190,7 +193,9 @@ class AdaptiveDeployment:
                     )
                 context.command(compose + ["up", "-d"], timeout=context.policy["startup_timeout"])
             for _ in range(context.policy["readiness_attempts"]):
-                if self.host.port_open(node["panel"]["port"]):
+                if self.host.port_open(node["panel"]["port"]) and self.host.port_open(
+                    node["panel"]["subscription_port"], target["subscription_bind"]
+                ):
                     break
                 time.sleep(context.policy["readiness_interval"])
             self.diagnostics.check(node, base)
@@ -199,6 +204,7 @@ class AdaptiveDeployment:
                 provisioner = InboundProvisioner(context, api, self.host)
                 provisioner.apply(base)
             if caddy:
+                verify_caddy_upstream(context, caddy.finding)
                 caddy.apply(base, context.payload["files"]["Caddyfile.site"])
             (base / "manifest.json").write_text(
                 json.dumps({"node": node, "action": action}, indent=2)

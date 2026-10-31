@@ -22,7 +22,7 @@ export function DeploymentModal({
 }) {
   const source = readConfig(record.yaml);
   const [target, setTarget] = useState<DeploymentTarget>(
-    () => source.deployment || defaultTarget(),
+    () => ({ ...defaultTarget(), ...source.deployment, inbounds: source.deployment?.inbounds || [] }),
   );
   const [values, setValues] = useState<FormValues>({
     role: target.role,
@@ -31,9 +31,15 @@ export function DeploymentModal({
     caddy_id: target.caddy_id || '',
     domain: source.caddy?.domain || '',
     https_port: String(source.caddy?.https_port || 2096),
+    subscription_port: String(source.panel?.subscription_port || 2097),
     install_docker: target.install_docker,
   });
   const proxies = report?.caddy || [];
+  const installed = !!report?.panels.some((p) => p.installation === 'managed' && p.active);
+  const selectedProxy = proxies.find((p) => p.id === values.caddy_id);
+  const unpublished = values.caddy === 'existing' && selectedProxy?.installation === 'docker' &&
+    selectedProxy.network_mode !== 'host' && !selectedProxy.published_ports.some((p) =>
+      p.endsWith(`:${Number(values.https_port)}->${Number(values.https_port)}/tcp`));
   const fields: FormField[] = [
     {
       name: 'role',
@@ -48,11 +54,16 @@ export function DeploymentModal({
       name: 'runtime',
       label: 'Где установить 3x-ui',
       type: 'select',
+      disabled: installed,
+      hint: installed ? 'Панель уже установлена. Эта операция не переносит её между Docker и systemd.' : undefined,
       options: [
         { value: 'native', label: 'В системе · systemd' },
         { value: 'docker', label: 'Docker Compose' },
       ],
     },
+    { name: 'subscription_port', label: 'Внутренний порт подписок 3x-ui', type: 'number',
+      required: true, min: 1, max: 65535,
+      hint: 'Например, 2097. Caddy принимает HTTPS на своём порту и передаёт запрос сюда по HTTP.' },
     {
       name: 'caddy',
       label: 'HTTPS для подписок',
@@ -113,7 +124,7 @@ export function DeploymentModal({
   function change(name: string, value: string | boolean) {
     setValues((v) => {
       const next = { ...v, [name]: value };
-      if (name === 'role') next.runtime = value === 'exit' ? 'native' : 'docker';
+      if (name === 'role' && !installed) next.runtime = value === 'exit' ? 'native' : 'docker';
       if (name === 'caddy_id') {
         const proxy = proxies.find((p) => p.id === value);
         if (
@@ -128,14 +139,30 @@ export function DeploymentModal({
   function addInbound() {
     let index = 1;
     while (target.inbounds.some((i) => i.name === 'ssh-' + index)) index++;
-    const occupied = new Set(target.inbounds.map((i) => i.port));
+    const occupied = new Set([
+      ...target.inbounds.map((i) => i.port),
+      ...(report?.panels.flatMap((p) => (p.inbounds || []).map((i) => i.port)) || []),
+      Number(source.panel?.port || 2053), Number(values.subscription_port),
+    ]);
+    for (const proxy of proxies.filter((p) => p.active)) {
+      for (const publication of proxy.published_ports) {
+        const match = publication.match(/:(\d+)->\d+\/(?:tcp|udp)$/);
+        if (match) occupied.add(Number(match[1]));
+      }
+      for (const route of proxy.routes || []) {
+        for (const listener of route.listen) {
+          const match = listener.match(/:(\d+)$/);
+          if (match) occupied.add(Number(match[1]));
+        }
+      }
+    }
     if (values.caddy !== 'none') occupied.add(Number(values.https_port));
     const port = [443, 8443, 8444, 8445, 9443].find((p) => !occupied.has(p)) || 10443 + index;
     setTarget((t) => ({
       ...t,
       inbounds: [
         ...t.inbounds,
-        { name: 'ssh-' + index, port, listen: '127.0.0.1', server_name: '', target_port: 443 },
+        { name: 'ssh-' + index, port, listen: values.role === 'ingress' ? '0.0.0.0' : '127.0.0.1', server_name: '', target_port: 443, client_email: 'client-' + index },
       ],
     }));
   }
@@ -159,8 +186,10 @@ export function DeploymentModal({
       subscription_bind: bind,
       install_docker:
         (values.runtime === 'docker' || values.caddy === 'docker') && !!values.install_docker,
+      inbounds: target.inbounds.map((inbound) => ({ ...inbound, client_email: inbound.client_email || null })),
     };
-    data.panel = { ...data.panel, installation: 'managed', container: null, database_path: null };
+    data.panel = { ...data.panel, installation: 'managed', container: null, database_path: null,
+      subscription_port: Number(values.subscription_port) };
     data.caddy = {
       ...data.caddy,
       enabled: values.caddy !== 'none',
@@ -174,7 +203,7 @@ export function DeploymentModal({
   return (
     <FormDialog
       title="Параметры установки"
-      description={record.name + ' · новая установка или восстановление'}
+      description={record.name + (installed ? ' · настройки установленной панели' : ' · новая установка или восстановление')}
       fields={fields}
       values={values}
       onChange={change}
@@ -184,11 +213,20 @@ export function DeploymentModal({
       error={error}
       submit="Сохранить параметры"
     >
+      {values.caddy !== 'none' && <div className="form-section">
+        <h3>Публичный адрес подписок</h3>
+        <code className="subscription-template">https://{String(values.domain) || 'домен'}{Number(values.https_port) === 443 ? '' : ':' + values.https_port}{source.panel?.subscription_path || '/sub/'}&lt;ID подписки&gt;</code>
+        {selectedProxy && <p className="feature-hint">Опубликовано в Caddy: {selectedProxy.published_ports.join(', ') || 'нет публикаций / сеть хоста'}</p>}
+        {unpublished && <p className="report-warning">Порт {String(values.https_port)} не опубликован в общем Caddy.
+          Сначала добавь {String(values.https_port)}:{String(values.https_port)}/tcp в его Compose и обнови обнаружение.
+          Nodekit проверит публикацию перед применением и не будет пересоздавать общий контейнер.</p>}
+        {installed && <p className="feature-hint">Сохранение меняет локальные параметры. Затем открой операцию «Подписки и inbound», проверь план и примени настройки.</p>}
+      </div>}
       <div className="form-section">
         <div className="section-heading compact">
           <div>
             <h3>VLESS / REALITY inbound</h3>
-            <p>Для SSH-туннелей с входных нод.</p>
+              <p>Каждый новый inbound получает первого клиента и ID подписки. Для выхода через SSH выбери 127.0.0.1; для прямого подключения — публичный listener.</p>
           </div>
           <Button
             small
@@ -200,7 +238,7 @@ export function DeploymentModal({
           </Button>
         </div>
         {!target.inbounds.length && (
-          <p className="feature-hint">Inbound не заданы. При Fresh будет создана пустая панель.</p>
+          <p className="feature-hint">Inbound не заданы. При Fresh будет создана пустая панель. При применении настроек существующие inbound сохраняются.</p>
         )}
         {target.inbounds.map((inbound, index) => (
           <div className="inbound-form" key={index}>
@@ -220,6 +258,9 @@ export function DeploymentModal({
             <FormFields
               fields={[
                 { name: 'name', label: 'Имя', required: true, pattern: '[a-z][a-z0-9\\-]{0,31}' },
+                { name: 'client_email', label: 'Имя первого клиента', maxLength: 80,
+                  pattern: '[a-zA-Z0-9][a-zA-Z0-9_.@\\-]{0,79}',
+                  hint: 'Только для нового inbound; существующие клиенты не переименовываются.' },
                 {
                   name: 'port',
                   label: 'Порт inbound',
@@ -254,6 +295,7 @@ export function DeploymentModal({
               ]}
               values={{
                 ...inbound,
+                client_email: inbound.client_email || '',
                 port: String(inbound.port),
                 target_port: String(inbound.target_port),
               }}
@@ -275,7 +317,8 @@ export function DeploymentModal({
         ))}
         <p className="feature-hint">
           UUID и ключи создаются на сервере. При Restore сохраняются клиенты из бэкапа; этот список
-          не добавляет новые inbound.
+          не добавляет новые inbound. При «Подписки и inbound» создаются только недостающие записи Nodekit.
+          Ссылки сохраняются на VPS в закрытом файле subscriptions.json.
         </p>
       </div>
     </FormDialog>

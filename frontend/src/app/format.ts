@@ -9,6 +9,7 @@ export const actionLabels: Record<Action, { title: string; description: string }
     description: 'Восстановить панель и клиентов из базы SQLite.',
   },
   backup: { title: 'Создание бэкапа', description: 'Сохранить согласованный снимок базы 3x-ui.' },
+  configure: { title: 'Подписки и inbound', description: 'Применить домен и порт подписок, создать недостающие inbound с первым клиентом.' },
 };
 export const isRunning = (job: Job) => ['queued', 'running'].includes(job.status);
 export function timestamp(value: string) {

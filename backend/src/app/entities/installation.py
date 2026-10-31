@@ -46,6 +46,31 @@ class CertificateFinding(Entity):
     sha256: str | None = None
 
 
+class ClientFinding(Entity):
+    email: str
+    enabled: bool
+    has_subscription: bool = False
+
+
+class InboundFinding(Entity):
+    id: int
+    remark: str
+    protocol: str
+    listen: str
+    port: int
+    enabled: bool
+    network: str = ""
+    security: str = ""
+    client_count: int = 0
+    clients: list[ClientFinding] = Field(default_factory=list)
+
+
+class EndpointCheck(Entity):
+    name: str
+    state: Literal["ok", "error", "warning", "not_checked"]
+    detail: str
+
+
 class PanelFinding(Entity):
     id: str
     installation: str
@@ -61,6 +86,9 @@ class PanelFinding(Entity):
     networks: list[str] = Field(default_factory=list)
     published_ports: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    inbounds: list[InboundFinding] = Field(default_factory=list)
+    inbounds_readable: bool = False
+    inbounds_truncated: bool = False
 
 
 class ProxyRoute(Entity):
@@ -105,6 +133,8 @@ class InstallationReport(Entity):
     capabilities: dict[str, bool] = Field(default_factory=dict)
     profiles: list[DeploymentProfileFinding] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    subscription_checks: list[EndpointCheck] = Field(default_factory=list)
+    subscription_url_template: str | None = None
 
 
 class KeySelection(Entity):

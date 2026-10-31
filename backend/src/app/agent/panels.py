@@ -7,6 +7,7 @@ from framework.messages import MessageKey
 from framework.messages import text as message_text
 
 from .certificates import CertificateInspector
+from .inbound_inventory import inbound_inventory
 
 SETTING_KEYS = (
     "webListen",
@@ -22,6 +23,7 @@ SETTING_KEYS = (
     "subCertFile",
     "subKeyFile",
     "subEnable",
+    "subURI",
 )
 
 
@@ -31,6 +33,7 @@ class PanelInspector:
         self.context = inventory.context
         self.targets = {}
         self.containers = {}
+        self.probe_ids = {}
 
     def _settings(self, finding, source, resolve, database_type="sqlite"):
         finding.update(settings={}, certificates=[], warnings=[])
@@ -49,6 +52,16 @@ class PanelInspector:
                         f"SELECT key,value FROM settings WHERE key IN ({marks})", SETTING_KEYS
                     )
                 )
+                try:
+                    items, probe_id, truncated = inbound_inventory(db, self.inventory.maximum)
+                    finding.update(
+                        inbounds=items, inbounds_readable=True, inbounds_truncated=truncated
+                    )
+                    self.probe_ids[finding["id"]] = probe_id
+                    if truncated:
+                        finding["warnings"].append(message_text(MessageKey.INBOUNDS_UNREADABLE))
+                except (sqlite3.DatabaseError, ValueError, TypeError, AttributeError):
+                    finding["warnings"].append(message_text(MessageKey.INBOUNDS_UNREADABLE))
             maximum = self.inventory.maximum
             if any(
                 not isinstance(v, str) or len(v.encode("utf-8")) > maximum // 16

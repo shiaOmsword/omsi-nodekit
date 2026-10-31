@@ -8,7 +8,7 @@ export interface NodeSummary {
 export interface NodeRecord extends NodeSummary {
   yaml: string;
 }
-export type Action = 'check' | 'doctor' | 'fresh' | 'restore' | 'backup';
+export type Action = 'check' | 'doctor' | 'fresh' | 'restore' | 'backup' | 'configure';
 export interface Job {
   id: string;
   node_id: string;
@@ -58,6 +58,7 @@ export interface TunnelInbound {
   listen: '127.0.0.1' | '0.0.0.0';
   server_name: string;
   target_port: number;
+  client_email?: string | null;
 }
 export interface DeploymentTarget {
   role: 'ingress' | 'exit';
@@ -103,6 +104,20 @@ export interface PanelFinding {
   networks: string[];
   published_ports: string[];
   warnings: string[];
+  inbounds_readable?: boolean;
+  inbounds_truncated?: boolean;
+  inbounds?: {
+    id: number;
+    remark: string;
+    protocol: string;
+    listen: string;
+    port: number;
+    enabled: boolean;
+    network: string;
+    security: string;
+    client_count: number;
+    clients: { email: string; enabled: boolean; has_subscription: boolean }[];
+  }[];
 }
 export interface ProxyRoute {
   listen: string[];
@@ -143,4 +158,6 @@ export interface InstallationReport {
   profiles?: DeploymentProfileFinding[];
   ssh_host?: string | null;
   ssh_port?: number | null;
+  subscription_checks?: { name: string; state: 'ok' | 'error' | 'warning' | 'not_checked'; detail: string }[];
+  subscription_url_template?: string | null;
 }

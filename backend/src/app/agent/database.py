@@ -7,6 +7,7 @@ from framework.messages import MessageKey
 from framework.messages import text as message_text
 
 from .context import AgentContext
+from .subscriptions import public_base
 
 
 class PanelDatabase:
@@ -19,6 +20,36 @@ class PanelDatabase:
     def snapshot(self, source, destination):
         self.context.snapshots.snapshot(source, destination)
         self.validate(destination)
+
+    def configure_subscriptions(self, path, node):
+        changes = {
+            "subListen": node["deployment"]["subscription_bind"],
+            "subPort": str(node["panel"]["subscription_port"]),
+            "subPath": node["panel"]["subscription_path"],
+            "subEnable": "true",
+            "subCertFile": "",
+            "subKeyFile": "",
+            "subDomain": "",
+            "subURI": public_base(node),
+        }
+        with closing(sqlite3.connect(path)) as db, db:
+            marks = ",".join("?" for _ in changes)
+            original = dict(
+                db.execute(f"SELECT key,value FROM settings WHERE key IN ({marks})", tuple(changes))
+            )
+            for key, value in changes.items():
+                cursor = db.execute("UPDATE settings SET value=? WHERE key=?", (value, key))
+                if not cursor.rowcount:
+                    db.execute("INSERT INTO settings (key,value) VALUES (?,?)", (key, value))
+        return {key: original.get(key) for key in changes}
+
+    @staticmethod
+    def restore_settings(path, original):
+        with closing(sqlite3.connect(path)) as db, db:
+            for key, value in original.items():
+                db.execute("DELETE FROM settings WHERE key=?", (key,))
+                if value is not None:
+                    db.execute("INSERT INTO settings (key,value) VALUES (?,?)", (key, value))
 
     def configure_listeners(self, path, node, restoring):
         panel = node["panel"]
@@ -52,10 +83,7 @@ class PanelDatabase:
                 if actual != panel["base_path"]:
                     raise RuntimeError(message_text(MessageKey.PANEL_PATH_MISMATCH))
             if node["caddy"]["enabled"]:
-                caddy = node["caddy"]
-                changes["subURI"] = (
-                    f"https://{caddy['domain']}:{caddy['https_port']}{panel['subscription_path']}"
-                )
+                changes["subURI"] = public_base(node)
             for key, value in changes.items():
                 cursor = db.execute("UPDATE settings SET value=? WHERE key=?", (value, key))
                 if not cursor.rowcount:

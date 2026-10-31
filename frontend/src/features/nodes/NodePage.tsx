@@ -28,6 +28,7 @@ const actionIcons = {
   fresh: Upload,
   restore: Database,
   backup: Save,
+  configure: Settings2,
 };
 type NodeRoute = Extract<Route, { page: 'node' }>;
 
@@ -231,6 +232,11 @@ export function NodePage({
                   <Button variant="text" disabled={locked} onClick={() => onPlan('check')}>
                     Повторить обнаружение
                   </Button>
+                  {canDeploy && config?.deployment?.caddy_mode === 'existing' && report.panels.length > 0 && (
+                    <Button disabled={locked} onClick={() => navigate('/nodes/' + node.id + '/operations/configure')}>
+                      Настроить подписки и inbound
+                    </Button>
+                  )}
                   <span className="muted">{formatDate(report.observed_at)}</span>
                 </div>
               }
@@ -279,11 +285,11 @@ export function NodePage({
               </Button>
             </div>
             <div className="card-content">
-              {['fresh', 'restore'].includes(action) && (
+              {['fresh', 'restore', 'configure'].includes(action) && (
                 <>
                   <div className="operation-setting">
                     <div>
-                      <strong>Параметры установки</strong>
+                      <strong>{action === 'configure' ? 'Параметры подписок и inbound' : 'Параметры установки'}</strong>
                       <p>
                         {config?.deployment
                           ? (config.deployment.panel_runtime === 'native'
@@ -338,6 +344,8 @@ export function NodePage({
               <p className="feature-hint">
                 {action === 'backup'
                   ? 'Согласованный снимок SQLite будет сохранён в разделе «Бэкапы».'
+                  : action === 'configure'
+                    ? 'Только установленная Nodekit панель с общим Caddy. Панель и Xray перезапустятся; активные VPN-соединения могут прерваться. Существующие inbound и клиенты сохраняются. Перед применением проверь параметры и план.'
                   : action === 'restore'
                     ? 'Клиенты, ключи и маршруты берутся из выбранного бэкапа. Версия панели должна соответствовать снимку.'
                     : action === 'fresh'
@@ -352,6 +360,7 @@ export function NodePage({
                   disabled={
                     locked ||
                     (['fresh', 'restore'].includes(action) && !canDeploy) ||
+                    (action === 'configure' && (!canDeploy || config?.deployment?.caddy_mode !== 'existing')) ||
                     (action === 'restore' && !backupId)
                   }
                   onClick={() => onPlan(action, backupId)}

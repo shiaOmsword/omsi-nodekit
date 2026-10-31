@@ -10,6 +10,8 @@ import uuid
 from framework.messages import MessageKey
 from framework.messages import text as message_text
 
+from .subscriptions import public_base
+
 
 class NoAPIRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
@@ -65,19 +67,50 @@ class InboundProvisioner:
         self.host = host
         self.created = []
 
-    def apply(self, base):
+    def apply(self, base, *, allow_existing=False):
         desired = self.context.node["deployment"]["inbounds"]
         existing = self.api.request("inbounds/list") or []
-        connections = []
+        connections, subscriptions, pending = [], [], []
+        exported = base / "tunnel-connections.json"
+        previous_connections = json.loads(exported.read_text()) if exported.exists() else []
+        used_ports = {
+            item["outbound"]["settings"]["vnext"][0]["port"] for item in previous_connections
+        }
         # Check every conflict before adding any inbound.
         for inbound in desired:
             remark = f"nodekit:{self.context.node['id']}:{inbound['name']}"
+            matching = [item for item in existing if item.get("remark") == remark]
+            if allow_existing and len(matching) == 1:
+                item = matching[0]
+                try:
+                    stream = item["streamSettings"]
+                    stream = json.loads(stream) if isinstance(stream, str) else stream
+                    reality = stream["realitySettings"]
+                    if (
+                        item["port"] != inbound["port"]
+                        or item["listen"] != inbound["listen"]
+                        or item["protocol"] != "vless"
+                        or stream["security"] != "reality"
+                        or reality["serverNames"] != [inbound["server_name"]]
+                        or reality["dest"] != f"{inbound['server_name']}:{inbound['target_port']}"
+                    ):
+                        raise ValueError()
+                except (KeyError, TypeError, ValueError) as exc:
+                    raise RuntimeError(
+                        message_text(MessageKey.DEPLOYMENT_INBOUND_COLLISION)
+                    ) from exc
+                continue
             for item in existing:
                 if item.get("port") == inbound["port"] or item.get("remark") == remark:
                     # A fresh deployment never adopts or rotates an existing identity.
                     raise RuntimeError(message_text(MessageKey.DEPLOYMENT_INBOUND_COLLISION))
-        for inbound in desired:
+            pending.append(inbound)
+        for inbound in pending:
             self.host.require_endpoint(inbound["port"], inbound["listen"])
+            local_port = 15443
+            while local_port in used_ports:
+                local_port += 1
+            used_ports.add(local_port)
             keys = self.api.request("server/getNewX25519Cert")
             if (
                 not isinstance(keys, dict)
@@ -86,11 +119,14 @@ class InboundProvisioner:
             ):
                 raise RuntimeError(message_text(MessageKey.DEPLOYMENT_API_FAILED))
             client_id, short_id = str(uuid.uuid4()), secrets.token_hex(8)
+            subscription_id = secrets.token_urlsafe(18)
+            email = inbound.get("client_email") or f"nodekit-{inbound['name']}"
             settings = {
                 "clients": [
                     {
                         "id": client_id,
-                        "email": f"nodekit-{inbound['name']}",
+                        "email": email,
+                        "subId": subscription_id,
                         "flow": "xtls-rprx-vision",
                         "enable": True,
                         "limitIp": 0,
@@ -152,6 +188,7 @@ class InboundProvisioner:
                 reality = stored_stream["realitySettings"]
                 if (
                     stored_settings["clients"][0]["id"] != client_id
+                    or stored_settings["clients"][0].get("subId") != subscription_id
                     or reality["privateKey"] != keys["privateKey"]
                     or reality["shortIds"] != [short_id]
                     or reality["serverNames"] != [inbound["server_name"]]
@@ -172,7 +209,7 @@ class InboundProvisioner:
                             "vnext": [
                                 {
                                     "address": "127.0.0.1",
-                                    "port": 15443 + len(connections),
+                                    "port": local_port,
                                     "users": [
                                         {
                                             "id": client_id,
@@ -197,11 +234,32 @@ class InboundProvisioner:
                     },
                 }
             )
+            if self.context.node["caddy"]["enabled"]:
+                subscriptions.append(
+                    {
+                        "name": inbound["name"],
+                        "email": email,
+                        "url": public_base(self.context.node) + subscription_id,
+                    }
+                )
+        if not pending:
+            return
         path = base / "tunnel-connections.json"
-        path.write_text(json.dumps(connections, indent=2))
-        path.chmod(0o600)
+        for filename, records in (
+            ("tunnel-connections.json", connections),
+            ("subscriptions.json", subscriptions),
+        ):
+            output = base / filename
+            previous = json.loads(output.read_text()) if output.exists() else []
+            names = {row["name"] for row in records}
+            output.write_text(
+                json.dumps(
+                    [row for row in previous if row["name"] not in names] + records, indent=2
+                )
+            )
+            output.chmod(0o600)
         self.api.request("server/restartXrayService", {})
-        for inbound in desired:
+        for inbound in pending:
             for _ in range(self.context.policy["readiness_attempts"]):
                 if self.host.port_open(inbound["port"]):
                     break

@@ -6,6 +6,13 @@ from .codes import MessageKey
 
 MESSAGES = MappingProxyType(
     {
+        MessageKey.SUBSCRIPTION_PROBE_FAILED: "Caddy cannot reach the subscription HTTP server at {host}:{port}. Check its listener and the firewall between the Docker bridge and the host; shared services were not changed",
+        MessageKey.SUBSCRIPTION_PORT_UNPUBLISHED: "The selected Docker Caddy does not publish TCP port {port} as {port}:{port}. Publish it in the existing Caddy Compose project before applying these settings; Nodekit does not recreate shared containers",
+        MessageKey.SUBSCRIPTION_CHECK: "Subscription / {name}: {state}; {detail}",
+        MessageKey.SUBSCRIPTION_CONFIGURE_PLAN: "Verify ownership and the unchanged saved Caddy site; snapshot SQLite; briefly stop only this panel, apply subscription settings and restart it; verify HTTP from Caddy; replace only this node's site; create only missing requested inbounds/clients; restore settings and the site on failure",
+        MessageKey.SUBSCRIPTION_CONFIGURE_GUARD: "Subscription configuration requires an active Nodekit-managed panel, its original manifest and saved Caddy site, and the same runtime, image, admin endpoint, subscription path and shared Caddy instance. Use a separate operation for migration",
+        MessageKey.SUBSCRIPTION_CONFIGURED: "Subscription settings applied; existing inbounds, client identities and other Caddy sites preserved",
+        MessageKey.INBOUNDS_UNREADABLE: "Inbound inventory is unavailable or exceeds the discovery limit; no client or inbound was changed",
         MessageKey.DEPLOYMENT_BIND_INVALID: "Subscription listener must use loopback or the selected Caddy bridge gateway",
         MessageKey.DEPLOYMENT_CADDY_SELECTION: "Select one existing Caddy instance explicitly",
         MessageKey.DEPLOYMENT_INBOUNDS_DUPLICATE: "Inbound names and ports must be unique",

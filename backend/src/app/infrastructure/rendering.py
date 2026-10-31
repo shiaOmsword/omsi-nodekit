@@ -143,6 +143,12 @@ WantedBy=multi-user.target
     def plan(self, node: Node, action: str) -> dict:
         if action in {"fresh", "restore"} and node.panel.installation != "managed":
             raise ValidationError(message_text(MessageKey.EXISTING_READ_ONLY))
+        if action == "configure" and (
+            node.panel.installation != "managed"
+            or not node.deployment
+            or node.deployment.caddy_mode != "existing"
+        ):
+            raise ValidationError(message_text(MessageKey.SUBSCRIPTION_CONFIGURE_GUARD))
         steps = [
             message_text(MessageKey.PLAN_SSH_CHECK),
             message_text(MessageKey.PLAN_DISCOVERY),
@@ -180,6 +186,8 @@ WantedBy=multi-user.target
                     steps.append(message_text(MessageKey.DEPLOYMENT_INBOUNDS_PLAN))
                 if target.panel_runtime == "native" and target.caddy_mode != "docker":
                     steps.remove(message_text(MessageKey.PLAN_IMAGES_PULL))
+        elif action == "configure":
+            steps.append(message_text(MessageKey.SUBSCRIPTION_CONFIGURE_PLAN))
         elif action == "backup":
             steps += [
                 message_text(MessageKey.PLAN_EXISTING_BACKUP),
@@ -196,11 +204,19 @@ WantedBy=multi-user.target
                 if node.probe
                 else message_text(MessageKey.PLAN_PROXY_NOT_CONFIGURED)
             ]
-        if action not in {"fresh", "restore"}:
+        if action not in {"fresh", "restore", "configure"}:
             steps.append(message_text(MessageKey.PLAN_READ_ONLY))
         return {
             "action": action,
             "remote_dir": self.remote_dir(node),
             "steps": steps,
-            "files": self.artifacts(node) if action in {"fresh", "restore"} else {},
+            "files": (
+                {
+                    k: v
+                    for k, v in self.artifacts(node).items()
+                    if action != "configure" or k in {"Caddyfile.site", "deployment.json"}
+                }
+                if action in {"fresh", "restore", "configure"}
+                else {}
+            ),
         }
