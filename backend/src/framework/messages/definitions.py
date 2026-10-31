@@ -6,6 +6,11 @@ from .codes import MessageKey
 
 MESSAGES = MappingProxyType(
     {
+        MessageKey.TUNNEL_CONFIG_INVALID: 'Select a configured tunnel and a single-endpoint VLESS RAW/REALITY outbound without proxy chaining; refresh the selected inbound before applying',
+        MessageKey.TUNNEL_APPLY_PLAN: 'Verify the remote SSH identity and pinned host key; snapshot SQLite; install an owned loopback-only systemd SSH forward with keepalive/restart; verify real HTTPS through the exit inbound; clone the chosen outbound with UUID/REALITY preserved and route only the selected inbound through it; verify runtime and roll back on failure. Xray may restart',
+        MessageKey.TUNNEL_APPLIED: 'SSH tunnel {name}: HTTPS returned through the exit inbound; selected inbound now uses {tag}. Phone-to-Moscow connectivity is not tested',
+        MessageKey.TUNNEL_APPLY_FAILED: 'SSH tunnel setup failed at {stage}; inspect the journal and private recovery snapshots on the VPS. Rollback was attempted; no credentials are included in this error',
+        MessageKey.TUNNEL_STAGE: 'SSH tunnel: {stage}',
         MessageKey.NETWORK_UFW_FAILED: "UFW inspection or scoped rule change failed; firewall state is not confirmed",
         MessageKey.NETWORK_UFW_PLAN: "If UFW is active, allow the node's public inbound ports, ACME/HTTPS and only the selected Caddy bridge to the private subscription listener; never enable/reset UFW; remove only obsolete Nodekit-owned rules unless explicitly requested",
         MessageKey.NETWORK_RULE_ADDED: "UFW: allowed {port}/{protocol} for {scope}",

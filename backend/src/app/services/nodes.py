@@ -55,7 +55,7 @@ class NodeService:
         return self.nodes.list()
 
     def preview(self, node_id: str, action: JobAction):
-        if action in {JobAction.INBOUND, JobAction.TRAFFIC}:
+        if action in {JobAction.INBOUND, JobAction.TRAFFIC, JobAction.TUNNEL}:
             raise ValidationError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
         stored = self.nodes.get(node_id)
         return {
@@ -67,7 +67,7 @@ class NodeService:
         stored = self.nodes.get(node_id)
         if stored.revision != request.revision:
             raise ConflictError(message_text(MessageKey.CONFIGURATION_CHANGED))
-        if request.action not in {JobAction.INBOUND, JobAction.TRAFFIC}:
+        if request.action not in {JobAction.INBOUND, JobAction.TRAFFIC, JobAction.TUNNEL}:
             return self.preview(node_id, request.action)
         options = request.model_dump(
             mode="json", exclude={"action", "revision", "backup_id"}, exclude_none=True
@@ -75,6 +75,10 @@ class NodeService:
         node = self.factory.from_yaml(stored.yaml)
         if node.panel.installation != "managed":
             raise ValidationError(message_text(MessageKey.INBOUND_MANAGED_REQUIRED))
+        if request.action == JobAction.TUNNEL and request.tunnel.name not in {
+            t.name for t in node.tunnels
+        }:
+            raise ValidationError(message_text(MessageKey.TUNNEL_CONFIG_INVALID))
         plan = self.renderer.plan(node, request.action)
         return {
             **plan,

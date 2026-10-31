@@ -5,7 +5,7 @@ from pydantic import Field, field_validator, model_validator
 from framework.messages import MessageKey
 from framework.messages import text as message_text
 
-from .base import Host, Port, StrictModel
+from .base import Host, Port, Slug, StrictModel
 
 
 class InboundChange(StrictModel):
@@ -40,3 +40,8 @@ class InboundChange(StrictModel):
 class TrafficRequest(StrictModel):
     id: int = Field(gt=0)
     expected_fingerprint: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+
+class TunnelRequest(TrafficRequest):
+    name: Slug
+    outbound_tag: str = Field(min_length=1, max_length=120, pattern=r"^[a-zA-Z0-9_.-]+$")

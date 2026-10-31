@@ -19,6 +19,13 @@ class Tunnel(StrictModel):
     identity_file: str = D.tunnel_identity_file
     known_hosts_file: str = D.tunnel_known_hosts
 
+    @field_validator("name")
+    @classmethod
+    def reserved_name(cls, value):
+        if value == "panel":
+            raise ValueError(message_text(MessageKey.TUNNEL_CONFIG_INVALID))
+        return value
+
     @field_validator("identity_file", "known_hosts_file")
     @classmethod
     def remote_path(cls, value: str) -> str:

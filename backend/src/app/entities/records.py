@@ -19,6 +19,7 @@ class JobAction(StrEnum):
     CONFIGURE = "configure"
     INBOUND = "inbound"
     TRAFFIC = "traffic"
+    TUNNEL = "tunnel"
 
 
 class JobStatus(StrEnum):
