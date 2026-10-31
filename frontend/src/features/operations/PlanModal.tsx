@@ -28,7 +28,7 @@ export function PlanModal({
   const files = Object.keys(plan?.files || {});
   return (
     <Modal
-      title={actionLabels[action].title + ': план'}
+      title={(plan?.options?.inbound?.operation === 'delete' ? 'Удаление inbound' : actionLabels[action].title) + ': план'}
       description={record.name}
       wide
       busy={busy}
@@ -42,13 +42,14 @@ export function PlanModal({
             Обновить план
           </Button>
           <Button
+            className={plan?.options?.inbound?.operation === 'delete' ? 'danger-button' : ''}
             variant="primary"
             onClick={onLaunch}
             disabled={!plan}
             loading={busy}
             icon={<Play size={16} />}
           >
-            Запустить операцию
+            {plan?.options?.inbound?.operation === 'delete' ? 'Удалить inbound' : 'Запустить операцию'}
           </Button>
         </>
       }
@@ -61,9 +62,9 @@ export function PlanModal({
           <>
             <div className="plan-context">
               <span
-                className={'tag ' + (['fresh', 'restore', 'configure'].includes(action) ? 'tag-warning' : '')}
+                className={'tag ' + (['fresh', 'restore', 'configure', 'inbound'].includes(action) ? 'tag-warning' : '')}
               >
-                {['fresh', 'restore', 'configure'].includes(action)
+                {['fresh', 'restore', 'configure', 'inbound'].includes(action)
                   ? 'Изменяет сервер'
                   : 'Сервисы на VPS не изменяются'}
               </span>
@@ -116,8 +117,10 @@ export function PlanModal({
             )}
             {action === 'configure' && <p className="feature-hint">
               Панель и Xray кратковременно перезапустятся; активные VPN-соединения могут прерваться. Будет заменён только сохранённый сайт этой ноды в Caddy.
-              Существующие inbound и клиенты не редактируются. Публикация портов и firewall общего Caddy не меняются.
+              Существующие inbound и клиенты не редактируются. Разрешённые изменения UFW и публикаций Caddy перечислены в плане.
             </p>}
+            {action === 'traffic' && <p className="feature-hint">Будет запущен временный Xray-клиент на loopback VPS. Его конфигурация с секретами удалится после проверки. Маршруты сервера не меняются; пробный трафик учитывается у выбранного клиента.</p>}
+            {action === 'inbound' && <p className="feature-hint">Перед изменением проверяется актуальность inbound и сохраняется SQLite snapshot на VPS. Удаление удаляет также его клиентов; при редактировании их идентификаторы и ключи сохраняются.</p>}
           </>
         )
       )}

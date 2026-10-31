@@ -115,8 +115,21 @@ class ApplicationRoutes:
         @router.post("/nodes/{node_id}/jobs", status_code=202)
         def start_job(node_id: str, body: JobRequest) -> ApiResponse:
             return Responses.success(
-                self.jobs.start(node_id, body.action, body.revision, body.backup_id)
+                self.jobs.start(
+                    node_id,
+                    body.action,
+                    body.revision,
+                    body.backup_id,
+                    body.model_dump(
+                        mode="json", exclude={"action", "revision", "backup_id"}, exclude_none=True
+                    )
+                    or None,
+                )
             )
+
+        @router.post("/nodes/{node_id}/plan")
+        def preview_operation(node_id: str, body: JobRequest) -> ApiResponse:
+            return Responses.success(self.nodes.preview_operation(node_id, body))
 
         @router.get("/jobs")
         def jobs() -> ApiResponse:

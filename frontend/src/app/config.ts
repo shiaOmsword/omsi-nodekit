@@ -56,6 +56,8 @@ export const defaultTarget = (): DeploymentTarget => ({
   caddy_id: null,
   subscription_bind: '127.0.0.1',
   install_docker: false,
+  manage_ufw: true,
+  manage_caddy_ports: true,
   inbounds: [],
 });
 
@@ -78,6 +80,8 @@ export function preserveDeploymentIntent(
       install_docker:
         previous.deployment.install_docker &&
         (runtime === 'docker' || next.deployment.caddy_mode === 'docker'),
+      manage_ufw: previous.deployment.manage_ufw ?? true,
+      manage_caddy_ports: previous.deployment.manage_caddy_ports ?? true,
     };
   }
   return writeConfig(next);

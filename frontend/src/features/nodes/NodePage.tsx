@@ -14,13 +14,15 @@ import {
   Upload,
 } from 'lucide-react';
 import type { Workspace } from '../../app/useWorkspace';
-import type { Action, Backup, JobDetail } from '../../types';
+import type { Action, Backup, JobDetail, InboundFinding } from '../../types';
 import type { Route } from '../../framework/navigation/router';
 import { Button, EmptyState, Loading, PageHeading } from '../../framework/components';
 import { actionLabels, formatDate, isRunning } from '../../app/format';
 import { messages } from '../../framework/messages';
 import { InstallationReportView } from './InstallationReportView';
 import { JobTable } from '../operations/JobTable';
+import { InboundReport, SubscriptionReport } from './SubscriptionReport';
+import { NetworkReport } from './NetworkReport';
 
 const actionIcons = {
   check: ShieldCheck,
@@ -29,6 +31,8 @@ const actionIcons = {
   restore: Database,
   backup: Save,
   configure: Settings2,
+  inbound: Settings2,
+  traffic: Activity,
 };
 type NodeRoute = Extract<Route, { page: 'node' }>;
 
@@ -44,6 +48,8 @@ export function NodePage({
   onPlan,
   onImport,
   preferredBackup,
+  onInbound,
+  onTraffic,
 }: {
   route: NodeRoute;
   workspace: Workspace;
@@ -56,6 +62,8 @@ export function NodePage({
   onPlan: (action: Action, backupId?: string) => void;
   onImport: (done?: (backup: Backup) => void) => void;
   preferredBackup?: string;
+  onInbound: (item: InboundFinding, remove: boolean) => void;
+  onTraffic: (item: InboundFinding) => void;
 }) {
   const [backupId, setBackupId] = useState(preferredBackup || '');
   useEffect(() => {
@@ -117,6 +125,8 @@ export function NodePage({
       <nav className="page-tabs" aria-label="Разделы ноды">
         {[
           { id: 'overview', label: 'Обзор' },
+          { id: 'inbounds', label: 'Inbound' },
+          { id: 'network', label: 'Сеть' },
           { id: 'operations', label: 'Операции' },
           { id: 'config', label: 'Конфигурация' },
           { id: 'history', label: 'История' },
@@ -222,6 +232,7 @@ export function NodePage({
           </div>
           {report && reportJob ? (
             <InstallationReportView
+              compact
               report={report}
               node={node.id}
               suggestions={
@@ -253,7 +264,7 @@ export function NodePage({
       {route.tab === 'operations' &&
         (!action ? (
           <div className="operation-grid">
-            {(Object.keys(actionLabels) as Action[]).map((id) => {
+            {(Object.keys(actionLabels) as Action[]).filter((id) => !['inbound', 'traffic'].includes(id)).map((id) => {
               const Icon = actionIcons[id];
               return (
                 <button
@@ -435,6 +446,15 @@ export function NodePage({
           </details>
         </>
       )}
+      {route.tab === 'inbounds' && <section className="card"><div className="section-heading"><div><h2>Inbound ноды</h2><p>Изменение порта, SNI и названия; проверка трафика и управление UFW.</p></div>
+        <div className="row-actions"><Button disabled={locked} onClick={() => onPlan('check')}>Обновить</Button><Button variant="primary" disabled={locked || !canDeploy} onClick={onDeployment}>Добавить inbound</Button></div></div>
+        <div className="card-content">{report?.selected_panel ? report.panels.filter((p) => p.id === report.selected_panel).map((panel) => <InboundReport key={panel.id} panel={panel} busy={locked}
+          onEdit={panel.installation === 'managed' ? (item) => onInbound(item, false) : undefined}
+          onDelete={(item) => onInbound(item, true)} onTest={onTraffic} />) :
+          <EmptyState title="Нужен актуальный отчёт выбранной панели" description="Запусти обнаружение и выбери установку 3x-ui." />}</div></section>}
+      {route.tab === 'network' && <section className="card"><div className="section-heading"><div><h2>Сеть и диагностика</h2><p>UFW, публикации Caddy, подписки и маршруты Xray.</p></div>
+        <Button disabled={locked} onClick={() => onPlan('doctor')}>Запустить диагностику</Button></div><div className="card-content">
+          {report ? <><NetworkReport report={report} /><SubscriptionReport report={report} /></> : <EmptyState title="Нет отчёта" description="Начни с обнаружения сервера." />}</div></section>}
       {route.tab === 'history' && (
         <section className="card">
           <div className="section-heading">

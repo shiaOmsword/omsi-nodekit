@@ -24,7 +24,7 @@ class RemoteAgentBuilder:
         self.settings = settings
         self.codec = codec
 
-    def build(self, node, action, backup=None):
+    def build(self, node, action, backup=None, options=None):
         root = Path(__file__).resolve().parents[2]
         files = [
             "app/defaults.py",
@@ -62,6 +62,8 @@ class RemoteAgentBuilder:
         }
         if backup is not None:
             payload["backup"] = base64.b64encode(backup).decode()
+        if options:
+            payload["options"] = options
         encoded = base64.b64encode(archive.getvalue()).decode()
         return f"""import base64, io, json, sys, tempfile, zipfile
 if sys.version_info < (3, 11):
@@ -97,7 +99,7 @@ class SSHNodeExecutor(NodeExecutor):
         self.keys = keys
         self.passwords = passwords
 
-    def execute(self, node, action, backup):
+    def execute(self, node, action, backup, options=None):
         connection_fields = node.ssh.model_dump(
             exclude={"key_id", "sudo_password", "sudo_password_env"}
         )
@@ -106,7 +108,7 @@ class SSHNodeExecutor(NodeExecutor):
             connection_fields["identity_file"] = str(self.keys.require(node.ssh.key_id))
         connection = SSHConnection(**connection_fields)
         try:
-            script = self.builder.build(node, action, backup)
+            script = self.builder.build(node, action, backup, options)
             yield ExecutionEvent(
                 message=message_text(
                     MessageKey.SSH_CONNECTING,

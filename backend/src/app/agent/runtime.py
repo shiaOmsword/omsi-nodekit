@@ -14,10 +14,13 @@ from .context import AgentContext
 from .database import PanelDatabase
 from .deployment import DeploymentService
 from .diagnostics import Diagnostics
+from .egress import egress_diagnostics
 from .existing_diagnostics import ExistingDiagnostics
 from .host import HostEnvironment
+from .inbound_manager import InboundManager
 from .inspection import InstallationInspector
 from .subscriptions import SubscriptionDiagnostics
+from .traffic_probe import TrafficProbe
 
 
 class RemoteAgent:
@@ -64,6 +67,7 @@ class RemoteAgent:
                 # Record every subsystem result before failing the aggregate doctor job.
                 failures = ExistingDiagnostics(context, inspector).check(raise_on_failure=False)
                 failures += SubscriptionDiagnostics(context, inspector).check()
+                failures += egress_diagnostics(context, inspector)
                 inspector.publish()
                 failures += self.diagnostics.check_transport(context.node, raise_on_failure=False)
                 if failures:
@@ -73,6 +77,23 @@ class RemoteAgent:
             elif action == "check":
                 inspector.inspect()
                 context.emit(message_text(MessageKey.ENVIRONMENT_CHECK_COMPLETED))
+            elif action == "inbound":
+                inspector.inspect()
+                try:
+                    InboundManager(context, self.host, self.database, inspector).apply(base)
+                finally:
+                    inspector = InstallationInspector(context)
+                    inspector.inspect()
+            elif action == "traffic":
+                inspector.inspect()
+                try:
+                    failures = TrafficProbe(context, self.host, inspector).run()
+                    if failures:
+                        raise RuntimeError(
+                            message_text(MessageKey.DIAGNOSTICS_FAILED, count=len(failures))
+                        )
+                finally:
+                    inspector.publish()
             elif action == "configure":
                 inspector.inspect()
                 ConfigureSubscriptions(

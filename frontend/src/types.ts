@@ -8,7 +8,11 @@ export interface NodeSummary {
 export interface NodeRecord extends NodeSummary {
   yaml: string;
 }
-export type Action = 'check' | 'doctor' | 'fresh' | 'restore' | 'backup' | 'configure';
+export type Action = 'check' | 'doctor' | 'fresh' | 'restore' | 'backup' | 'configure' | 'inbound' | 'traffic';
+export interface JobOptions {
+  inbound?: { id: number; expected_fingerprint: string; operation: 'update' | 'delete'; remark?: string; port?: number; server_name?: string; close_unmanaged_rule?: boolean };
+  traffic?: { id: number; expected_fingerprint: string };
+}
 export interface Job {
   id: string;
   node_id: string;
@@ -42,6 +46,7 @@ export interface Plan {
   remote_dir: string;
   steps: string[];
   files: Record<string, string>;
+  options?: JobOptions;
 }
 
 export type Installation = 'managed' | 'auto' | 'native' | 'docker';
@@ -67,6 +72,8 @@ export interface DeploymentTarget {
   caddy_id: string | null;
   subscription_bind: string;
   install_docker: boolean;
+  manage_ufw?: boolean;
+  manage_caddy_ports?: boolean;
   inbounds: TunnelInbound[];
 }
 export interface DiscoveryChoice {
@@ -117,8 +124,14 @@ export interface PanelFinding {
     security: string;
     client_count: number;
     clients: { email: string; enabled: boolean; has_subscription: boolean }[];
+    tag?: string;
+    server_names?: string[];
+    target?: string;
+    fingerprint?: string;
+    nodekit_name?: string | null;
   }[];
 }
+export type InboundFinding = NonNullable<PanelFinding['inbounds']>[number];
 export interface ProxyRoute {
   listen: string[];
   hosts: string[];
@@ -140,6 +153,11 @@ export interface CaddyFinding {
   routes: ProxyRoute[];
   warnings: string[];
   host_gateway?: string | null;
+  compose_project?: string | null;
+  compose_service?: string | null;
+  compose_files?: string[];
+  compose_working_dir?: string | null;
+  bridge_networks?: {name: string; interface: string; subnet: string; gateway: string}[];
 }
 export interface DeploymentProfileFinding {
   panel_runtime: 'native' | 'docker';
@@ -160,4 +178,11 @@ export interface InstallationReport {
   ssh_port?: number | null;
   subscription_checks?: { name: string; state: 'ok' | 'error' | 'warning' | 'not_checked'; detail: string }[];
   subscription_url_template?: string | null;
+  firewall?: { state: string; default_incoming?: string | null; default_outgoing?: string | null; default_routed?: string | null; warnings: string[]; rules: {
+    number: number; action: string; direction: string; destination: string; source: string; port: string; protocol: string; interface: string | null; ipv6: boolean; managed: boolean;
+  }[] } | null;
+  network_checks?: { name: string; state: 'ok' | 'error' | 'warning' | 'not_checked'; detail: string }[];
+  traffic_checks?: { name: string; state: 'ok' | 'error' | 'warning' | 'not_checked'; detail: string }[];
+  egress?: { readable: boolean; default_tag?: string | null; outbounds: { tag: string; protocol: string; via: string | null }[];
+    rules: {index: number; inbound_tags: string[]; outbound_tag: string; balancer_tag: string; conditional: boolean}[]; warnings: string[] } | null;
 }

@@ -1746,3 +1746,6 @@ code {
 .inbound-table { min-width: 740px; }
 .inbound-table td small { display: block; margin-top: 5px; color: var(--muted); }
 .inbound-table td code { white-space: nowrap; }
+.inbound-actions { display: flex; flex-wrap: wrap; gap: 8px; min-width: 220px; }
+.network-report { min-width: 0; }
+.network-report > .report-section:first-child { padding-top: 0; }

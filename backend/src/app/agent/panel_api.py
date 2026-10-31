@@ -66,8 +66,15 @@ class InboundProvisioner:
         self.api = api
         self.host = host
         self.created = []
+        self.mapping_path = None
+        self.mapping_original = None
 
     def apply(self, base, *, allow_existing=False):
+        self.mapping_path = base / "inbound-identities.json"
+        self.mapping_original = (
+            self.mapping_path.read_bytes() if self.mapping_path.exists() else None
+        )
+        mapping = json.loads(self.mapping_original) if self.mapping_original else {}
         desired = self.context.node["deployment"]["inbounds"]
         existing = self.api.request("inbounds/list") or []
         connections, subscriptions, pending = [], [], []
@@ -78,6 +85,8 @@ class InboundProvisioner:
         }
         # Check every conflict before adding any inbound.
         for inbound in desired:
+            if allow_existing and inbound["name"] in mapping:
+                continue
             remark = f"nodekit:{self.context.node['id']}:{inbound['name']}"
             matching = [item for item in existing if item.get("remark") == remark]
             if allow_existing and len(matching) == 1:
@@ -99,6 +108,7 @@ class InboundProvisioner:
                     raise RuntimeError(
                         message_text(MessageKey.DEPLOYMENT_INBOUND_COLLISION)
                     ) from exc
+                mapping[inbound["name"]] = {"id": item["id"], "deleted": False}
                 continue
             for item in existing:
                 if item.get("port") == inbound["port"] or item.get("remark") == remark:
@@ -173,6 +183,7 @@ class InboundProvisioner:
             if not isinstance(identifier, int) or identifier <= 0:
                 raise RuntimeError(message_text(MessageKey.DEPLOYMENT_API_FAILED))
             self.created.append(identifier)
+            mapping[inbound["name"]] = {"id": identifier, "deleted": False}
             saved = self.api.request(f"inbounds/get/{identifier}")
             if not isinstance(saved, dict) or any(
                 saved.get(k) != data[k] for k in ("remark", "port", "protocol", "listen", "enable")
@@ -242,6 +253,8 @@ class InboundProvisioner:
                         "url": public_base(self.context.node) + subscription_id,
                     }
                 )
+        self.mapping_path.write_text(json.dumps(mapping, indent=2), encoding="utf-8")
+        self.mapping_path.chmod(0o600)
         if not pending:
             return
         path = base / "tunnel-connections.json"
@@ -279,3 +292,8 @@ class InboundProvisioner:
     def rollback(self):
         for identifier in reversed(self.created):
             self.api.request(f"inbounds/del/{identifier}", {})
+        if self.mapping_path:
+            if self.mapping_original is None:
+                self.mapping_path.unlink(missing_ok=True)
+            else:
+                self.mapping_path.write_bytes(self.mapping_original)

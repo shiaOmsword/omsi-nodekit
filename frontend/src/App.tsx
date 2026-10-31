@@ -21,6 +21,7 @@ import { NodesPage } from './features/nodes/NodesPage';
 import { NodePage } from './features/nodes/NodePage';
 import { NodeFormModal } from './features/nodes/NodeFormModal';
 import { DeploymentModal } from './features/nodes/DeploymentModal';
+import { InboundModal } from './features/nodes/InboundModal';
 import { DiscoveryModal } from './features/nodes/DiscoveryModal';
 import { NodeManagementModal } from './features/nodes/NodeManagementModal';
 import { OperationsPage, OperationDetail } from './features/operations/OperationsPage';
@@ -36,6 +37,8 @@ import type {
   InstallationReport,
   JobDetail,
   NodeRecord,
+  InboundFinding,
+  JobOptions,
   NodeSummary,
   Plan,
   SSHKey,
@@ -55,8 +58,9 @@ type ModalState =
   | { kind: 'key-result'; key: SSHKey }
   | { kind: 'assign-key'; keyId: string }
   | { kind: 'deployment'; record: NodeRecord; report: InstallationReport | null }
+  | { kind: 'inbound'; record: NodeRecord; inbound: InboundFinding; remove: boolean }
   | { kind: 'discovery'; record: NodeRecord; job: JobDetail }
-  | { kind: 'plan'; record: NodeRecord; action: Action; backupId: string | null; plan: Plan | null }
+  | { kind: 'plan'; record: NodeRecord; action: Action; backupId: string | null; plan: Plan | null; options?: JobOptions }
   | { kind: 'import'; done?: (backup: Backup) => void }
   | { kind: 'restore'; backup: Backup };
 
@@ -283,11 +287,13 @@ export default function App() {
     });
     if (record) setModal(null);
   }
-  async function preview(record: NodeRecord, action: Action, backupId: string | null = null) {
+  async function preview(record: NodeRecord, action: Action, backupId: string | null = null, options?: JobOptions) {
     if (!requireSaved()) return;
-    showModal({ kind: 'plan', record, action, backupId, plan: null });
-    const plan = await w.run(() => api<Plan>('/nodes/' + record.id + '/plan?action=' + action));
-    if (plan) setModal({ kind: 'plan', record, action, backupId, plan });
+    showModal({ kind: 'plan', record, action, backupId, plan: null, options });
+    const plan = await w.run(() => options ? api<Plan>('/nodes/' + record.id + '/plan', {
+      method: 'POST', body: JSON.stringify({ action, revision: record.revision, ...options }),
+    }) : api<Plan>('/nodes/' + record.id + '/plan?action=' + action));
+    if (plan) setModal({ kind: 'plan', record, action, backupId, plan, options });
   }
   async function launch() {
     if (modal?.kind !== 'plan' || !modal.plan) return;
@@ -299,6 +305,7 @@ export default function App() {
           action: context.action,
           revision: context.plan!.revision,
           backup_id: context.action === 'restore' ? context.backupId : null,
+          ...context.options,
         }),
       });
       await w.refresh();
@@ -407,10 +414,16 @@ export default function App() {
             report={modal.report}
             onSave={async (text) => {
               const saved = await w.run(() => w.saveNode(text, modal.record.id));
-              if (saved) setModal(null);
+              if (saved) {
+                setModal(null);
+                if (route.page === 'node' && route.tab === 'inbounds') await preview(saved, 'configure');
+              }
             }}
           />
         );
+      case 'inbound':
+        return <InboundModal {...common} record={modal.record} inbound={modal.inbound} remove={modal.remove}
+          onPreview={(options) => preview(modal.record, 'inbound', null, options)} />;
       case 'discovery':
         return (
           <DiscoveryModal
@@ -427,7 +440,7 @@ export default function App() {
             record={modal.record}
             action={modal.action}
             plan={modal.plan}
-            onReload={() => preview(modal.record, modal.action, modal.backupId)}
+            onReload={() => preview(modal.record, modal.action, modal.backupId, modal.options)}
             onLaunch={launch}
           />
         );
@@ -578,6 +591,12 @@ export default function App() {
             onEdit={editNode}
             onManage={() => w.selected && manageNode(w.selected)}
             onDeployment={() => configure()}
+            onInbound={(inbound, remove) => {
+              if (w.selected && requireSaved()) showModal({ kind: 'inbound', record: w.selected, inbound, remove });
+            }}
+            onTraffic={(inbound) => {
+              if (w.selected) void preview(w.selected, 'traffic', null, { traffic: { id: inbound.id, expected_fingerprint: inbound.fingerprint! } });
+            }}
             onSuggest={suggest}
             onPlan={(action, backupId) =>
               w.selected && preview(w.selected, action, backupId || null)

@@ -10,6 +10,7 @@ from framework.messages import MessageKey
 from framework.messages import text as message_text
 
 from .discovery import SystemInventory
+from .firewall import caddy_matches
 from .host import HostEnvironment
 
 
@@ -46,11 +47,13 @@ class ExistingCaddy:
             raise ValueError()
         return json.loads(data)
 
-    def preflight(self, previous_site=None, previous_domain=None):
+    def preflight(self, previous_site=None, previous_domain=None, *, allow_unpublished=False):
         self.previous_site = previous_site
         node = self.context.node
         target = node["deployment"]
-        candidates = [c for c in self.inspector.report["caddy"] if c["id"] == target["caddy_id"]]
+        candidates = [
+            c for c in self.inspector.report["caddy"] if caddy_matches(c, target["caddy_id"])
+        ]
         if len(candidates) != 1:
             raise RuntimeError(message_text(MessageKey.DEPLOYMENT_CADDY_SELECTION))
         found = candidates[0]
@@ -76,7 +79,9 @@ class ExistingCaddy:
                 expected_bind = found.get("host_gateway")
                 port = node["caddy"]["https_port"]
                 # Never silently alter somebody else's Docker port publications.
-                if not any(p.endswith(f":{port}->{port}/tcp") for p in found["published_ports"]):
+                if not allow_unpublished and not any(
+                    p.endswith(f":{port}->{port}/tcp") for p in found["published_ports"]
+                ):
                     raise RuntimeError(
                         message_text(MessageKey.SUBSCRIPTION_PORT_UNPUBLISHED, port=port)
                     )

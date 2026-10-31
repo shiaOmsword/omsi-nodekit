@@ -17,6 +17,8 @@ class JobAction(StrEnum):
     RESTORE = "restore"
     BACKUP = "backup"
     CONFIGURE = "configure"
+    INBOUND = "inbound"
+    TRAFFIC = "traffic"
 
 
 class JobStatus(StrEnum):

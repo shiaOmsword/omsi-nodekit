@@ -188,6 +188,10 @@ WantedBy=multi-user.target
                     steps.remove(message_text(MessageKey.PLAN_IMAGES_PULL))
         elif action == "configure":
             steps.append(message_text(MessageKey.SUBSCRIPTION_CONFIGURE_PLAN))
+        elif action == "inbound":
+            steps.append(message_text(MessageKey.INBOUND_PLAN))
+        elif action == "traffic":
+            steps.append(message_text(MessageKey.TRAFFIC_PLAN))
         elif action == "backup":
             steps += [
                 message_text(MessageKey.PLAN_EXISTING_BACKUP),
@@ -204,7 +208,18 @@ WantedBy=multi-user.target
                 if node.probe
                 else message_text(MessageKey.PLAN_PROXY_NOT_CONFIGURED)
             ]
-        if action not in {"fresh", "restore", "configure"}:
+        if action in {"fresh", "restore", "configure", "inbound"} and (
+            not node.deployment or node.deployment.manage_ufw
+        ):
+            steps.append(message_text(MessageKey.NETWORK_UFW_PLAN))
+        if (
+            action in {"fresh", "restore", "configure"}
+            and node.deployment
+            and node.deployment.manage_caddy_ports
+            and node.deployment.caddy_mode == "existing"
+        ):
+            steps.append(message_text(MessageKey.NETWORK_COMPOSE_PLAN))
+        if action not in {"fresh", "restore", "configure", "inbound"}:
             steps.append(message_text(MessageKey.PLAN_READ_ONLY))
         return {
             "action": action,

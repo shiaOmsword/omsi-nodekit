@@ -1,3 +1,4 @@
+import json
 import sqlite3
 from contextlib import closing
 from pathlib import Path
@@ -58,6 +59,21 @@ class PanelInspector:
                         inbounds=items, inbounds_readable=True, inbounds_truncated=truncated
                     )
                     self.probe_ids[finding["id"]] = probe_id
+                    mapping_path = self.context.directory() / "inbound-identities.json"
+                    if finding.get("installation") == "managed" and mapping_path.is_file():
+                        try:
+                            mapping = json.loads(mapping_path.read_text(encoding="utf-8"))
+                            for item in items:
+                                item["nodekit_name"] = next(
+                                    (
+                                        name
+                                        for name, record in mapping.items()
+                                        if record["id"] == item["id"]
+                                    ),
+                                    None,
+                                )
+                        except (OSError, ValueError, TypeError, KeyError):
+                            pass
                     if truncated:
                         finding["warnings"].append(message_text(MessageKey.INBOUNDS_UNREADABLE))
                 except (sqlite3.DatabaseError, ValueError, TypeError, AttributeError):

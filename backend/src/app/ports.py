@@ -105,7 +105,7 @@ class ArtifactRenderer(ABC):
 class NodeExecutor(ABC):
     @abstractmethod
     def execute(
-        self, node: Node, action: JobAction, backup: bytes | None
+        self, node: Node, action: JobAction, backup: bytes | None, options: dict | None = None
     ) -> Iterator[ExecutionEvent]: ...
 
 

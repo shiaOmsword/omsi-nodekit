@@ -5,6 +5,7 @@ import { formatMessage, messages } from '../../framework/messages';
 import type { CertificateFinding, InstallationReport } from '../../types';
 import { formatDate } from '../../app/format';
 import { InboundReport, SubscriptionReport } from './SubscriptionReport';
+import { NetworkReport } from './NetworkReport';
 
 const t = messages.report;
 const empty = (value: string | null | undefined) => value || t.empty;
@@ -62,10 +63,12 @@ export function InstallationReportView({
   report,
   node,
   suggestions,
+  compact = false,
 }: {
   report: InstallationReport;
   node: string;
   suggestions?: ReactNode;
+  compact?: boolean;
 }) {
   const activePanels = report.panels.filter((p) => p.active).length;
   const activeCaddy = report.caddy.filter((p) => p.active).length;
@@ -130,6 +133,7 @@ export function InstallationReportView({
         <Warnings values={report.warnings} />
         {suggestions}
         <SubscriptionReport report={report} />
+        {!compact && <NetworkReport report={report} />}
         {!!report.panels.length && (
           <div className="report-section">
             <h3>Установки 3x-ui</h3>
@@ -164,7 +168,7 @@ export function InstallationReportView({
                   )}
                 </dl>
                 <Warnings values={panel.warnings} />
-                <InboundReport panel={panel} />
+                {!compact && <InboundReport panel={panel} />}
                 <details className="report-details">
                   <summary>{t.settings}</summary>
                   {!!panel.defaulted_settings.length && (

@@ -3,6 +3,8 @@
 import json
 import re
 
+from .inbound_meta import public_inbound
+
 
 def inbound_inventory(database, maximum):
     columns = {row[1] for row in database.execute("PRAGMA table_info(inbounds)")}
@@ -21,8 +23,9 @@ def inbound_inventory(database, maximum):
     rows = database.execute(
         "SELECT id,remark,enable,listen,port,protocol,"
         "CASE WHEN length(settings)<=? THEN settings END,"
-        "CASE WHEN length(stream_settings)<=? THEN stream_settings END "
-        "FROM inbounds ORDER BY id LIMIT 101",
+        "CASE WHEN length(stream_settings)<=? THEN stream_settings END, "
+        + ("tag " if "tag" in columns else "'' ")
+        + "FROM inbounds ORDER BY id LIMIT 101",
         (maximum // 2, maximum // 2),
     )
     summaries, probe_id, budget, clients_left, truncated = [], None, 0, 200, False
@@ -30,7 +33,7 @@ def inbound_inventory(database, maximum):
         if index >= 100:
             truncated = True
             break
-        identifier, remark, enabled, listen, port, protocol, raw_settings, raw_stream = row
+        identifier, remark, enabled, listen, port, protocol, raw_settings, raw_stream, tag = row
         if raw_settings is None or raw_stream is None:
             truncated = True
             continue
@@ -64,6 +67,18 @@ def inbound_inventory(database, maximum):
                 truncated = True
         summaries.append(
             {
+                **public_inbound(
+                    {
+                        "id": identifier,
+                        "remark": remark,
+                        "enable": enabled,
+                        "listen": listen,
+                        "port": port,
+                        "protocol": protocol,
+                        "streamSettings": stream,
+                        "tag": tag,
+                    }
+                ),
                 "id": int(identifier),
                 "remark": str(remark or "")[:160],
                 "enabled": bool(enabled),
