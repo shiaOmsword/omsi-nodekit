@@ -11,6 +11,15 @@ from app.infrastructure.bootstrap import StorageBootstrap
 from app.ports import ArtifactRenderer
 
 
+@pytest.fixture(autouse=True)
+def isolated_firewall(monkeypatch):
+    """Unit fixtures must never depend on or mutate the test runner's firewall."""
+    monkeypatch.setattr(
+        "app.agent.firewall.inspect_firewall",
+        lambda context: {"state": "unavailable", "rules": [], "warnings": []},
+    )
+
+
 @pytest.fixture
 def settings(tmp_path):
     return Settings(data_dir=tmp_path / "data", frontend_dir=tmp_path / "absent")

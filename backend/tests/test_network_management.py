@@ -13,6 +13,7 @@ from app.agent.egress import curl_probe, routing_inventory
 from app.agent.firewall import (
     FirewallTransaction,
     desired_rules,
+    inspect_firewall,
     network_checks,
     parse_status,
     permitted,
@@ -50,6 +51,29 @@ def test_ufw_order_scope_ipv6_and_private_comments():
     assert permitted(fw, rule_spec(2097)) is False
     assert permitted(fw, rule_spec(10001, source="203.0.113.5")) is True
     assert "private-comment" not in json.dumps(public_firewall(fw))
+
+
+@pytest.mark.parametrize("failure", [False, True])
+def test_firewall_inspection_reads_english_policy_or_reports_unknown(owned, monkeypatch, failure):
+    calls = []
+    monkeypatch.setattr("app.agent.firewall.shutil.which", lambda name: "/fixture/ufw")
+
+    def completed(args, **kwargs):
+        calls.append(args)
+        output = (
+            "Status: active\n[ 1] 8443/tcp ALLOW IN Anywhere"
+            if args[-1] == "numbered"
+            else "Default: deny (incoming), allow (outgoing), deny (routed)"
+        )
+        return SimpleNamespace(returncode=1 if failure else 0, stdout=output)
+
+    monkeypatch.setattr(owned.context.runner, "completed", completed)
+    actual = inspect_firewall(owned.context)
+    assert all(c[:3] == ["env", "LC_ALL=C", "ufw"] for c in calls)
+    if failure:
+        assert actual["state"] == "unknown" and actual["warnings"]
+    else:
+        assert actual["state"] == "active" and actual["default_outgoing"] == "allow"
 
 
 class UFW:
