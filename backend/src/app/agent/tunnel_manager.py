@@ -46,13 +46,22 @@ def routed_template(original, source_tag, tunnel, owned_tag, inbound_tag, previo
         raise ValueError()
     if previous and not existing:
         raise ValueError()
-    config["outbounds"] = [o for o in config["outbounds"] if o.get("tag") != owned_tag]
-    config["outbounds"].append(outbound)
+    if existing:
+        config["outbounds"] = [
+            outbound if o.get("tag") == owned_tag else o for o in config["outbounds"]
+        ]
+    else:
+        config["outbounds"].append(outbound)
     rules = config.setdefault("routing", {}).setdefault("rules", [])
     if previous:
         if previous["rule"].get("inboundTag") != [inbound_tag] or previous["rule"] not in rules:
             raise ValueError()
-        rules.remove(previous["rule"])
+        if rules.count(previous["rule"]) != 1:
+            raise ValueError()
+        index = rules.index(previous["rule"])
+        if any(r.get("outboundTag") == owned_tag for r in rules[:index] + rules[index + 1 :]):
+            raise ValueError()
+        return config, outbound, previous["rule"]
     if any(r.get("outboundTag") == owned_tag for r in rules):
         raise ValueError()
     rule = {"type": "field", "inboundTag": [inbound_tag], "outboundTag": owned_tag}
@@ -65,6 +74,20 @@ def routed_template(original, source_tag, tunnel, owned_tag, inbound_tag, previo
         index += 1
     rules.insert(index, rule)
     return config, outbound, rule
+
+
+def private_write(path, data):
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="wb", dir=path.parent, delete=False) as file:
+            temporary = Path(file.name)
+            file.write(data)
+            file.flush()
+            os.fsync(file.fileno())
+        os.replace(temporary, path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
 
 
 class TunnelManager:
@@ -139,7 +162,7 @@ class TunnelManager:
                 try:
                     self.wait(lambda: process.poll() is None and self.host.port_open(port))
                     result = curl_probe(self.context, url, socks_port=port)
-                    if not result["ok"]:
+                    if not result["ok"] or not result.get("bytes"):
                         raise ValueError()
                     return result
                 finally:
@@ -158,6 +181,7 @@ class TunnelManager:
         stage = self.stage("configuration and ownership preflight")
         attempted, forward = False, None
         original = proposed = None
+        originals, writes = {}, {}
         try:
             tunnels = [t for t in context.node["tunnels"] if t["name"] == request["name"]]
             if len(tunnels) != 1 or request["name"] == "panel":
@@ -171,9 +195,18 @@ class TunnelManager:
             ):
                 raise ValueError()
             state_path = base / f"tunnel-{request['name']}.json"
-            if state_path.is_symlink():
+            manifest_path = base / "manifest.json"
+            for path in (state_path, manifest_path):
+                if path.is_symlink():
+                    raise ValueError()
+                originals[path] = path.read_bytes() if path.exists() else None
+            manifest = json.loads(originals[manifest_path])
+            previous = json.loads(originals[state_path]) if originals[state_path] else None
+            if previous and previous.get("inbound_id", request["id"]) != request["id"]:
                 raise ValueError()
-            previous = json.loads(state_path.read_text()) if state_path.exists() else None
+            if previous and previous.get("inbound_id") == request["id"]:
+                # 3x-ui migrates the route tag when an inbound's port changes.
+                previous["rule"]["inboundTag"] = [inbound["tag"]]
             tag = f"ssh-{context.node['id']}-{tunnel['name']}"
             original = self.template(api)
             proposed, outbound, rule = routed_template(
@@ -211,19 +244,23 @@ class TunnelManager:
             stage = self.stage("runtime route and return traffic verification")
             self.wait(lambda: self.runtime_matches(outbound, rule))
             self.probe(outbound)
-            temporary = None
-            try:
-                with tempfile.NamedTemporaryFile(
-                    mode="w", encoding="utf-8", dir=base, delete=False
-                ) as file:
-                    temporary = Path(file.name)
-                    json.dump({"outbound": outbound, "rule": rule}, file)
-                    file.flush()
-                    os.fsync(file.fileno())
-                os.replace(temporary, state_path)
-            finally:
-                if temporary is not None:
-                    temporary.unlink(missing_ok=True)
+            applied = {t["name"]: t for t in manifest["node"]["tunnels"]}
+            applied[tunnel["name"]] = tunnel
+            names = {t["name"] for t in context.node["tunnels"]}
+            manifest["node"]["tunnels"] = [
+                applied[t["name"]] for t in context.node["tunnels"] if t["name"] in applied
+            ] + [t for name, t in applied.items() if name not in names]
+            records = {
+                state_path: {"outbound": outbound, "rule": rule, "inbound_id": request["id"]},
+                manifest_path: manifest,
+            }
+            for path, value in records.items():
+                current = path.read_bytes() if path.exists() else None
+                if path.is_symlink() or current != originals[path]:
+                    raise ValueError()
+                data = json.dumps(value).encode("utf-8")
+                private_write(path, data)
+                writes[path] = data
         except Exception as exc:
             safe_to_stop = True
             if attempted:
@@ -238,6 +275,16 @@ class TunnelManager:
                         raise ValueError()
                 except Exception:
                     safe_to_stop = False
+                    context.emit(message_text(MessageKey.DEPLOYMENT_ROLLBACK_FAILED), "error")
+            for path, data in writes.items():
+                try:
+                    if path.is_symlink() or path.read_bytes() != data:
+                        raise ValueError()
+                    if originals[path] is None:
+                        path.unlink()
+                    else:
+                        private_write(path, originals[path])
+                except Exception:
                     context.emit(message_text(MessageKey.DEPLOYMENT_ROLLBACK_FAILED), "error")
             if forward and safe_to_stop:
                 try:

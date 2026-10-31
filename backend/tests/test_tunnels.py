@@ -148,7 +148,9 @@ def operation(owned, monkeypatch):
             "expected_fingerprint": public_inbound(item)["fingerprint"],
         }
     }
-    state = SimpleNamespace(config=template(), calls=[], fail=False, enabled=False, active=False)
+    state = SimpleNamespace(
+        item=item, config=template(), calls=[], fail=False, enabled=False, active=False
+    )
 
     def request(path, data=None, **kwargs):
         state.calls.append(path)
@@ -280,3 +282,124 @@ def test_arguments_and_systemd_unit(node, renderer):
     data["tunnels"][0]["name"] = "panel"
     with pytest.raises(ValidationError):
         Node.model_validate(data)
+
+
+@pytest.mark.parametrize("response_bytes", [0, 1024])
+def test_probe_requires_return_body_and_cleans_private_process_files(
+    operation, monkeypatch, response_bytes
+):
+    binary = operation.owned.base / "fixture-xray"
+    binary.touch()
+    monkeypatch.setattr("app.agent.tunnel_manager.runtime_paths", lambda *a: (None, binary))
+    calls = []
+
+    class Process:
+        def __init__(self, args, **kwargs):
+            self.path = args[-1]
+            self.stopped = False
+            calls.append(self)
+
+        def poll(self):
+            return 0 if self.stopped else None
+
+        def terminate(self):
+            self.stopped = True
+
+        def wait(self, timeout):
+            return 0
+
+    monkeypatch.setattr("app.agent.tunnel_manager.subprocess.Popen", Process)
+    monkeypatch.setattr(
+        "app.agent.tunnel_manager.curl_probe",
+        lambda *a, **kw: {"ok": True, "bytes": response_bytes},
+    )
+    if response_bytes:
+        assert (
+            TunnelManager.probe(operation.manager, template()["outbounds"][-1])["bytes"]
+            == response_bytes
+        )
+    else:
+        with pytest.raises(ValueError):
+            TunnelManager.probe(operation.manager, template()["outbounds"][-1])
+    from pathlib import Path
+
+    assert calls[0].stopped and not Path(calls[0].path).exists()
+
+
+def test_reapply_preserves_default_and_operator_route_priority():
+    result, outbound, rule = routed_template(
+        template(), "exit", {"local_port": 15443}, "ssh-msk-gb", "in-xhttp"
+    )
+    result["outbounds"].remove(outbound)
+    result["outbounds"].insert(0, outbound)
+    result["routing"]["rules"].insert(0, {"domain": ["example.org"], "outboundTag": "direct"})
+    again, _, _ = routed_template(
+        result,
+        "exit",
+        {"local_port": 15443},
+        "ssh-msk-gb",
+        "in-xhttp",
+        {"outbound": outbound, "rule": rule},
+    )
+    assert again == result
+
+
+def test_forward_rechecks_unit_after_preflight_before_enabling(operation):
+    from app.agent.tunnel_forward import TunnelForward
+
+    context = operation.owned.context
+    forward = TunnelForward(context, operation.manager.host, context.node["tunnels"][0])
+    forward.preflight()
+    operation.unit.write_text("operator service")
+    with pytest.raises(ValueError):
+        forward.start()
+    forward.rollback()
+    assert operation.unit.read_text() == "operator service"
+    assert not any("enable" in call for call in operation.owned.calls)
+
+
+def test_applied_tunnel_does_not_block_later_subscription_configuration(operation):
+    operation.manager.apply(operation.owned.base)
+    manifest = json.loads((operation.owned.base / "manifest.json").read_text())
+    assert manifest["node"]["tunnels"] == operation.owned.context.node["tunnels"]
+    operation.owned.operation.apply(operation.owned.base)
+
+
+def test_metadata_write_failure_rolls_back_route_service_and_ownership(operation, monkeypatch):
+    from app.agent import tunnel_manager
+
+    write = tunnel_manager.private_write
+    before = operation.state.config
+    manifest_path = operation.owned.base / "manifest.json"
+    original_manifest = manifest_path.read_bytes()
+
+    def fail_manifest(path, data):
+        if path == manifest_path:
+            raise OSError()
+        write(path, data)
+
+    monkeypatch.setattr(tunnel_manager, "private_write", fail_manifest)
+    with pytest.raises(RuntimeError):
+        operation.manager.apply(operation.owned.base)
+    assert operation.state.config == before
+    assert not operation.unit.exists()
+    assert not (operation.owned.base / "tunnel-gb.json").exists()
+    assert manifest_path.read_bytes() == original_manifest
+
+
+def test_reapply_tracks_the_same_inbound_after_3xui_migrates_its_tag(operation):
+    operation.manager.apply(operation.owned.base)
+    old_tag = operation.state.item["tag"]
+    operation.state.item.update(tag="in-10443-tcp", port=10443)
+    for rule in operation.state.config["routing"]["rules"]:
+        if old_tag in rule.get("inboundTag", []):
+            rule["inboundTag"] = [
+                "in-10443-tcp" if tag == old_tag else tag for tag in rule["inboundTag"]
+            ]
+    request = operation.owned.context.payload["options"]["tunnel"]
+    request["expected_fingerprint"] = public_inbound(operation.state.item)["fingerprint"]
+    operation.manager.apply(operation.owned.base)
+    state = json.loads((operation.owned.base / "tunnel-gb.json").read_text())
+    assert state["inbound_id"] == 1
+    assert state["rule"]["inboundTag"] == ["in-10443-tcp"]
+    assert state["rule"] in operation.state.config["routing"]["rules"]

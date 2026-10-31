@@ -31,6 +31,10 @@ class TunnelForward:
             self.host.require_endpoint(tunnel["local_port"], "127.0.0.1")
 
     def start(self):
+        if self.path.is_symlink() or (
+            self.path.exists() and self.path.read_text(encoding="utf-8") != self.content
+        ):
+            raise ValueError()
         if not self.path.exists():
             with self.path.open("x", encoding="utf-8") as file:
                 file.write(self.content)
