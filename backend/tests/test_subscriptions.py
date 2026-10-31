@@ -249,6 +249,7 @@ def test_modified_owned_site_is_rejected_before_stopping_panel(owned):
 
 def test_unpublished_2096_is_rejected_before_caddy_or_panel_mutations(owned):
     context, inspector = owned.context, owned.inspector
+    context.node["deployment"]["manage_caddy_ports"] = False
     context.node["deployment"].update(caddy_id="docker:abc", subscription_bind="172.30.50.1")
     inspector.report["caddy"][0].update(
         id="docker:abc",

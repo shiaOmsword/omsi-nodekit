@@ -1,6 +1,8 @@
 import type { Action, Job, JobDetail } from '../types';
 
 export const actionLabels: Record<Action, { title: string; description: string }> = {
+  inbound: { title: 'Изменение inbound', description: 'Порт, SNI, название и правила UFW выбранного inbound.' },
+  traffic: { title: 'Проверка трафика', description: 'Сравнить прямой HTTPS с реальным VLESS/REALITY-подключением через inbound.' },
   check: { title: 'Обнаружение', description: 'Найти 3x-ui, Caddy и настройки сервера.' },
   doctor: { title: 'Диагностика', description: 'Проверить панель, сертификаты и туннели.' },
   fresh: { title: 'Новая установка', description: 'Развернуть 3x-ui на подготовленном сервере.' },

@@ -9,6 +9,7 @@ from framework.messages import text as message_text
 
 from .caddy_reuse import ExistingCaddy
 from .native_release import NativeRelease
+from .node_network import NodeNetwork
 from .panel_api import InboundProvisioner, PanelAPI
 from .subscriptions import public_base, verify_caddy_upstream
 
@@ -50,7 +51,13 @@ class ConfigureSubscriptions:
         except (OSError, ValueError, KeyError, TypeError) as exc:
             raise RuntimeError(message_text(MessageKey.SUBSCRIPTION_CONFIGURE_GUARD)) from exc
         caddy = ExistingCaddy(context, self.inspector)
-        caddy.preflight(previous_site, previous["caddy"]["domain"])
+        network = NodeNetwork(context, self.inspector, base)
+        network.prepare()
+        caddy.preflight(
+            previous_site,
+            previous["caddy"]["domain"],
+            allow_unpublished=bool(network.ports.missing),
+        )
         compose = ["docker", "compose", "-f", str(base / "compose.yaml")]
         docker = target["panel_runtime"] == "docker"
 
@@ -74,10 +81,15 @@ class ConfigureSubscriptions:
                 "deployment.json",
                 "tunnel-connections.json",
                 "subscriptions.json",
+                "inbound-identities.json",
             )
         }
         original_settings, provisioner = None, None
         try:
+            network.allow()
+            if network.publish():
+                caddy = ExistingCaddy(context, network.inspector)
+                caddy.preflight(previous_site, previous["caddy"]["domain"])
             control("stop")
             self.host.require_endpoint(
                 node["panel"]["subscription_port"], target["subscription_bind"]
@@ -114,6 +126,7 @@ class ConfigureSubscriptions:
             }.items():
                 (base / name).write_text(value)
                 (base / name).chmod(0o600)
+            network.commit(self.host)
             context.emit(message_text(MessageKey.SUBSCRIPTION_CONFIGURED))
         except Exception:
             cleanups = [caddy.rollback]
@@ -127,6 +140,7 @@ class ConfigureSubscriptions:
 
                 cleanups.append(restore)
             cleanups.append(lambda: control("start"))
+            cleanups.append(network.rollback)
             for cleanup in cleanups:
                 try:
                     cleanup()

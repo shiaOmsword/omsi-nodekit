@@ -21,18 +21,22 @@ export function DeploymentModal({
   onSave: (yaml: string) => void;
 }) {
   const source = readConfig(record.yaml);
+  const observed = new Set(report?.panels.flatMap((p) => (p.inbounds || []).map((i) => i.nodekit_name ||
+    (i.remark.startsWith('nodekit:' + record.id + ':') ? i.remark.slice(('nodekit:' + record.id + ':').length) : ''))) || []);
   const [target, setTarget] = useState<DeploymentTarget>(
-    () => ({ ...defaultTarget(), ...source.deployment, inbounds: source.deployment?.inbounds || [] }),
+    () => ({ ...defaultTarget(), ...source.deployment, inbounds: (source.deployment?.inbounds || []).filter((i) => !observed.has(i.name)) }),
   );
   const [values, setValues] = useState<FormValues>({
     role: target.role,
     runtime: target.panel_runtime,
     caddy: target.caddy_mode,
-    caddy_id: target.caddy_id || '',
+    caddy_id: report?.caddy.find((p) => p.id === target.caddy_id || 'docker:' + p.container === target.caddy_id)?.id || target.caddy_id || '',
     domain: source.caddy?.domain || '',
     https_port: String(source.caddy?.https_port || 2096),
     subscription_port: String(source.panel?.subscription_port || 2097),
     install_docker: target.install_docker,
+    manage_ufw: target.manage_ufw ?? true,
+    manage_caddy_ports: target.manage_caddy_ports ?? true,
   });
   const proxies = report?.caddy || [];
   const installed = !!report?.panels.some((p) => p.installation === 'managed' && p.active);
@@ -41,6 +45,10 @@ export function DeploymentModal({
     selectedProxy.network_mode !== 'host' && !selectedProxy.published_ports.some((p) =>
       p.endsWith(`:${Number(values.https_port)}->${Number(values.https_port)}/tcp`));
   const fields: FormField[] = [
+    { name: 'manage_ufw', label: 'Настраивать правила UFW для ноды', type: 'checkbox',
+      hint: 'Только активный UFW: порты inbound, HTTPS/ACME и доступ Docker Caddy к подпискам. UFW не включается и не сбрасывается.' },
+    ...(values.caddy === 'existing' ? [{ name: 'manage_caddy_ports', label: 'Добавлять недостающие порты общего Caddy', type: 'checkbox',
+      hint: 'Минимальный Compose override; контейнер Caddy может быть кратковременно пересоздан. Остальные настройки и сервисы сохраняются.' } as FormField] : []),
     {
       name: 'role',
       label: 'Роль ноды',
@@ -182,11 +190,13 @@ export function DeploymentModal({
       role: values.role as 'exit',
       panel_runtime: values.runtime as 'native',
       caddy_mode: values.caddy as 'none',
-      caddy_id: values.caddy === 'existing' ? String(values.caddy_id) : null,
+      caddy_id: values.caddy === 'existing' ? (proxy?.installation === 'docker' && proxy.container ? 'docker:' + proxy.container : String(values.caddy_id)) : null,
       subscription_bind: bind,
       install_docker:
         (values.runtime === 'docker' || values.caddy === 'docker') && !!values.install_docker,
       inbounds: target.inbounds.map((inbound) => ({ ...inbound, client_email: inbound.client_email || null })),
+      manage_ufw: !!values.manage_ufw,
+      manage_caddy_ports: !!values.manage_caddy_ports,
     };
     data.panel = { ...data.panel, installation: 'managed', container: null, database_path: null,
       subscription_port: Number(values.subscription_port) };
@@ -218,14 +228,15 @@ export function DeploymentModal({
         <code className="subscription-template">https://{String(values.domain) || 'домен'}{Number(values.https_port) === 443 ? '' : ':' + values.https_port}{source.panel?.subscription_path || '/sub/'}&lt;ID подписки&gt;</code>
         {selectedProxy && <p className="feature-hint">Опубликовано в Caddy: {selectedProxy.published_ports.join(', ') || 'нет публикаций / сеть хоста'}</p>}
         {unpublished && <p className="report-warning">Порт {String(values.https_port)} не опубликован в общем Caddy.
-          Сначала добавь {String(values.https_port)}:{String(values.https_port)}/tcp в его Compose и обнови обнаружение.
-          Nodekit проверит публикацию перед применением и не будет пересоздавать общий контейнер.</p>}
+          {' '}Требуется {String(values.https_port)}:{String(values.https_port)}/tcp.
+          {values.manage_caddy_ports ? ' Nodekit проверит Compose-проект и добавит публикацию через свой override; потребуется короткое пересоздание Caddy.' : ' Добавь публикацию в Compose или включи автоматическое согласование портов.'}</p>}
         {installed && <p className="feature-hint">Сохранение меняет локальные параметры. Затем открой операцию «Подписки и inbound», проверь план и примени настройки.</p>}
       </div>}
       <div className="form-section">
         <div className="section-heading compact">
           <div>
             <h3>VLESS / REALITY inbound</h3>
+            {installed && <p className="feature-hint">Здесь задаются новые inbound. Существующие изменяются и удаляются на вкладке «Inbound».</p>}
               <p>Каждый новый inbound получает первого клиента и ID подписки. Для выхода через SSH выбери 127.0.0.1; для прямого подключения — публичный listener.</p>
           </div>
           <Button

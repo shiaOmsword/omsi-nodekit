@@ -63,6 +63,11 @@ class InboundFinding(Entity):
     security: str = ""
     client_count: int = 0
     clients: list[ClientFinding] = Field(default_factory=list)
+    tag: str = ""
+    server_names: list[str] = Field(default_factory=list)
+    target: str = ""
+    fingerprint: str = ""
+    nodekit_name: str | None = None
 
 
 class EndpointCheck(Entity):
@@ -113,6 +118,20 @@ class CaddyFinding(Entity):
     host_gateway: str | None = None
     routes: list[ProxyRoute] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    compose_project: str | None = None
+    compose_service: str | None = None
+    compose_files: list[str] = Field(default_factory=list)
+    compose_working_dir: str | None = None
+    bridge_networks: list[dict] = Field(default_factory=list)
+
+
+class FirewallFinding(Entity):
+    state: Literal["active", "inactive", "unavailable", "unknown"] = "unknown"
+    default_incoming: str | None = None
+    default_outgoing: str | None = None
+    default_routed: str | None = None
+    rules: list[dict] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
 
 
 class DeploymentProfileFinding(Entity):
@@ -135,6 +154,10 @@ class InstallationReport(Entity):
     warnings: list[str] = Field(default_factory=list)
     subscription_checks: list[EndpointCheck] = Field(default_factory=list)
     subscription_url_template: str | None = None
+    firewall: FirewallFinding | None = None
+    network_checks: list[EndpointCheck] = Field(default_factory=list)
+    egress: dict | None = None
+    traffic_checks: list[EndpointCheck] = Field(default_factory=list)
 
 
 class KeySelection(Entity):

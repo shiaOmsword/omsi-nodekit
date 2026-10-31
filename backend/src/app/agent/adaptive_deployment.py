@@ -14,6 +14,7 @@ from framework.messages import text as message_text
 
 from .caddy_reuse import ExistingCaddy
 from .native_release import NativeRelease, architecture
+from .node_network import NodeNetwork
 from .panel_api import InboundProvisioner, PanelAPI
 from .subscriptions import preflight_caddy_network, verify_caddy_upstream
 
@@ -76,8 +77,10 @@ class AdaptiveDeployment:
         caddy = (
             ExistingCaddy(context, self.inspector) if target["caddy_mode"] == "existing" else None
         )
+        network = NodeNetwork(context, self.inspector, base)
+        network.prepare()
         if caddy:
-            caddy.preflight()
+            caddy.preflight(allow_unpublished=bool(network.ports.missing))
         for port, bind in [
             (node["panel"]["port"], "127.0.0.1"),
             (node["panel"]["subscription_port"], target["subscription_bind"]),
@@ -98,8 +101,6 @@ class AdaptiveDeployment:
                 and (Path(context.policy["unit_directory"]) / name).exists()
             ):
                 raise RuntimeError(message_text(MessageKey.UNIT_EXISTS, name=name))
-        if caddy:
-            preflight_caddy_network(context, caddy.finding)
         raw = None
         if action == "restore":
             raw = base64.b64decode(context.payload["backup"], validate=True)
@@ -109,14 +110,24 @@ class AdaptiveDeployment:
                 self.database.validate(snapshot)
         context.emit(message_text(MessageKey.PREFLIGHT_COMPLETED))
         # Package installation is opt-in, after all collision and restore checks.
-        self._docker()
-        base.mkdir(parents=True, exist_ok=True, mode=0o700)
-        base.chmod(0o700)
+        try:
+            network.allow()
+            if caddy:
+                preflight_caddy_network(context, caddy.finding)
+            self._docker()
+        except Exception:
+            network.rollback()
+            raise
         units = []
         compose = ["docker", "compose", "-f", str(base / "compose.yaml")]
         has_compose = "compose.yaml" in context.payload["files"]
         provisioner = None
         try:
+            base.mkdir(parents=True, exist_ok=True, mode=0o700)
+            base.chmod(0o700)
+            if network.publish():
+                caddy = ExistingCaddy(context, network.inspector)
+                caddy.preflight()
             for folder in ("db", "cert", "logs", "caddy-data", "caddy-config"):
                 (base / folder).mkdir(mode=0o700)
             for name, content in context.payload["files"].items():
@@ -209,6 +220,7 @@ class AdaptiveDeployment:
             (base / "manifest.json").write_text(
                 json.dumps({"node": node, "action": action}, indent=2)
             )
+            network.commit(self.host)
             context.emit(message_text(MessageKey.DEPLOYMENT_COMPLETED))
         except Exception:
             context.emit(message_text(MessageKey.DEPLOYMENT_FAILED), "error")
@@ -221,6 +233,7 @@ class AdaptiveDeployment:
                 cleanups.append(lambda: context.command(compose + ["stop"]))
             if units:
                 cleanups.append(lambda: context.command(["systemctl", "disable", "--now", *units]))
+            cleanups.append(network.rollback)
             for cleanup in cleanups:
                 try:
                     cleanup()

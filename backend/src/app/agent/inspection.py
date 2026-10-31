@@ -6,6 +6,8 @@ from framework.messages import text as message_text
 
 from .caddy import CaddyInspector
 from .discovery import SystemInventory
+from .egress import routing_inventory
+from .firewall import inspect_firewall, network_checks, public_firewall
 from .panels import PanelInspector
 from .preflight import PrerequisiteInspector
 
@@ -38,6 +40,9 @@ class InstallationInspector:
         }
         if not self.selected and len(findings) > 1:
             self.report["warnings"].append(message_text(MessageKey.INSPECTION_MULTIPLE))
+        self.report["firewall"] = public_firewall(inspect_firewall(self.context))
+        self.report["network_checks"] = network_checks(self.context, self.report)
+        self.report["egress"] = routing_inventory(self.context, self)
         self.publish()
         self.context.emit(message_text(MessageKey.INSPECTION_COMPLETED))
         return self.report

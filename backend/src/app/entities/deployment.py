@@ -28,6 +28,8 @@ class DeploymentTarget(StrictModel):
     caddy_id: str | None = None
     subscription_bind: str = "127.0.0.1"
     install_docker: bool = False
+    manage_ufw: bool = True
+    manage_caddy_ports: bool = True
     inbounds: list[TunnelInbound] = Field(default_factory=list, max_length=12)
 
     @field_validator("subscription_bind")
