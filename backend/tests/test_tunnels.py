@@ -1,5 +1,6 @@
 import copy
 import json
+import os
 from types import SimpleNamespace
 
 import pytest
@@ -198,7 +199,8 @@ def test_apply_idempotent_and_private_state(operation, capsys):
     operation.manager.apply(operation.owned.base)
     assert operation.state.enabled and operation.state.active
     assert len(operation.state.config["outbounds"]) == 4
-    assert (operation.owned.base / "tunnel-gb.json").stat().st_mode & 0o777 == 0o600
+    if os.name != "nt":
+        assert (operation.owned.base / "tunnel-gb.json").stat().st_mode & 0o777 == 0o600
     assert "private-uuid" not in capsys.readouterr().out
     assert list(operation.owned.base.glob("before-tunnel-*.db"))
 

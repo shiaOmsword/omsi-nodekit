@@ -104,7 +104,7 @@ class TunnelManager:
         except (OSError, ValueError, TypeError, KeyError, AttributeError):
             return False
 
-    def probe(self, outbound):
+    def probe(self, outbound, url="https://example.com/"):
         """Require actual HTTPS return traffic, rather than an SSH local TCP accept."""
         _, binary = runtime_paths(self.context, self.inspector)
         if not binary or not binary.is_file():
@@ -138,8 +138,10 @@ class TunnelManager:
                 )
                 try:
                     self.wait(lambda: process.poll() is None and self.host.port_open(port))
-                    if not curl_probe(self.context, "https://example.com/", socks_port=port)["ok"]:
+                    result = curl_probe(self.context, url, socks_port=port)
+                    if not result["ok"]:
                         raise ValueError()
+                    return result
                 finally:
                     if process.poll() is None:
                         process.terminate()
@@ -209,16 +211,18 @@ class TunnelManager:
             stage = self.stage("runtime route and return traffic verification")
             self.wait(lambda: self.runtime_matches(outbound, rule))
             self.probe(outbound)
-            with tempfile.NamedTemporaryFile(
-                mode="w", encoding="utf-8", dir=base, delete=False
-            ) as file:
-                temporary = Path(file.name)
-                try:
+            temporary = None
+            try:
+                with tempfile.NamedTemporaryFile(
+                    mode="w", encoding="utf-8", dir=base, delete=False
+                ) as file:
+                    temporary = Path(file.name)
                     json.dump({"outbound": outbound, "rule": rule}, file)
                     file.flush()
                     os.fsync(file.fileno())
-                    os.replace(temporary, state_path)
-                finally:
+                os.replace(temporary, state_path)
+            finally:
+                if temporary is not None:
                     temporary.unlink(missing_ok=True)
         except Exception as exc:
             safe_to_stop = True
