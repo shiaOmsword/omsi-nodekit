@@ -2,6 +2,7 @@
 
 import fnmatch
 import json
+import time
 import urllib.request
 from pathlib import Path
 
@@ -45,7 +46,8 @@ class ExistingCaddy:
             raise ValueError()
         return json.loads(data)
 
-    def preflight(self):
+    def preflight(self, previous_site=None, previous_domain=None):
+        self.previous_site = previous_site
         node = self.context.node
         target = node["deployment"]
         candidates = [c for c in self.inspector.report["caddy"] if c["id"] == target["caddy_id"]]
@@ -75,7 +77,9 @@ class ExistingCaddy:
                 port = node["caddy"]["https_port"]
                 # Never silently alter somebody else's Docker port publications.
                 if not any(p.endswith(f":{port}->{port}/tcp") for p in found["published_ports"]):
-                    raise RuntimeError(message_text(MessageKey.DEPLOYMENT_CADDY_UNSAFE))
+                    raise RuntimeError(
+                        message_text(MessageKey.SUBSCRIPTION_PORT_UNPUBLISHED, port=port)
+                    )
         if target["subscription_bind"] != expected_bind:
             raise RuntimeError(message_text(MessageKey.DEPLOYMENT_BIND_INVALID))
         if not self.source or str(self.source).startswith("/proc/") or not self.source.is_file():
@@ -83,9 +87,19 @@ class ExistingCaddy:
         if self.source.stat().st_size > self.context.discovery["metadata_bytes"]:
             raise RuntimeError(message_text(MessageKey.DEPLOYMENT_CADDY_UNSAFE))
         self.original = self.source.read_bytes()
+        if previous_site and self.original.count(previous_site) != 1:
+            raise RuntimeError(message_text(MessageKey.SUBSCRIPTION_CONFIGURE_GUARD))
         self._require_unchanged()
+        self.finding = found
         for route in found["routes"]:
-            if any(fnmatch.fnmatchcase(node["caddy"]["domain"], h) for h in route["hosts"]):
+            if previous_site and [host.lower() for host in route["hosts"]] == [
+                previous_domain.lower()
+            ]:
+                continue
+            if any(
+                fnmatch.fnmatchcase(node["caddy"]["domain"].lower(), h.lower())
+                for h in route["hosts"]
+            ):
                 raise RuntimeError(message_text(MessageKey.DEPLOYMENT_CADDY_COLLISION))
         if found.get("network_mode") in {None, "host"}:
             port = node["caddy"]["https_port"]
@@ -111,12 +125,18 @@ class ExistingCaddy:
 
     def apply(self, base, snippet):
         self._require_unchanged()
-        backup = base / "Caddyfile.original"
+        backup = base / (
+            f"Caddyfile.before-{time.time_ns()}" if self.previous_site else "Caddyfile.original"
+        )
         backup.write_bytes(self.original)
         backup.chmod(0o600)
         if self.source.read_bytes() != self.original:
             raise RuntimeError(message_text(MessageKey.DEPLOYMENT_CADDY_CHANGED))
-        self.updated = self.original + b"\n\n" + snippet.encode()
+        self.updated = (
+            self.original.replace(self.previous_site, snippet.encode(), 1)
+            if self.previous_site
+            else self.original + b"\n\n" + snippet.encode()
+        )
         # Keep the inode: an existing Docker mount may bind this individual file.
         self.changed = True
         self.source.write_bytes(self.updated)

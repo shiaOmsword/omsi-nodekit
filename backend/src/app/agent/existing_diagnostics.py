@@ -27,7 +27,12 @@ class ExistingDiagnostics:
         except (ValueError, TypeError, KeyError):
             return None
 
-        if finding["installation"] == "native" or finding.get("network_mode") == "host":
+        if (
+            finding["installation"] == "native"
+            or finding.get("network_mode") == "host"
+            or finding["installation"] == "managed"
+            and finding.get("service")
+        ):
             listen = settings.get(f"{prefix}Listen", "")
             return (
                 "127.0.0.1" if listen in {"", "0.0.0.0"} else "::1" if listen == "::" else listen,

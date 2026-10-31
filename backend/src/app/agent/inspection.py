@@ -38,9 +38,12 @@ class InstallationInspector:
         }
         if not self.selected and len(findings) > 1:
             self.report["warnings"].append(message_text(MessageKey.INSPECTION_MULTIPLE))
-        print(json.dumps({"report": self.report}), flush=True)
+        self.publish()
         self.context.emit(message_text(MessageKey.INSPECTION_COMPLETED))
         return self.report
+
+    def publish(self):
+        print(json.dumps({"report": self.report}), flush=True)
 
     def database(self):
         return self.panels.database(self.selected)

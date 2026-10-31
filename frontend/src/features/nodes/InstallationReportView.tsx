@@ -4,6 +4,7 @@ import { Alert, StatusBadge } from '../../framework/components';
 import { formatMessage, messages } from '../../framework/messages';
 import type { CertificateFinding, InstallationReport } from '../../types';
 import { formatDate } from '../../app/format';
+import { InboundReport, SubscriptionReport } from './SubscriptionReport';
 
 const t = messages.report;
 const empty = (value: string | null | undefined) => value || t.empty;
@@ -128,6 +129,7 @@ export function InstallationReportView({
         )}
         <Warnings values={report.warnings} />
         {suggestions}
+        <SubscriptionReport report={report} />
         {!!report.panels.length && (
           <div className="report-section">
             <h3>Установки 3x-ui</h3>
@@ -162,6 +164,7 @@ export function InstallationReportView({
                   )}
                 </dl>
                 <Warnings values={panel.warnings} />
+                <InboundReport panel={panel} />
                 <details className="report-details">
                   <summary>{t.settings}</summary>
                   {!!panel.defaulted_settings.length && (
@@ -186,6 +189,9 @@ export function InstallationReportView({
                     ))}
                   </div>
                   <p className="feature-hint">{t.metadataOnly}</p>
+                  {!!report.subscription_checks?.length && <p className="feature-hint">
+                    При HTTPS через Caddy встроенный TLS подписок в 3x-ui не требуется. Результат проверки HTTPS смотри в блоке подписок выше.
+                  </p>}
                 </details>
               </article>
             ))}

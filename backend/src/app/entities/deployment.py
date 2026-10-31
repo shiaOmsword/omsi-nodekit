@@ -18,6 +18,7 @@ class TunnelInbound(StrictModel):
     listen: Literal["127.0.0.1", "0.0.0.0"] = "127.0.0.1"
     server_name: Host
     target_port: Port = 443
+    client_email: str | None = Field(default=None, pattern=r"^[a-zA-Z0-9][a-zA-Z0-9_.@-]{0,79}$")
 
 
 class DeploymentTarget(StrictModel):

@@ -16,6 +16,7 @@ class JobAction(StrEnum):
     FRESH = "fresh"
     RESTORE = "restore"
     BACKUP = "backup"
+    CONFIGURE = "configure"
 
 
 class JobStatus(StrEnum):

@@ -1737,3 +1737,12 @@ code {
     justify-content: center;
   }
 }
+.pill.red { color: #ffb3b8; background: #3b202c; border-color: #6e3444; }
+.subscription-template { display: block; margin: 12px 0; padding: 14px; overflow-wrap: anywhere; background: #201c29; border-radius: 8px; }
+.subscription-checks { display: grid; gap: 10px; margin-top: 16px; }
+.subscription-check { padding: 16px; border: 1px solid #342e41; border-radius: 8px; }
+.subscription-check > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.subscription-check p { margin: 8px 0 0; color: #b6b0c2; overflow-wrap: anywhere; }
+.inbound-table { min-width: 740px; }
+.inbound-table td small { display: block; margin-top: 5px; color: var(--muted); }
+.inbound-table td code { white-space: nowrap; }

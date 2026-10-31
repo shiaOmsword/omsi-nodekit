@@ -17,6 +17,13 @@ class ErrorCode(StrEnum):
 
 
 class MessageKey(StrEnum):
+    SUBSCRIPTION_PROBE_FAILED = "subscription_probe_failed"
+    SUBSCRIPTION_PORT_UNPUBLISHED = "subscription_port_unpublished"
+    SUBSCRIPTION_CHECK = "subscription_check"
+    SUBSCRIPTION_CONFIGURE_PLAN = "subscription_configure_plan"
+    SUBSCRIPTION_CONFIGURE_GUARD = "subscription_configure_guard"
+    SUBSCRIPTION_CONFIGURED = "subscription_configured"
+    INBOUNDS_UNREADABLE = "inbounds_unreadable"
     DEPLOYMENT_BIND_INVALID = "deployment_bind_invalid"
     DEPLOYMENT_CADDY_SELECTION = "deployment_caddy_selection"
     DEPLOYMENT_INBOUNDS_DUPLICATE = "deployment_inbounds_duplicate"

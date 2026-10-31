@@ -9,6 +9,7 @@ from framework.messages import MessageKey
 from framework.messages import text as message_text
 
 from .adaptive_deployment import AdaptiveDeployment
+from .configure import ConfigureSubscriptions
 from .context import AgentContext
 from .database import PanelDatabase
 from .deployment import DeploymentService
@@ -16,6 +17,7 @@ from .diagnostics import Diagnostics
 from .existing_diagnostics import ExistingDiagnostics
 from .host import HostEnvironment
 from .inspection import InstallationInspector
+from .subscriptions import SubscriptionDiagnostics
 
 
 class RemoteAgent:
@@ -50,6 +52,8 @@ class RemoteAgent:
                     AdaptiveDeployment(
                         context, self.host, self.database, self.diagnostics, inspector
                     ).deploy(base)
+                    inspector = InstallationInspector(context)
+                    inspector.inspect()
                     return
                 if context.node["caddy"]["enabled"] and report["caddy"]:
                     raise RuntimeError(message_text(MessageKey.CADDY_EXISTING_GUARD))
@@ -59,6 +63,8 @@ class RemoteAgent:
                 # Always use actual discovered settings, including managed Docker panels.
                 # Record every subsystem result before failing the aggregate doctor job.
                 failures = ExistingDiagnostics(context, inspector).check(raise_on_failure=False)
+                failures += SubscriptionDiagnostics(context, inspector).check()
+                inspector.publish()
                 failures += self.diagnostics.check_transport(context.node, raise_on_failure=False)
                 if failures:
                     raise RuntimeError(
@@ -67,6 +73,15 @@ class RemoteAgent:
             elif action == "check":
                 inspector.inspect()
                 context.emit(message_text(MessageKey.ENVIRONMENT_CHECK_COMPLETED))
+            elif action == "configure":
+                inspector.inspect()
+                ConfigureSubscriptions(
+                    context, self.host, self.database, self.diagnostics, inspector
+                ).apply(base)
+                inspector = InstallationInspector(context)
+                inspector.inspect()
+                SubscriptionDiagnostics(context, inspector).check()
+                inspector.publish()
             elif action == "backup":
                 inspector.inspect()
                 source = inspector.database()

@@ -88,6 +88,12 @@ class JobService:
         node = self.factory.from_yaml(stored.yaml)
         if action in {JobAction.FRESH, JobAction.RESTORE} and node.panel.installation != "managed":
             raise ValidationError(message_text(MessageKey.EXISTING_READ_ONLY))
+        if action == JobAction.CONFIGURE and (
+            node.panel.installation != "managed"
+            or not node.deployment
+            or node.deployment.caddy_mode != "existing"
+        ):
+            raise ValidationError(message_text(MessageKey.SUBSCRIPTION_CONFIGURE_GUARD))
         if action == JobAction.RESTORE:
             if not backup_id:
                 raise ValidationError(message_text(MessageKey.RESTORE_BACKUP_REQUIRED))
