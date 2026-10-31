@@ -6,6 +6,7 @@ import secrets
 import time
 import urllib.request
 import uuid
+from urllib.parse import urlencode
 
 from framework.messages import MessageKey
 from framework.messages import text as message_text
@@ -26,11 +27,16 @@ class PanelAPI:
         self.token = token
         self.opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoAPIRedirect())
 
-    def request(self, path, data=None):
+    def request(self, path, data=None, *, form=False):
         request = urllib.request.Request(
             self.base + path,
-            data=json.dumps(data).encode() if data is not None else None,
-            headers={"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"},
+            data=(urlencode(data).encode() if form else json.dumps(data).encode())
+            if data is not None
+            else None,
+            headers={
+                "Authorization": f"Bearer {self.token}",
+                "Content-Type": "application/x-www-form-urlencoded" if form else "application/json",
+            },
         )
         try:
             with self.opener.open(request, timeout=self.context.policy["http_timeout"]) as response:

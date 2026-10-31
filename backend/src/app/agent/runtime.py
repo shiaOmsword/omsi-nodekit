@@ -21,6 +21,7 @@ from .inbound_manager import InboundManager
 from .inspection import InstallationInspector
 from .subscriptions import SubscriptionDiagnostics
 from .traffic_probe import TrafficProbe
+from .tunnel_manager import TunnelManager
 
 
 class RemoteAgent:
@@ -81,6 +82,13 @@ class RemoteAgent:
                 inspector.inspect()
                 try:
                     InboundManager(context, self.host, self.database, inspector).apply(base)
+                finally:
+                    inspector = InstallationInspector(context)
+                    inspector.inspect()
+            elif action == "tunnel":
+                inspector.inspect()
+                try:
+                    TunnelManager(context, self.host, self.database, inspector).apply(base)
                 finally:
                     inspector = InstallationInspector(context)
                     inspector.inspect()

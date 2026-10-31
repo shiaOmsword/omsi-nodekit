@@ -17,6 +17,11 @@ class ErrorCode(StrEnum):
 
 
 class MessageKey(StrEnum):
+    TUNNEL_CONFIG_INVALID = "tunnel_config_invalid"
+    TUNNEL_APPLY_PLAN = "tunnel_apply_plan"
+    TUNNEL_APPLIED = "tunnel_applied"
+    TUNNEL_APPLY_FAILED = "tunnel_apply_failed"
+    TUNNEL_STAGE = "tunnel_stage"
     NETWORK_UFW_FAILED = "network_ufw_failed"
     NETWORK_UFW_PLAN = "network_ufw_plan"
     NETWORK_RULE_ADDED = "network_rule_added"

@@ -1,6 +1,7 @@
 import type { Action, Job, JobDetail } from '../types';
 
 export const actionLabels: Record<Action, { title: string; description: string }> = {
+  tunnel: { title: 'SSH-выход', description: 'Создать SSH-туннель и направить выбранный inbound через выходную ноду.' },
   inbound: { title: 'Изменение inbound', description: 'Порт, SNI, название и правила UFW выбранного inbound.' },
   traffic: { title: 'Проверка трафика', description: 'Сравнить прямой HTTPS с реальным VLESS/REALITY-подключением через inbound.' },
   check: { title: 'Обнаружение', description: 'Найти 3x-ui, Caddy и настройки сервера.' },

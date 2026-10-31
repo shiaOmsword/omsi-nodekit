@@ -109,7 +109,7 @@ StartLimitIntervalSec=0
 [Service]
 Type=simple
 User={tunnel.user}
-ExecStart={self.policy.remote_ssh_binary} -N -T -p {tunnel.ssh_port} -i {tunnel.identity_file} -o UserKnownHostsFile={tunnel.known_hosts_file} -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes -o BatchMode=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval={self.ssh.alive_interval} -o ServerAliveCountMax={self.ssh.alive_count} -o ConnectTimeout={self.ssh.connect_timeout} -o ControlMaster=no -o Compression=no -L 127.0.0.1:{tunnel.local_port}:127.0.0.1:{tunnel.target_port} {tunnel.user}@{tunnel.host}
+ExecStart={self.policy.remote_ssh_binary} -F none -N -T -p {tunnel.ssh_port} -i {tunnel.identity_file} -o UserKnownHostsFile={tunnel.known_hosts_file} -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes -o BatchMode=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval={self.ssh.alive_interval} -o ServerAliveCountMax={self.ssh.alive_count} -o ConnectTimeout={self.ssh.connect_timeout} -o ControlMaster=no -o Compression=no -L 127.0.0.1:{tunnel.local_port}:127.0.0.1:{tunnel.target_port} {tunnel.user}@{tunnel.host}
 Restart=always
 RestartSec={self.policy.tunnel_restart_seconds}
 
@@ -190,6 +190,8 @@ WantedBy=multi-user.target
             steps.append(message_text(MessageKey.SUBSCRIPTION_CONFIGURE_PLAN))
         elif action == "inbound":
             steps.append(message_text(MessageKey.INBOUND_PLAN))
+        elif action == "tunnel":
+            steps.append(message_text(MessageKey.TUNNEL_APPLY_PLAN))
         elif action == "traffic":
             steps.append(message_text(MessageKey.TRAFFIC_PLAN))
         elif action == "backup":
@@ -219,7 +221,7 @@ WantedBy=multi-user.target
             and node.deployment.caddy_mode == "existing"
         ):
             steps.append(message_text(MessageKey.NETWORK_COMPOSE_PLAN))
-        if action not in {"fresh", "restore", "configure", "inbound"}:
+        if action not in {"fresh", "restore", "configure", "inbound", "tunnel"}:
             steps.append(message_text(MessageKey.PLAN_READ_ONLY))
         return {
             "action": action,
