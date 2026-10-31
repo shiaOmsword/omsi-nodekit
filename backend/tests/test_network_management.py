@@ -148,6 +148,7 @@ def test_explicit_firewall_deny_is_not_bypassed(owned, monkeypatch):
     tx = FirewallTransaction(owned.context, owned.base)
     with pytest.raises(RuntimeError):
         tx.ensure([rule_spec(8443)])
+    assert not ufw.calls
     tx.rollback()
     assert len(ufw.state["rules"]) == 1 and ufw.state["rules"][0]["action"] == "DENY"
 

@@ -364,6 +364,11 @@ class FirewallTransaction:
         for spec in desired:
             if permitted(self.finding, spec):
                 continue
+            if any(
+                r["action"] in {"DENY", "REJECT"} and matches(r, spec)
+                for r in self.finding["rules"]
+            ):
+                raise RuntimeError(message_text(MessageKey.NETWORK_UFW_FAILED))
             comment = f"nodekit:{self.context.node['id']}:{spec['scope']}:{spec['port']}:{spec['protocol']}"
             args = rule_args(spec, comment)
             entry = {**spec, "comment": comment}

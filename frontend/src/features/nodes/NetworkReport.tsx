@@ -14,7 +14,7 @@ export function NetworkReport({ report }: { report: InstallationReport }) {
       </StatusBadge></p>
       {firewall?.default_incoming && <p className="feature-hint">Политики: входящие — {firewall.default_incoming}, исходящие — {firewall.default_outgoing}, маршрутизируемые — {firewall.default_routed}.</p>}
       <div className="subscription-checks">{checks.map((check, index) => <div className="subscription-check" key={index}>
-        <div><strong>{check.name === 'ufw' ? 'Правило UFW' : check.name === 'caddy_port' ? 'Публикация Caddy' : check.name === 'direct_https' ? 'Выход с VPS' : check.name}</strong>
+        <div><strong>{({ ufw: 'Правило UFW', caddy_port: 'Публикация Caddy', direct_https: 'Выход с VPS', subscription_config: 'Настройки подписок', inbound_config: 'Настройки inbound' } as Record<string, string>)[check.name] || check.name}</strong>
           <StatusBadge tone={check.state === 'ok' ? 'mint' : check.state === 'error' ? 'red' : 'amber'}>{check.state === 'ok' ? 'Проверено' : check.state === 'error' ? 'Ошибка' : 'Проверить'}</StatusBadge></div>
         <p>{check.detail}</p></div>)}</div>
       <p className="feature-hint">Наличие правила не доказывает внешний доступ. Публикации Docker проверяются отдельно; UFW не включается и не сбрасывается автоматически.</p>
