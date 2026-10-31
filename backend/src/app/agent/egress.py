@@ -77,6 +77,10 @@ def routing_inventory(context, inspector):
             for index, item in enumerate((config.get("routing") or {}).get("rules", [])[:100])
         ]
         tags = {o["tag"] for o in outbounds}
+        # Xray creates the API outbound at runtime; it is absent from outbounds[].
+        api_tag = (config.get("api") or {}).get("tag")
+        if isinstance(api_tag, str) and api_tag:
+            tags.add(api_tag)
         missing = sorted(
             {
                 r["outbound_tag"]

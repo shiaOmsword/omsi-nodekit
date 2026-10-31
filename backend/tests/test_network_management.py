@@ -514,6 +514,34 @@ def test_curl_probe_reports_actual_http_bytes_and_disables_environment_proxy(own
     assert calls[1][calls[1].index("--proxy") + 1] == "socks5h://127.0.0.1:11111"
 
 
+@pytest.mark.parametrize(
+    "api_tag,routed_tag,missing",
+    [
+        ("api", "api", False),
+        ("admin-api", "admin-api", False),
+        ("api", "typo-api", True),
+        (None, "api", True),
+    ],
+)
+def test_routing_inventory_recognizes_only_the_configured_api_outbound(
+    managed, monkeypatch, api_tag, routed_tag, missing
+):
+    config = {
+        "outbounds": [{"tag": "direct", "protocol": "freedom"}],
+        "routing": {"rules": [{"inboundTag": ["api-in"], "outboundTag": routed_tag}]},
+    }
+    if api_tag:
+        config["api"] = {"tag": api_tag, "services": ["HandlerService"]}
+    path = managed.base / "api-runtime.json"
+    path.write_text(json.dumps(config), encoding="utf-8")
+    monkeypatch.setattr("app.agent.egress.runtime_paths", lambda *a: (path, None))
+    result = routing_inventory(managed.context, managed.inspector)
+    assert result["readable"]
+    assert bool(result["warnings"]) is missing
+    assert result["outbounds"] == [{"tag": "direct", "protocol": "freedom", "via": None}]
+    assert result["default_tag"] == "direct"
+
+
 @pytest.mark.parametrize("fail", [False, True])
 def test_traffic_probe_uses_private_temporary_client_and_always_cleans_up(
     managed, monkeypatch, fail
