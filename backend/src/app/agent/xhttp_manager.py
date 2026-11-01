@@ -30,10 +30,10 @@ from .tunnel_manager import private_write
 def load_routes(base):
     path = base / "xhttp-routes.json"
     if path.is_symlink():
-        raise ValueError("XHTTP route ownership changed")
+        raise ValueError(message_text(MessageKey.DEPLOYMENT_CADDY_CHANGED))
     data = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else []
     if not isinstance(data, list) or any(not isinstance(r, dict) for r in data):
-        raise ValueError("Invalid XHTTP ownership metadata")
+        raise ValueError(message_text(MessageKey.DEPLOYMENT_CADDY_UNSAFE))
     return data
 
 

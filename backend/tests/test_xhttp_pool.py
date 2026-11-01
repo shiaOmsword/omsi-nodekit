@@ -17,7 +17,7 @@ from tests.test_subscriptions import owned as owned
 from tests.test_tunnels import template
 
 
-def tests_tunnels():
+def sample_tunnels():
     return [
         {"name": "nd", "local_port": 15443},
         {"name": "nd-2", "local_port": 15444},
@@ -28,7 +28,7 @@ def tests_tunnels():
 def test_pool_preserves_source_and_uses_blocked_fallback():
     source = template()
     source_before = copy.deepcopy(source)
-    updated, record = pool_template(source, "exit", "ultra", "nd-pool", tests_tunnels(), "in-xhttp")
+    updated, record = pool_template(source, "exit", "ultra", "nd-pool", sample_tunnels(), "in-xhttp")
     assert source == source_before
     assert updated["outbounds"][:3] == source["outbounds"]
     assert len(updated["outbounds"]) == 6
@@ -46,7 +46,7 @@ def test_pool_preserves_source_and_uses_blocked_fallback():
         "exit",
         "ultra",
         "nd-pool",
-        tests_tunnels(),
+        sample_tunnels(),
         "in-xhttp",
         previous=record,
     )
@@ -55,14 +55,14 @@ def test_pool_preserves_source_and_uses_blocked_fallback():
 
 def test_pool_can_migrate_exact_owned_single_without_changing_default():
     original, single_outbound, single_rule = routed_template(
-        template(), "exit", tests_tunnels()[0], "ssh-ultra-nd", "in-xhttp"
+        template(), "exit", sample_tunnels()[0], "ssh-ultra-nd", "in-xhttp"
     )
     new, record = pool_template(
         original,
         "exit",
         "ultra",
         "nd-pool",
-        tests_tunnels(),
+        sample_tunnels(),
         "in-xhttp",
         single={"outbound": single_outbound, "rule": single_rule},
     )
@@ -75,18 +75,18 @@ def test_pool_can_migrate_exact_owned_single_without_changing_default():
 
 def test_pool_rejects_foreign_changes_and_missing_failclosed_fallback():
     source, record = pool_template(
-        template(), "exit", "ultra", "nd-pool", tests_tunnels(), "in-xhttp"
+        template(), "exit", "ultra", "nd-pool", sample_tunnels(), "in-xhttp"
     )
     wrong = copy.deepcopy(source)
     wrong["outbounds"][-1]["settings"]["vnext"][0]["port"] = 12345
     with pytest.raises(ValueError):
         pool_template(
-            wrong, "exit", "ultra", "nd-pool", tests_tunnels(), "in-xhttp", previous=record
+            wrong, "exit", "ultra", "nd-pool", sample_tunnels(), "in-xhttp", previous=record
         )
     unblocked = template()
     unblocked["outbounds"] = [o for o in unblocked["outbounds"] if o["tag"] != "blocked"]
     with pytest.raises(ValueError):
-        pool_template(unblocked, "exit", "ultra", "nd-pool", tests_tunnels(), "in-xhttp")
+        pool_template(unblocked, "exit", "ultra", "nd-pool", sample_tunnels(), "in-xhttp")
 
 
 def test_pool_preserves_existing_unrelated_observer():
@@ -97,7 +97,7 @@ def test_pool_preserves_existing_unrelated_observer():
         "probeUrl": "https://example.com/",
         "enableConcurrency": False,
     }
-    result, _ = pool_template(source, "exit", "ultra", "nd-pool", tests_tunnels(), "in-xhttp")
+    result, _ = pool_template(source, "exit", "ultra", "nd-pool", sample_tunnels(), "in-xhttp")
     assert source["observatory"]["subjectSelector"] == ["external-"]
     assert result["observatory"]["subjectSelector"] == ["external-", "ssh-ultra-pool-nd-pool-"]
 
