@@ -1,6 +1,6 @@
 """An owned loopback-only systemd SSH forward, with reversible activation."""
 
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from framework.messages import MessageKey
 from framework.messages import text as message_text
@@ -59,7 +59,7 @@ class TunnelForward:
                 require_permission("-r", known_hosts)
                 require_permission("-w", known_hosts, MessageKey.TUNNEL_KNOWN_HOSTS_UNWRITABLE)
             else:
-                parent = str(Path(known_hosts).parent)
+                parent = str(PurePosixPath(known_hosts).parent)
                 for flag in ("-d", "-w", "-x"):
                     require_permission(flag, parent, MessageKey.TUNNEL_KNOWN_HOSTS_UNWRITABLE)
         else:
