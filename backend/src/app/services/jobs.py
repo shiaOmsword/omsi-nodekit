@@ -93,14 +93,15 @@ class JobService:
     ):
         stored = self.nodes.get(node_id)
         node = self.factory.from_yaml(stored.yaml)
-        if action in {JobAction.INBOUND, JobAction.TRAFFIC, JobAction.TUNNEL}:
+        if action in {JobAction.INBOUND, JobAction.TRAFFIC, JobAction.TUNNEL, JobAction.XHTTP}:
             expected = str(action)
             if node.panel.installation != "managed" or not options or set(options) != {expected}:
                 raise ValidationError(message_text(MessageKey.INBOUND_MANAGED_REQUIRED))
-        if action == JobAction.TUNNEL and options["tunnel"]["name"] not in {
-            t.name for t in node.tunnels
-        }:
-            raise ValidationError(message_text(MessageKey.TUNNEL_CONFIG_INVALID))
+        if action == JobAction.TUNNEL:
+            available = {t.name for t in node.tunnels}
+            tunnel = options["tunnel"]
+            if tunnel["name"] not in available or not set(tunnel.get("members", [])) <= available:
+                raise ValidationError(message_text(MessageKey.TUNNEL_CONFIG_INVALID))
         if action in {JobAction.FRESH, JobAction.RESTORE} and node.panel.installation != "managed":
             raise ValidationError(message_text(MessageKey.EXISTING_READ_ONLY))
         if action == JobAction.CONFIGURE and (

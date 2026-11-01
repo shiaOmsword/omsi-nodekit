@@ -1,6 +1,6 @@
 """An owned loopback-only systemd SSH forward, with reversible activation."""
 
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from framework.messages import MessageKey
 from framework.messages import text as message_text
@@ -33,15 +33,38 @@ class TunnelForward:
             ) from exc
         if fragment and Path(fragment) != self.path:
             raise TunnelPreflightError(message_text(MessageKey.TUNNEL_UNIT_CHANGED, unit=self.unit))
-        for key in ("identity_file", "known_hosts_file"):
+
+        def require_permission(flag, path, key=MessageKey.TUNNEL_KEY_UNREADABLE):
             try:
-                context.command(["runuser", "-u", tunnel["user"], "--", "test", "-r", tunnel[key]])
+                context.command(["runuser", "-u", tunnel["user"], "--", "test", flag, path])
             except RuntimeError as exc:
                 raise TunnelPreflightError(
-                    message_text(
-                        MessageKey.TUNNEL_KEY_UNREADABLE, user=tunnel["user"], path=tunnel[key]
-                    )
+                    message_text(key, user=tunnel["user"], path=path)
                 ) from exc
+
+        require_permission("-r", tunnel["identity_file"])
+        known_hosts = tunnel["known_hosts_file"]
+        if tunnel.get("host_key_policy", "strict") == "accept-new":
+            # A new SSH port is a separate trust entry. Accept only an unseen
+            # key and ensure the service user can persist that trust decision.
+            if context.status(["test", "-L", known_hosts]) == 0:
+                raise TunnelPreflightError(
+                    message_text(
+                        MessageKey.TUNNEL_KNOWN_HOSTS_UNWRITABLE,
+                        user=tunnel["user"],
+                        path=known_hosts,
+                    )
+                )
+            if context.status(["test", "-e", known_hosts]) == 0:
+                require_permission("-r", known_hosts)
+                require_permission("-w", known_hosts, MessageKey.TUNNEL_KNOWN_HOSTS_UNWRITABLE)
+            else:
+                parent = str(PurePosixPath(known_hosts).parent)
+                for flag in ("-d", "-w", "-x"):
+                    require_permission(flag, parent, MessageKey.TUNNEL_KNOWN_HOSTS_UNWRITABLE)
+        else:
+            # Strict mode requires a preapproved, readable host key.
+            require_permission("-r", known_hosts)
         self.enabled = context.status(["systemctl", "is-enabled", "--quiet", self.unit]) == 0
         self.active = context.status(["systemctl", "is-active", "--quiet", self.unit]) == 0
         if not self.active:

@@ -21,7 +21,10 @@ import { NodesPage } from './features/nodes/NodesPage';
 import { NodePage } from './features/nodes/NodePage';
 import { NodeFormModal } from './features/nodes/NodeFormModal';
 import { DeploymentModal } from './features/nodes/DeploymentModal';
-import { InboundModal } from './features/nodes/InboundModal';
+import { InboundModal, ClientModal } from './features/nodes/InboundModal';
+import { XHTTPModal } from './features/nodes/XHTTPModal';
+import { TunnelPoolModal } from './features/nodes/TunnelPoolModal';
+import { parse, stringify } from 'yaml';
 import { TunnelModal } from './features/nodes/TunnelModal';
 import { DiscoveryModal } from './features/nodes/DiscoveryModal';
 import { NodeManagementModal } from './features/nodes/NodeManagementModal';
@@ -60,7 +63,10 @@ type ModalState =
   | { kind: 'assign-key'; keyId: string }
   | { kind: 'deployment'; record: NodeRecord; report: InstallationReport | null }
   | { kind: 'tunnel'; record: NodeRecord; report: InstallationReport }
+  | { kind: 'pool'; record: NodeRecord; report: InstallationReport }
   | { kind: 'inbound'; record: NodeRecord; inbound: InboundFinding; remove: boolean }
+  | { kind: 'client'; record: NodeRecord; inbound: InboundFinding; remove: boolean }
+  | { kind: 'xhttp'; record: NodeRecord; report: InstallationReport; inbound?: InboundFinding; publish?: boolean }
   | { kind: 'discovery'; record: NodeRecord; job: JobDetail }
   | { kind: 'plan'; record: NodeRecord; action: Action; backupId: string | null; plan: Plan | null; options?: JobOptions }
   | { kind: 'import'; done?: (backup: Backup) => void }
@@ -423,11 +429,20 @@ export default function App() {
             }}
           />
         );
+      case 'pool':
+        return <TunnelPoolModal {...common} record={modal.record} report={modal.report}
+          onPreview={(options) => preview(modal.record, 'tunnel', null, options)} />;
       case 'tunnel':
         return <TunnelModal {...common} record={modal.record} report={modal.report}
           onPreview={(options) => preview(modal.record, 'tunnel', null, options)} />;
       case 'inbound':
         return <InboundModal {...common} record={modal.record} inbound={modal.inbound} remove={modal.remove}
+          onPreview={(options) => preview(modal.record, 'inbound', null, options)} />;
+      case 'xhttp':
+        return <XHTTPModal {...common} record={modal.record} report={modal.report} inbound={modal.inbound} publish={modal.publish}
+          onPreview={(options) => preview(modal.record, 'xhttp', null, options)} />;
+      case 'client':
+        return <ClientModal {...common} record={modal.record} inbound={modal.inbound} remove={modal.remove}
           onPreview={(options) => preview(modal.record, 'inbound', null, options)} />;
       case 'discovery':
         return (
@@ -598,6 +613,36 @@ export default function App() {
             onDeployment={() => configure()}
             onInbound={(inbound, remove) => {
               if (w.selected && requireSaved()) showModal({ kind: 'inbound', record: w.selected, inbound, remove });
+            }}
+            onPreparePool={async () => {
+              if (!w.selected || !requireSaved()) return;
+              const doc = parse(w.selected.yaml);
+              if (!Array.isArray(doc.tunnels) || doc.tunnels.length !== 1) return;
+              const base = doc.tunnels[0];
+              const used = new Set([base.local_port, doc.panel?.port, doc.panel?.subscription_port,
+                ...(doc.deployment?.inbounds || []).map((i: {port: number}) => i.port)]);
+              const copies = [2, 3].map((i) => {
+                let port = Number(base.local_port) + i - 1;
+                while (used.has(port) && port < 65535) port++;
+                if (port > 65535) throw new Error('Нет свободных локальных портов.');
+                used.add(port);
+                return { ...base, name: String(base.name) + '-' + i, local_port: port };
+              });
+              doc.tunnels.push(...copies);
+              const saved = await w.run(() => w.saveNode(stringify(doc), w.selected!.id));
+              if (saved) w.setNotice('В YAML сохранены 3 независимые SSH-сессии. Теперь выбери «Поднять пул».');
+            }}
+            onTunnelPool={() => {
+              if (w.selected && reportJob?.report && requireSaved()) showModal({ kind: 'pool', record: w.selected, report: reportJob.report });
+            }}
+            onPublishXHTTP={(inbound) => {
+              if (w.selected && reportJob?.report && requireSaved()) showModal({ kind: 'xhttp', record: w.selected, report: reportJob.report, inbound, publish: true });
+            }}
+            onXHTTP={(inbound) => {
+              if (w.selected && reportJob?.report && requireSaved()) showModal({ kind: 'xhttp', record: w.selected, report: reportJob.report, inbound });
+            }}
+            onClient={(inbound, remove) => {
+              if (w.selected && requireSaved()) showModal({ kind: 'client', record: w.selected, inbound, remove });
             }}
             onTunnel={() => {
               if (w.selected && reportJob?.report && requireSaved()) showModal({ kind: 'tunnel', record: w.selected, report: reportJob.report });

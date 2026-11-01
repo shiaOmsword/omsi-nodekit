@@ -62,9 +62,9 @@ export function PlanModal({
           <>
             <div className="plan-context">
               <span
-                className={'tag ' + (['fresh', 'restore', 'configure', 'inbound', 'tunnel'].includes(action) ? 'tag-warning' : '')}
+                className={'tag ' + (['fresh', 'restore', 'configure', 'inbound', 'tunnel', 'xhttp'].includes(action) ? 'tag-warning' : '')}
               >
-                {['fresh', 'restore', 'configure', 'inbound', 'tunnel'].includes(action)
+                {['fresh', 'restore', 'configure', 'inbound', 'tunnel', 'xhttp'].includes(action)
                   ? 'Изменяет сервер'
                   : 'Сервисы на VPS не изменяются'}
               </span>
@@ -119,7 +119,9 @@ export function PlanModal({
               Панель и Xray кратковременно перезапустятся; активные VPN-соединения могут прерваться. Будет заменён только сохранённый сайт этой ноды в Caddy.
               Существующие inbound и клиенты не редактируются. Разрешённые изменения UFW и публикаций Caddy перечислены в плане.
             </p>}
-            {action === 'tunnel' && <p className="feature-hint">Будет включена systemd-служба SSH и добавлен маршрут для всех клиентов выбранного inbound. Xray перезапустится. UUID и ключи сохраняются; при ошибке выполняется откат. Ключ и known_hosts должны быть подготовлены на московской VPS.</p>}
+            {action === 'xhttp' && <p className="feature-hint">Изменяется только управляемый XHTTP inbound и принадлежащие Nodekit маршруты Caddy. Backend остаётся приватным, UFW ограничивается сетью Caddy. У других сайтов Caddy и контейнеров Docker ничего не меняется. Для корректной подписки отдельно проверь Hosts override.</p>}
+            {action === 'tunnel' && plan.options?.tunnel?.members?.length && <p className="feature-hint">Пул поднимет несколько независимых systemd SSH-процессов и создаст roundRobin с observatory и fallback=blocked. Один общий выходной сервер не заменяет независимое резервирование. Xray будет перезапущен.</p>}
+            {action === 'tunnel' && !plan.options?.tunnel?.members?.length && <p className="feature-hint">Будет включена systemd-служба SSH и добавлен маршрут для всех клиентов выбранного inbound. Xray перезапустится. UUID и ключи сохраняются; при ошибке выполняется откат. Ключ и known_hosts должны быть подготовлены на московской VPS.</p>}
             {action === 'traffic' && <p className="feature-hint">Будет запущен временный Xray-клиент на loopback VPS. Его конфигурация с секретами удалится после проверки. Маршруты сервера не меняются; пробный трафик учитывается у выбранного клиента.</p>}
             {action === 'inbound' && <p className="feature-hint">Перед изменением проверяется актуальность inbound и сохраняется SQLite snapshot на VPS. Удаление удаляет также его клиентов; при редактировании их идентификаторы и ключи сохраняются.</p>}
           </>

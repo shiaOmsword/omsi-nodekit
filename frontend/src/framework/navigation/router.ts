@@ -6,7 +6,7 @@ export type Route =
   | {
       page: 'node';
       id: string;
-      tab: 'overview' | 'inbounds' | 'network' | 'operations' | 'config' | 'history';
+      tab: 'overview' | 'inbounds' | 'tunnels' | 'network' | 'operations' | 'config' | 'history';
       action?: Action;
     }
   | { page: 'operations' | 'logs'; id?: string }
@@ -20,7 +20,7 @@ export function parseRoute(hash: string): Route {
     const [, id, tab = 'overview', action] = parts;
     if (
       !/^[a-z][a-z0-9-]{0,39}$/.test(id) ||
-      !['overview', 'inbounds', 'network', 'operations', 'config', 'history'].includes(tab)
+      !['overview', 'inbounds', 'tunnels', 'network', 'operations', 'config', 'history'].includes(tab)
     )
       return { page: 'not-found' };
     if (

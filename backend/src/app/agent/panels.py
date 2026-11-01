@@ -74,6 +74,19 @@ class PanelInspector:
                                 )
                         except (OSError, ValueError, TypeError, KeyError):
                             pass
+                    # Domain mapping is an owned, non-secret record; never infer
+                    # it from arbitrary Caddy snippets or expose client UUIDs.
+                    route_file = self.context.directory() / "xhttp-routes.json"
+                    if finding.get("installation") == "managed" and route_file.is_file():
+                        try:
+                            routes = json.loads(route_file.read_text(encoding="utf-8"))
+                            by_id = {r["id"]: r for r in routes}
+                            for item in items:
+                                route = by_id.get(item["id"])
+                                if route and item["network"] == "xhttp":
+                                    item["xhttp_domain"] = route["domain"]
+                        except (OSError, ValueError, TypeError, KeyError):
+                            pass
                     if truncated:
                         finding["warnings"].append(message_text(MessageKey.INBOUNDS_UNREADABLE))
                 except (sqlite3.DatabaseError, ValueError, TypeError, AttributeError):

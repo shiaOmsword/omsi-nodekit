@@ -63,6 +63,9 @@ class InboundFinding(Entity):
     security: str = ""
     client_count: int = 0
     clients: list[ClientFinding] = Field(default_factory=list)
+    xhttp_path: str = ""
+    xhttp_mode: str = ""
+    xhttp_domain: str | None = None
     tag: str = ""
     server_names: list[str] = Field(default_factory=list)
     target: str = ""
@@ -142,6 +145,16 @@ class DeploymentProfileFinding(Entity):
     ready: bool
 
 
+class TunnelFinding(Entity):
+    name: str
+    host: str
+    ssh_port: int
+    local_port: int
+    target_port: int
+    active: bool
+    enabled: bool
+
+
 class InstallationReport(Entity):
     observed_at: str
     ssh_host: str | None = None
@@ -158,6 +171,7 @@ class InstallationReport(Entity):
     network_checks: list[EndpointCheck] = Field(default_factory=list)
     egress: dict | None = None
     traffic_checks: list[EndpointCheck] = Field(default_factory=list)
+    tunnels: list[TunnelFinding] = Field(default_factory=list)
 
 
 class KeySelection(Entity):

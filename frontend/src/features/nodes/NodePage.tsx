@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { parse } from 'yaml';
 import {
   Activity,
   ArrowLeft,
@@ -34,6 +35,7 @@ const actionIcons = {
   inbound: Settings2,
   traffic: Activity,
   tunnel: Activity,
+  xhttp: Activity,
 };
 type NodeRoute = Extract<Route, { page: 'node' }>;
 
@@ -50,6 +52,11 @@ export function NodePage({
   onImport,
   preferredBackup,
   onInbound,
+  onXHTTP,
+  onPublishXHTTP,
+  onPreparePool,
+  onTunnelPool,
+  onClient,
   onTraffic,
   onTunnel,
 }: {
@@ -65,6 +72,11 @@ export function NodePage({
   onImport: (done?: (backup: Backup) => void) => void;
   preferredBackup?: string;
   onInbound: (item: InboundFinding, remove: boolean) => void;
+  onXHTTP: (item?: InboundFinding) => void;
+  onPublishXHTTP: (item: InboundFinding) => void;
+  onPreparePool: () => void;
+  onTunnelPool: () => void;
+  onClient: (item: InboundFinding, remove: boolean) => void;
   onTraffic: (item: InboundFinding) => void;
   onTunnel: () => void;
 }) {
@@ -88,6 +100,7 @@ export function NodePage({
   const archived = state === 'archived';
   const locked = w.busy || !!runningJob || archived || w.dirty;
   const config = w.config;
+  const sshTunnels: { name: string; host: string; ssh_port: number; local_port: number; target_port: number; host_key_policy?: 'strict' | 'accept-new' }[] = parse(node.yaml)?.tunnels || [];
   const sourceMatches =
     !!reportJob?.report &&
     reportJob.report.ssh_host === config?.ssh.host &&
@@ -129,6 +142,7 @@ export function NodePage({
         {[
           { id: 'overview', label: 'Обзор' },
           { id: 'inbounds', label: 'Inbound' },
+          { id: 'tunnels', label: 'SSH-туннели' },
           { id: 'network', label: 'Сеть' },
           { id: 'operations', label: 'Операции' },
           { id: 'config', label: 'Конфигурация' },
@@ -267,7 +281,7 @@ export function NodePage({
       {route.tab === 'operations' &&
         (!action ? (
           <div className="operation-grid">
-            {(Object.keys(actionLabels) as Action[]).filter((id) => !['inbound', 'traffic', 'tunnel'].includes(id)).map((id) => {
+            {(Object.keys(actionLabels) as Action[]).filter((id) => !['inbound', 'traffic', 'tunnel', 'xhttp'].includes(id)).map((id) => {
               const Icon = actionIcons[id];
               return (
                 <button
@@ -361,7 +375,7 @@ export function NodePage({
                   : action === 'configure'
                     ? 'Только установленная Nodekit панель с общим Caddy. Панель и Xray перезапустятся; активные VPN-соединения могут прерваться. Существующие inbound и клиенты сохраняются. Перед применением проверь параметры и план.'
                   : action === 'restore'
-                    ? 'Клиенты, ключи и маршруты берутся из выбранного бэкапа. Версия панели должна соответствовать снимку.'
+                    ? 'SQLite-бэкап сохраняет базу и клиентов, но не systemd-туннели, Caddy routes и Nodekit ownership. Восстановление доступно только на пустой цели.'
                     : action === 'fresh'
                       ? 'Новая установка требует пустой цели. Перед запуском будет повторная проверка сервисов и портов.'
                       : 'Операция читает конфигурацию сервера и не перенастраивает сервисы.'}
@@ -450,11 +464,35 @@ export function NodePage({
         </>
       )}
       {route.tab === 'inbounds' && <section className="card"><div className="section-heading"><div><h2>Inbound ноды</h2><p>Изменение порта, SNI и названия; проверка трафика и управление UFW.</p></div>
-        <div className="row-actions"><Button disabled={locked || !canDeploy || !report} onClick={onTunnel}>SSH-выход</Button><Button disabled={locked} onClick={() => onPlan('check')}>Обновить</Button><Button variant="primary" disabled={locked || !canDeploy} onClick={onDeployment}>Добавить inbound</Button></div></div>
+        <div className="row-actions"><Button disabled={locked} onClick={() => onPlan('check')}>Обновить</Button><Button disabled={locked || !canDeploy || !report || config?.deployment?.caddy_mode !== 'existing'} onClick={() => onXHTTP()}>+ VLESS / XHTTP</Button><Button variant="primary" disabled={locked || !canDeploy} onClick={onDeployment}>+ VLESS / REALITY</Button></div></div>
         <div className="card-content">{report?.selected_panel ? report.panels.filter((p) => p.id === report.selected_panel).map((panel) => <InboundReport key={panel.id} panel={panel} busy={locked}
-          onEdit={panel.installation === 'managed' ? (item) => onInbound(item, false) : undefined}
-          onDelete={(item) => onInbound(item, true)} onTest={onTraffic} />) :
+          onEdit={panel.installation === 'managed' ? (item) => item.network === 'xhttp' ? onXHTTP(item) : onInbound(item, false) : undefined}
+          onDelete={(item) => onInbound(item, true)} onTest={onTraffic} onClient={onClient} onPublish={onPublishXHTTP} />) :
           <EmptyState title="Нужен актуальный отчёт выбранной панели" description="Запусти обнаружение и выбери установку 3x-ui." />}</div></section>}
+      {route.tab === 'tunnels' && <section className="card">
+        <div className="section-heading">
+          <div><h2>SSH-туннели</h2><p>Отдельные процессы systemd, локальные TCP-порты и маршруты Xray. Состояние службы не равно проверке выхода.</p></div>
+          <div className="row-actions">
+            {sshTunnels.length === 1 && <Button disabled={locked} onClick={onPreparePool}>Подготовить 3 в YAML</Button>}
+            <Button disabled={locked} onClick={() => onPlan('check')}>Обновить</Button>
+            <Button disabled={locked || !report} onClick={onTunnel}>Один туннель</Button>
+            <Button variant="primary" disabled={locked || !report || sshTunnels.length < 2} onClick={onTunnelPool}>Поднять пул</Button>
+          </div>
+        </div>
+        <div className="card-content">
+          {!sshTunnels.length ? <EmptyState title="Нет туннелей в YAML" description="Добавь tunnels в конфигурации ноды: host, ssh_port, local_port, target_port, identity_file, known_hosts_file." /> :
+            <div className="table-scroll"><table className="data-table"><thead><tr><th>Туннель</th><th>SSH</th><th>Локальный порт → выход</th><th>Ключ сервера</th><th>Systemd</th></tr></thead><tbody>
+              {sshTunnels.map((t) => { const live = report?.tunnels?.find((item) => item.name === t.name);
+                return <tr key={t.name}><td><strong>{t.name}</strong></td><td><code>{t.host}:{t.ssh_port || 22}</code></td>
+                  <td><code>127.0.0.1:{t.local_port} → 127.0.0.1:{t.target_port}</code></td>
+                  <td>{t.host_key_policy === 'accept-new' ? 'Автодоверие при первом подключении' : 'Только известный ключ'}</td>
+                  <td>{live ? live.active ? 'Работает' : 'Не запущен' : 'Нет свежей проверки'}</td></tr>; })}
+            </tbody></table></div>}
+          <p className="feature-hint">Пул распределяет новые соединения по отдельным SSH-сессиям. При потере всех выходов fallback блокирует соединения, не подменяя зарубежный IP на российский. Существующие TCP-сессии не мигрируют автоматически.</p>
+          <p className="feature-hint">Для независимого резервирования провайдеров/локаций одного пула недостаточно; здесь проверяется один общий выходной VLESS endpoint.</p>
+          <p className="feature-hint">Неизвестный SSH fingerprint может автоматически приниматься только при явном host_key_policy: accept-new в YAML. Изменённый ключ известной ноды всегда отклоняется.</p>
+        </div>
+      </section>}
       {route.tab === 'network' && <section className="card"><div className="section-heading"><div><h2>Сеть и диагностика</h2><p>UFW, публикации Caddy, подписки и маршруты Xray.</p></div>
         <Button disabled={locked} onClick={() => onPlan('doctor')}>Запустить диагностику</Button></div><div className="card-content">
           {report ? <><NetworkReport report={report} /><SubscriptionReport report={report} /></> : <EmptyState title="Нет отчёта" description="Начни с обнаружения сервера." />}</div></section>}

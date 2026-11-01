@@ -3,7 +3,9 @@
 import copy
 import json
 import re
+import secrets
 import time
+import uuid
 
 from app.defaults import NODE_DEFAULTS
 from framework.messages import MessageKey
@@ -111,6 +113,24 @@ class InboundManager:
             or public_inbound(original)["fingerprint"] != change["expected_fingerprint"]
         ):
             raise RuntimeError(message_text(MessageKey.INBOUND_STALE))
+        if change["operation"] == "update" and change.get("port") is not None:
+            stream = object_value(original.get("streamSettings"))
+            if stream.get("network") == "xhttp":
+                # Port is also a Caddy upstream; update it transactionally through
+                # the dedicated XHTTP workflow, never with this generic editor.
+                raise RuntimeError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
+        if change["operation"] == "delete":
+            route_file = base / "xhttp-routes.json"
+            if route_file.is_file():
+                try:
+                    routes = json.loads(route_file.read_text(encoding="utf-8"))
+                    if any(r["id"] == change["id"] for r in routes):
+                        raise RuntimeError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
+                except (OSError, ValueError, KeyError, TypeError) as exc:
+                    raise RuntimeError(message_text(MessageKey.INBOUND_REQUEST_INVALID)) from exc
+        if change["operation"] in {"add_client", "delete_client"}:
+            self.apply_client(base, api, original, change)
+            return
         proposed = copy.deepcopy(original)
         old = public_inbound(original)
         if change["operation"] == "update":
@@ -156,6 +176,7 @@ class InboundManager:
             [rule_spec(new["port"], p) for p in protocols(new)]
             if change["operation"] == "update"
             and new["enabled"]
+            and new["network"] != "xhttp"
             and new["listen"] not in {"127.0.0.1", "::1"}
             else []
         )
@@ -287,3 +308,75 @@ class InboundManager:
                             )
             output.write_text(json.dumps(rows, indent=2), encoding="utf-8")
             output.chmod(0o600)
+
+    def apply_client(self, base, api, original, change):
+        """Update one VLESS client without exporting its UUID or subscription ID."""
+        if original.get("protocol") != "vless":
+            raise RuntimeError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
+        proposed = copy.deepcopy(original)
+        settings = object_value(proposed.get("settings"))
+        clients = settings.get("clients")
+        if not isinstance(clients, list) or any(not isinstance(c, dict) for c in clients):
+            raise RuntimeError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
+        email = change["client_email"]
+        matches = [client for client in clients if client.get("email") == email]
+        if (
+            len(matches) > 1
+            or (change["operation"] == "add_client" and matches)
+            or (change["operation"] == "delete_client" and not matches)
+        ):
+            raise RuntimeError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
+        if change["operation"] == "add_client":
+            stream = object_value(proposed.get("streamSettings"))
+            flow = (
+                "xtls-rprx-vision"
+                if stream.get("security") == "reality"
+                and stream.get("network", "tcp") in {"tcp", "raw"}
+                else ""
+            )
+            clients.append(
+                {
+                    "id": str(uuid.uuid4()),
+                    "email": email,
+                    "subId": secrets.token_urlsafe(18),
+                    "flow": flow,
+                    "enable": True,
+                    "limitIp": 0,
+                    "totalGB": 0,
+                    "expiryTime": 0,
+                }
+            )
+        else:
+            settings["clients"] = [c for c in clients if c.get("email") != email]
+        proposed["settings"] = settings
+
+        # Compare the full private config locally. A public inventory fingerprint
+        # intentionally does not contain client IDs and cannot detect this race.
+        if configuration(api.request(f"inbounds/get/{change['id']}")) != configuration(original):
+            raise RuntimeError(message_text(MessageKey.INBOUND_STALE))
+        self.database.snapshot(
+            self.inspector.database(), base / f"before-client-{time.time_ns()}.db"
+        )
+        attempted = False
+        try:
+            attempted = True
+            api.request(f"inbounds/update/{change['id']}", proposed)
+            saved = api.request(f"inbounds/get/{change['id']}")
+            if configuration(saved) != configuration(proposed):
+                raise RuntimeError(message_text(MessageKey.INBOUND_IDENTITIES))
+            self.context.emit(message_text(MessageKey.INBOUND_UPDATED, id=change["id"]))
+        except Exception:
+            if attempted:
+                try:
+                    current = api.request(f"inbounds/get/{change['id']}")
+                    if configuration(current) == configuration(proposed):
+                        api.request(f"inbounds/update/{change['id']}", original)
+                        if configuration(
+                            api.request(f"inbounds/get/{change['id']}")
+                        ) != configuration(original):
+                            raise ValueError()
+                    elif configuration(current) != configuration(original):
+                        raise ValueError()
+                except Exception:
+                    self.context.emit(message_text(MessageKey.DEPLOYMENT_ROLLBACK_FAILED), "error")
+            raise

@@ -25,8 +25,9 @@ export function SubscriptionReport({ report }: { report: InstallationReport }) {
   </div>;
 }
 
-export function InboundReport({ panel, busy = false, onEdit, onDelete, onTest }: { panel: PanelFinding; busy?: boolean;
-  onEdit?: (item: InboundFinding) => void; onDelete?: (item: InboundFinding) => void; onTest?: (item: InboundFinding) => void }) {
+export function InboundReport({ panel, busy = false, onEdit, onDelete, onTest, onClient, onPublish }: { panel: PanelFinding; busy?: boolean;
+  onEdit?: (item: InboundFinding) => void; onDelete?: (item: InboundFinding) => void; onTest?: (item: InboundFinding) => void;
+  onClient?: (item: InboundFinding, remove: boolean) => void; onPublish?: (item: InboundFinding) => void }) {
   if (!panel.inbounds_readable) return <p className="feature-hint">Inbound не прочитаны. Повтори обнаружение после обновления Nodekit; существующие записи не изменяются.</p>;
   const inbounds = panel.inbounds || [];
   return <div className="report-section">
@@ -37,13 +38,16 @@ export function InboundReport({ panel, busy = false, onEdit, onDelete, onTest }:
         <tbody>{inbounds.map((item) => <tr key={item.id}>
           <td><strong>{item.remark || 'Inbound ' + item.id}</strong><small>#{item.id}</small></td>
           <td>{item.protocol.toUpperCase()}<small>{[item.network, item.security].filter(Boolean).join(' · ')}</small></td>
-          <td><code>{item.listen}:{item.port}</code></td>
+          <td><code>{item.listen}:{item.port}</code>{item.xhttp_domain && <small>{item.xhttp_domain}:443 {item.xhttp_path}</small>}</td>
           <td><StatusBadge tone={item.enabled ? 'mint' : 'amber'}>{item.enabled ? 'Включён' : 'Выключен'}</StatusBadge></td>
           <td><strong>{item.client_count}</strong>{item.clients.map((client, i) => <small key={i}>
             {client.email || 'Без имени'} · {client.enabled ? 'включён' : 'выключен'} · {client.has_subscription ? 'ID подписки задан' : 'без ID подписки'}
           </small>)}</td>
           {onEdit && <td><div className="inbound-actions">
             <Button small disabled={busy || !item.fingerprint} onClick={() => onEdit(item)}>Изменить</Button>
+            {onPublish && item.protocol === 'vless' && item.network === 'xhttp' && <Button small disabled={busy || !item.fingerprint} onClick={() => onPublish(item)}>Публичная подписка</Button>}
+            {onClient && item.protocol === 'vless' && <Button small disabled={busy || !item.fingerprint} onClick={() => onClient(item, false)}>+ Клиент</Button>}
+            {onClient && item.protocol === 'vless' && item.clients.length > 0 && <Button small disabled={busy || !item.fingerprint} onClick={() => onClient(item, true)}>− Клиент</Button>}
             <Button small disabled={busy || !item.fingerprint || !item.enabled || item.protocol !== 'vless' || item.security !== 'reality' || !['tcp', 'raw'].includes(item.network)} onClick={() => onTest?.(item)}>Проверить трафик</Button>
             <Button small className="danger-button" disabled={busy || !item.fingerprint} onClick={() => onDelete?.(item)}>Удалить</Button>
           </div></td>}

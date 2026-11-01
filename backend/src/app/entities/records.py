@@ -20,6 +20,7 @@ class JobAction(StrEnum):
     INBOUND = "inbound"
     TRAFFIC = "traffic"
     TUNNEL = "tunnel"
+    XHTTP = "xhttp"
 
 
 class JobStatus(StrEnum):

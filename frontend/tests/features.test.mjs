@@ -69,7 +69,7 @@ test('key page offers modal actions and escapes public key names', () => {
 test('all existing guides remain reachable', () => {
   assert.deepEqual(
     guides.map((guide) => guide.id),
-    ['start', 'ssh', 'native', 'docker', 'certificates', 'recovery', 'failures'],
+    ['start', 'ssh', 'native', 'docker', 'certificates', 'recovery', 'xhttp', 'tunnel-pool', 'recovery-audit', 'failures'],
   );
   for (const guide of guides) {
     const html = renderToStaticMarkup(

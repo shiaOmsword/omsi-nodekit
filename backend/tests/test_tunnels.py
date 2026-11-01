@@ -279,9 +279,93 @@ def test_arguments_and_systemd_unit(node, renderer):
     assert "-L 127.0.0.1:15443:127.0.0.1:443" in unit
     assert "StrictHostKeyChecking=yes" in unit and "ExitOnForwardFailure=yes" in unit
     assert "Restart=always" in unit and "ServerAliveInterval=" in unit
+    assert Node.model_validate(data).tunnels[0].host_key_policy == "strict"
+    data["tunnels"][0]["host_key_policy"] = "accept-new"
+    first_contact = renderer.tunnel_unit(Node.model_validate(data), 0)
+    assert "StrictHostKeyChecking=accept-new" in first_contact
+    assert "StrictHostKeyChecking=no" not in first_contact
+    assert "BatchMode=yes" in first_contact and "UserKnownHostsFile=" in first_contact
+    data["tunnels"][0]["host_key_policy"] = "no"
+    with pytest.raises(ValidationError):
+        Node.model_validate(data)
+    data["tunnels"][0]["host_key_policy"] = "strict"
     data["tunnels"][0]["name"] = "panel"
     with pytest.raises(ValidationError):
         Node.model_validate(data)
+
+
+def test_first_contact_preflight_requires_writable_known_hosts_parent(operation, monkeypatch):
+    from app.agent.tunnel_forward import TunnelForward
+
+    context = operation.owned.context
+    tunnel = context.node["tunnels"][0]
+    tunnel["host_key_policy"] = "accept-new"
+    previous_status = context.status
+
+    def missing_known_host(args):
+        if args[:2] in (["test", "-L"], ["test", "-e"]):
+            return 1
+        return previous_status(args)
+
+    monkeypatch.setattr(context, "status", missing_known_host)
+    forward = TunnelForward(context, operation.manager.host, tunnel)
+    forward.preflight()
+    calls = operation.owned.calls
+    prefix = ["runuser", "-u", "omsi", "--", "test"]
+    assert prefix + ["-r", "/home/omsi/.ssh/gb"] in calls
+    assert prefix + ["-d", "/home/omsi/.ssh"] in calls
+    assert prefix + ["-w", "/home/omsi/.ssh"] in calls
+    assert prefix + ["-x", "/home/omsi/.ssh"] in calls
+
+
+def test_first_contact_rejects_unwritable_known_hosts_without_starting(operation, monkeypatch):
+    from app.agent.tunnel_forward import TunnelForward
+
+    context = operation.owned.context
+    tunnel = context.node["tunnels"][0]
+    tunnel["host_key_policy"] = "accept-new"
+    previous_status = context.status
+
+    def existing_known_hosts(args):
+        if args[:2] == ["test", "-L"]:
+            return 1
+        if args[:2] == ["test", "-e"]:
+            return 0
+        return previous_status(args)
+
+    monkeypatch.setattr(context, "status", existing_known_hosts)
+    previous_command = context.command
+
+    def permission_denied(args, **kwargs):
+        if args[-2:] == ["-w", "/home/omsi/.ssh/known_hosts"]:
+            raise RuntimeError("private diagnostic")
+        return previous_command(args, **kwargs)
+
+    monkeypatch.setattr(context, "command", permission_denied)
+    forward = TunnelForward(context, operation.manager.host, tunnel)
+    with pytest.raises(ValueError, match="writable"):
+        forward.preflight()
+    assert not operation.unit.exists()
+    assert not any("enable" in a or "stop" in a for a in operation.owned.calls)
+
+
+def test_first_contact_refuses_symlink_known_hosts(operation, monkeypatch):
+    from app.agent.tunnel_forward import TunnelForward
+
+    context = operation.owned.context
+    tunnel = context.node["tunnels"][0]
+    tunnel["host_key_policy"] = "accept-new"
+    previous_status = context.status
+
+    def symlink_status(args):
+        if args[:2] == ["test", "-L"]:
+            return 0
+        return previous_status(args)
+
+    monkeypatch.setattr(context, "status", symlink_status)
+    with pytest.raises(ValueError, match="non-symlink"):
+        TunnelForward(context, operation.manager.host, tunnel).preflight()
+    assert not operation.unit.exists()
 
 
 @pytest.mark.parametrize("response_bytes", [0, 1024])

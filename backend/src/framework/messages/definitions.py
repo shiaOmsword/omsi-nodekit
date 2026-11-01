@@ -6,12 +6,15 @@ from .codes import MessageKey
 
 MESSAGES = MappingProxyType(
     {
+        MessageKey.XHTTP_APPLY_PLAN: "Проверить выбранную managed-панель, уникальность домена и порта, приватную сеть Caddy и неизменность конфигурации; создать/обновить VLESS XHTTP inbound без перегенерации существующих клиентов, сохранить SQLite-снимок, добавить только свой Caddy site и scoped UFW rule, проверить результаты и откатить при ошибке. Xray/Caddy могут перезагрузиться",
+        MessageKey.XHTTP_APPLIED: "VLESS XHTTP inbound {name} настроен с приватным backend и Caddy site. Проверь внешний клиент, TLS и Hosts override подписки",
         MessageKey.TUNNEL_SOURCE_FORMAT: "Outbound {tag}: provide either flat VLESS settings.address/port/id or exactly one vnext endpoint with users; mixed or incomplete endpoint schemas are not supported",
         MessageKey.TUNNEL_SOURCE_MISSING: "Outbound {tag} is missing, duplicated or is the managed SSH copy itself; select the original exit outbound and refresh discovery",
         MessageKey.TUNNEL_SOURCE_UNSUPPORTED: "Outbound {tag}: SSH exit requires VLESS RAW/TCP with REALITY and no proxySettings, dialerProxy or sendThrough",
         MessageKey.TUNNEL_ROUTE_OWNERSHIP: "Saved SSH outbound or route was changed, removed or assigned to another inbound; existing configuration was preserved",
         MessageKey.TUNNEL_UNIT_CHANGED: "SSH service {unit} has a different fragment or content; the existing service was preserved",
         MessageKey.TUNNEL_KEY_UNREADABLE: "Cannot verify read access to {path} as SSH service user {user}; check the path, permissions and runuser availability",
+        MessageKey.TUNNEL_KNOWN_HOSTS_UNWRITABLE: "Automatic first-contact host-key trust requires a non-symlink known_hosts file writable by SSH service user {user}, or a writable parent directory for {path}; fix ownership and permissions, never disable changed-key checks",
         MessageKey.TUNNEL_SYSTEMD_FAILED: "Cannot inspect SSH service {unit}; verify systemd and systemctl availability on the VPS",
         MessageKey.TUNNEL_LOCAL_PORT_BUSY: "SSH loopback port {port} is occupied; choose a free tunnels.local_port",
         MessageKey.TUNNEL_ERROR_TYPE: "SSH tunnel failure type: {kind}; request/response bodies and credentials were suppressed",
