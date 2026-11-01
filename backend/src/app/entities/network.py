@@ -136,3 +136,8 @@ class SubscriptionMaintenance(StrictModel):
         if (self.mode == "clear_server_cache") != self.acknowledge_restart:
             raise ValueError(message_text(MessageKey.SUB_CACHE_REQUEST_INVALID))
         return self
+
+
+class TCPTuningRequest(StrictModel):
+    algorithm: Literal["cubic", "bbr"]
+    expected_fingerprint: str = Field(pattern=r"^[a-f0-9]{64}$")
