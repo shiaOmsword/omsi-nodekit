@@ -50,15 +50,11 @@ class TCPConfigurator:
         try:
             current = self.current_path.read_text(encoding="ascii").strip()
             available = self.available_path.read_text(encoding="ascii").split()
-            config, config_conflict = self._read_owned(
-                self.sysctl_path, SYSCTL_CONTENT.values()
-            )
+            config, config_conflict = self._read_owned(self.sysctl_path, SYSCTL_CONTENT.values())
             module, module_conflict = self._read_owned(self.module_path, (MODULE_CONTENT,))
         except OSError:
             return None
-        configured = next(
-            (name for name, data in SYSCTL_CONTENT.items() if config == data), None
-        )
+        configured = next((name for name, data in SYSCTL_CONTENT.items() if config == data), None)
         digest = hashlib.sha256()
         for value in (
             current.encode("ascii"),
