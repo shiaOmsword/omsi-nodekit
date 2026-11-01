@@ -33,6 +33,7 @@ class TunnelForward:
             ) from exc
         if fragment and Path(fragment) != self.path:
             raise TunnelPreflightError(message_text(MessageKey.TUNNEL_UNIT_CHANGED, unit=self.unit))
+
         def require_permission(flag, path, key=MessageKey.TUNNEL_KEY_UNREADABLE):
             try:
                 context.command(["runuser", "-u", tunnel["user"], "--", "test", flag, path])
@@ -50,20 +51,17 @@ class TunnelForward:
                 raise TunnelPreflightError(
                     message_text(
                         MessageKey.TUNNEL_KNOWN_HOSTS_UNWRITABLE,
-                        user=tunnel["user"], path=known_hosts,
+                        user=tunnel["user"],
+                        path=known_hosts,
                     )
                 )
             if context.status(["test", "-e", known_hosts]) == 0:
                 require_permission("-r", known_hosts)
-                require_permission(
-                    "-w", known_hosts, MessageKey.TUNNEL_KNOWN_HOSTS_UNWRITABLE
-                )
+                require_permission("-w", known_hosts, MessageKey.TUNNEL_KNOWN_HOSTS_UNWRITABLE)
             else:
                 parent = str(Path(known_hosts).parent)
                 for flag in ("-d", "-w", "-x"):
-                    require_permission(
-                        flag, parent, MessageKey.TUNNEL_KNOWN_HOSTS_UNWRITABLE
-                    )
+                    require_permission(flag, parent, MessageKey.TUNNEL_KNOWN_HOSTS_UNWRITABLE)
         else:
             # Strict mode requires a preapproved, readable host key.
             require_permission("-r", known_hosts)

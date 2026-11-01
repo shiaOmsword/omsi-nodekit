@@ -294,9 +294,7 @@ def test_arguments_and_systemd_unit(node, renderer):
         Node.model_validate(data)
 
 
-def test_first_contact_preflight_requires_writable_known_hosts_parent(
-    operation, monkeypatch
-):
+def test_first_contact_preflight_requires_writable_known_hosts_parent(operation, monkeypatch):
     from app.agent.tunnel_forward import TunnelForward
 
     context = operation.owned.context
@@ -320,9 +318,7 @@ def test_first_contact_preflight_requires_writable_known_hosts_parent(
     assert prefix + ["-x", "/home/omsi/.ssh"] in calls
 
 
-def test_first_contact_rejects_unwritable_known_hosts_without_starting(
-    operation, monkeypatch
-):
+def test_first_contact_rejects_unwritable_known_hosts_without_starting(operation, monkeypatch):
     from app.agent.tunnel_forward import TunnelForward
 
     context = operation.owned.context
