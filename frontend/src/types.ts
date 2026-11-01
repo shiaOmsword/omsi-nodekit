@@ -8,7 +8,7 @@ export interface NodeSummary {
 export interface NodeRecord extends NodeSummary {
   yaml: string;
 }
-export type Action = 'check' | 'doctor' | 'fresh' | 'restore' | 'backup' | 'configure' | 'inbound' | 'traffic' | 'tunnel' | 'xhttp' | 'client_import' | 'subscription_maintenance';
+export type Action = 'check' | 'doctor' | 'fresh' | 'restore' | 'backup' | 'configure' | 'inbound' | 'traffic' | 'tunnel' | 'xhttp' | 'client_import' | 'subscription_maintenance' | 'tcp_tuning';
 export interface BackupClientCatalog {
   inbounds: {
     id: number;
@@ -19,6 +19,7 @@ export interface BackupClientCatalog {
   }[];
 }
 export interface JobOptions {
+  tcp_tuning?: { algorithm: "cubic" | "bbr"; expected_fingerprint: string };
   subscription_maintenance?: { id: number; expected_fingerprint: string; mode: 'audit' | 'clear_server_cache'; client_email?: string; acknowledge_restart?: boolean };
   client_import?: { source_inbound_id: number; target_inbound_id: number; expected_fingerprint: string; client_refs: string[]; include_external_links: boolean };
   tunnel?: { name: string; outbound_tag: string; id: number; expected_fingerprint: string; members?: string[]; pool_name?: string };
@@ -183,6 +184,7 @@ export interface DeploymentProfileFinding {
   ready: boolean;
 }
 export interface InstallationReport {
+  tcp_tuning?: { current: string; available: string[]; managed_algorithm?: string | null; conflict: boolean; fingerprint: string } | null;
   observed_at: string;
   panels: PanelFinding[];
   selected_panel: string | null;
