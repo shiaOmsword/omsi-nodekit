@@ -60,8 +60,10 @@ class TunnelRequest(TrafficRequest):
     @model_validator(mode="after")
     def pool_arguments(self):
         if self.members and (
-            len(self.members) < 2 or len(self.members) != len(set(self.members))
-            or self.name != self.members[0] or self.pool_name is None
+            len(self.members) < 2
+            or len(self.members) != len(set(self.members))
+            or self.name != self.members[0]
+            or self.pool_name is None
         ):
             raise ValueError(message_text(MessageKey.TUNNEL_CONFIG_INVALID))
         if not self.members and self.pool_name is not None:
@@ -83,11 +85,12 @@ class XHTTPChange(StrictModel):
     @model_validator(mode="after")
     def validate_change(self):
         if (
-            self.operation == "create" and (self.id is not None or self.expected_fingerprint)
-        ) or (
-            self.operation == "update" and (not self.id or not self.expected_fingerprint or self.client_email)
-        ) or (
-            "." not in self.domain or ".." in self.domain
+            (self.operation == "create" and (self.id is not None or self.expected_fingerprint))
+            or (
+                self.operation == "update"
+                and (not self.id or not self.expected_fingerprint or self.client_email)
+            )
+            or ("." not in self.domain or ".." in self.domain)
         ):
             raise ValueError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
         if any(ord(c) < 32 for c in self.remark):

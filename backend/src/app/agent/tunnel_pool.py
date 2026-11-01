@@ -14,14 +14,17 @@ from .tunnel_forward import TunnelForward
 from .tunnel_manager import TunnelManager, loopback_outbound, private_write, routed_template
 
 
-def pool_template(original, source_tag, node_id, pool_name, tunnels, inbound_tag,
-                  previous=None, single=None):
+def pool_template(
+    original, source_tag, node_id, pool_name, tunnels, inbound_tag, previous=None, single=None
+):
     """Return a copy, private ownership record. Never mutate shared Xray objects."""
     config = copy.deepcopy(original)
     prefix = f"ssh-{node_id}-pool-{pool_name}-"
     balancer_tag = f"ssh-{node_id}-balancer-{pool_name}"
-    if not any(o.get("tag") == "blocked" and o.get("protocol") == "blackhole"
-               for o in config.get("outbounds", [])):
+    if not any(
+        o.get("tag") == "blocked" and o.get("protocol") == "blackhole"
+        for o in config.get("outbounds", [])
+    ):
         raise TunnelPreflightError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
     if len(tunnels) < 2 or len({t["local_port"] for t in tunnels}) != len(tunnels):
         raise TunnelPreflightError(message_text(MessageKey.TUNNEL_CONFIG_INVALID))
@@ -29,8 +32,10 @@ def pool_template(original, source_tag, node_id, pool_name, tunnels, inbound_tag
     routed_template(config, source_tag, tunnels[0], prefix + "_validation", inbound_tag)
     source = next(o for o in config["outbounds"] if o.get("tag") == source_tag)
     pool_tags = [prefix + tunnel["name"] for tunnel in tunnels]
-    clones = [loopback_outbound(source, tag, tunnel["local_port"])
-              for tag, tunnel in zip(pool_tags, tunnels)]
+    clones = [
+        loopback_outbound(source, tag, tunnel["local_port"])
+        for tag, tunnel in zip(pool_tags, tunnels)
+    ]
     if previous and single:
         raise TunnelPreflightError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
     if previous:
@@ -65,8 +70,7 @@ def pool_template(original, source_tag, node_id, pool_name, tunnels, inbound_tag
             rule_index = routing["rules"].index(single["rule"])
             config["outbounds"].remove(single["outbound"])
             routing["rules"].remove(single["rule"])
-            if any(r.get("outboundTag") == single["outbound"]["tag"]
-                   for r in routing["rules"]):
+            if any(r.get("outboundTag") == single["outbound"]["tag"] for r in routing["rules"]):
                 raise TunnelPreflightError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
         else:
             protected = {"blocked"}
@@ -80,9 +84,12 @@ def pool_template(original, source_tag, node_id, pool_name, tunnels, inbound_tag
     if any(b.get("tag") == balancer_tag for b in routing.get("balancers", [])):
         raise TunnelPreflightError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
     # The fallback must be blackhole, never "direct". No egress leak if all links fail.
-    balancer = {"tag": balancer_tag, "selector": [prefix],
-                "fallbackTag": "blocked",
-                "strategy": {"type": "roundRobin", "settings": {}}}
+    balancer = {
+        "tag": balancer_tag,
+        "selector": [prefix],
+        "fallbackTag": "blocked",
+        "strategy": {"type": "roundRobin", "settings": {}},
+    }
     rule = {"type": "field", "inboundTag": [inbound_tag], "balancerTag": balancer_tag}
     if any(r.get("balancerTag") == balancer_tag for r in routing["rules"]):
         raise TunnelPreflightError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
@@ -97,8 +104,10 @@ def pool_template(original, source_tag, node_id, pool_name, tunnels, inbound_tag
         observer = copy.deepcopy(config.get("observatory"))
         if observer is None:
             observer = {
-                "subjectSelector": [prefix], "probeUrl": "https://www.google.com/generate_204",
-                "probeInterval": "15s", "enableConcurrency": True,
+                "subjectSelector": [prefix],
+                "probeUrl": "https://www.google.com/generate_204",
+                "probeInterval": "15s",
+                "enableConcurrency": True,
             }
         else:
             selectors = observer.get("subjectSelector")
@@ -107,9 +116,15 @@ def pool_template(original, source_tag, node_id, pool_name, tunnels, inbound_tag
             if prefix not in selectors:
                 selectors.append(prefix)
     config["observatory"] = observer
-    record = {"source_tag": source_tag, "inbound_tag": inbound_tag,
-              "members": [t["name"] for t in tunnels], "outbounds": clones,
-              "balancer": balancer, "rule": rule, "observatory": observer}
+    record = {
+        "source_tag": source_tag,
+        "inbound_tag": inbound_tag,
+        "members": [t["name"] for t in tunnels],
+        "outbounds": clones,
+        "balancer": balancer,
+        "rule": rule,
+        "observatory": observer,
+    }
     return config, record
 
 
@@ -140,19 +155,22 @@ class TunnelPoolManager:
         primary_path = base / f"tunnel-{names[0]}.json"
         if any(p.is_symlink() for p in (pool_path, manifest_path, primary_path)):
             raise RuntimeError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
-        originals = {p: p.read_bytes() if p.is_file() else None
-                     for p in (pool_path, manifest_path, primary_path)}
+        originals = {
+            p: p.read_bytes() if p.is_file() else None
+            for p in (pool_path, manifest_path, primary_path)
+        }
         previous = json.loads(originals[pool_path]) if originals[pool_path] else None
         single = json.loads(originals[primary_path]) if originals[primary_path] else None
         if previous:
-            if (previous.get("inbound_id") != request["id"]
-                    or previous.get("source_tag") != request["outbound_tag"]
-                    or (single and single.get("pooled_into") != pool_name)):
+            if (
+                previous.get("inbound_id") != request["id"]
+                or previous.get("source_tag") != request["outbound_tag"]
+                or (single and single.get("pooled_into") != pool_name)
+            ):
                 raise RuntimeError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
             single_to_migrate = None
         else:
-            if single and (single.get("inbound_id") != request["id"]
-                           or single.get("pooled_into")):
+            if single and (single.get("inbound_id") != request["id"] or single.get("pooled_into")):
                 raise RuntimeError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
             single_to_migrate = single
         # Refuse parallel ownership for one ingress, including earlier single links.
@@ -179,14 +197,23 @@ class TunnelPoolManager:
         try:
             stage = "inbound freshness"
             inbound = public_inbound(api.request(f"inbounds/get/{request['id']}"))
-            if (not inbound["enabled"] or not inbound["tag"] or
-                    inbound["fingerprint"] != request["expected_fingerprint"]):
+            if (
+                not inbound["enabled"]
+                or not inbound["tag"]
+                or inbound["fingerprint"] != request["expected_fingerprint"]
+            ):
                 raise TunnelPreflightError(message_text(MessageKey.INBOUND_STALE))
             stage = "Xray pool ownership"
             original = manager.template(api)
             proposed, record = pool_template(
-                original, request["outbound_tag"], context.node["id"],
-                pool_name, tunnels, inbound["tag"], previous, single_to_migrate
+                original,
+                request["outbound_tag"],
+                context.node["id"],
+                pool_name,
+                tunnels,
+                inbound["tag"],
+                previous,
+                single_to_migrate,
             )
             if previous and previous.get("members") == names and proposed == original:
                 # Idempotent, but still verify live transport before reporting success.
@@ -210,9 +237,11 @@ class TunnelPoolManager:
             for outbound in record["outbounds"]:
                 manager.probe(outbound)
             stage = "concurrent change check"
-            if (manager.template(api) != original or
-                    public_inbound(api.request(f"inbounds/get/{request['id']}"))["fingerprint"]
-                    != request["expected_fingerprint"]):
+            if (
+                manager.template(api) != original
+                or public_inbound(api.request(f"inbounds/get/{request['id']}"))["fingerprint"]
+                != request["expected_fingerprint"]
+            ):
                 raise TunnelPreflightError(message_text(MessageKey.INBOUND_STALE))
             stage = "apply Xray round-robin pool"
             attempted = True
@@ -223,13 +252,15 @@ class TunnelPoolManager:
             stage = "runtime and egress verification"
             def active():
                 try:
-                    path, _ = __import__("app.agent.egress", fromlist=["runtime_paths"]).runtime_paths(
-                        context, self.inspector
-                    )
+                    path, _ = __import__(
+                        "app.agent.egress", fromlist=["runtime_paths"]
+                    ).runtime_paths(context, self.inspector)
                     live = json.loads(path.read_text(encoding="utf-8"))
-                    return (all(o in live["outbounds"] for o in record["outbounds"])
-                            and record["rule"] in live["routing"]["rules"]
-                            and record["balancer"] in live["routing"]["balancers"])
+                    return (
+                        all(o in live["outbounds"] for o in record["outbounds"])
+                        and record["rule"] in live["routing"]["rules"]
+                        and record["balancer"] in live["routing"]["balancers"]
+                    )
                 except (OSError, ValueError, TypeError, KeyError, AttributeError):
                     return False
             manager.wait(active)
@@ -250,9 +281,10 @@ class TunnelPoolManager:
             if single_to_migrate:
                 changes[primary_path] = {**single_to_migrate, "pooled_into": pool_name}
             for path, value in changes.items():
-                if path.is_symlink() or (
-                    path.read_bytes() if path.exists() else None
-                ) != originals[path]:
+                if (
+                    path.is_symlink()
+                    or (path.read_bytes() if path.exists() else None) != originals[path]
+                ):
                     raise TunnelPreflightError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
                 data = json.dumps(value, indent=2).encode("utf-8")
                 private_write(path, data)
@@ -261,8 +293,9 @@ class TunnelPoolManager:
             if isinstance(exc, TunnelPreflightError):
                 context.emit(str(exc), "error")
             else:
-                context.emit(message_text(MessageKey.TUNNEL_ERROR_TYPE,
-                                          kind=type(exc).__name__), "error")
+                context.emit(
+                    message_text(MessageKey.TUNNEL_ERROR_TYPE, kind=type(exc).__name__), "error"
+                )
             safe_to_stop = True
             if attempted:
                 try:
@@ -294,5 +327,6 @@ class TunnelPoolManager:
                     except Exception:
                         context.emit(message_text(MessageKey.DEPLOYMENT_ROLLBACK_FAILED), "error")
             raise RuntimeError(message_text(MessageKey.TUNNEL_APPLY_FAILED, stage=stage)) from exc
-        context.emit(message_text(MessageKey.TUNNEL_APPLIED,
-                                  name=pool_name, tag=record["balancer"]["tag"]))
+        context.emit(
+            message_text(MessageKey.TUNNEL_APPLIED, name=pool_name, tag=record["balancer"]["tag"])
+        )

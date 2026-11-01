@@ -55,10 +55,12 @@ class InstallationInspector:
                     "target_port": t["target_port"],
                     "active": self.context.status(
                         ["systemctl", "is-active", "--quiet", self.context.unit(t["name"])]
-                    ) == 0,
+                    )
+                    == 0,
                     "enabled": self.context.status(
                         ["systemctl", "is-enabled", "--quiet", self.context.unit(t["name"])]
-                    ) == 0,
+                    )
+                    == 0,
                 }
                 for t in self.context.node["tunnels"][:24]
             ]

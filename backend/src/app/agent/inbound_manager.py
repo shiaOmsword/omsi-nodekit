@@ -319,10 +319,10 @@ class InboundManager:
             raise RuntimeError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
         email = change["client_email"]
         matches = [client for client in clients if client.get("email") == email]
-        if len(matches) > 1 or (
-            change["operation"] == "add_client" and matches
-        ) or (
-            change["operation"] == "delete_client" and not matches
+        if (
+            len(matches) > 1
+            or (change["operation"] == "add_client" and matches)
+            or (change["operation"] == "delete_client" and not matches)
         ):
             raise RuntimeError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
         if change["operation"] == "add_client":
@@ -370,7 +370,9 @@ class InboundManager:
                     current = api.request(f"inbounds/get/{change['id']}")
                     if configuration(current) == configuration(proposed):
                         api.request(f"inbounds/update/{change['id']}", original)
-                        if configuration(api.request(f"inbounds/get/{change['id']}")) != configuration(original):
+                        if configuration(
+                            api.request(f"inbounds/get/{change['id']}")
+                        ) != configuration(original):
                             raise ValueError()
                     elif configuration(current) != configuration(original):
                         raise ValueError()

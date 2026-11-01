@@ -217,6 +217,7 @@ class TunnelManager:
         request = context.payload["options"]["tunnel"]
         if request.get("members"):
             from .tunnel_pool import TunnelPoolManager
+
             return TunnelPoolManager(context, self.host, self.database, self.inspector).apply(base)
         api = managed_api(context, self.inspector, base)
         stage = self.stage("configuration and ownership preflight")

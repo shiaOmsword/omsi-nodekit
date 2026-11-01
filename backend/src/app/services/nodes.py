@@ -67,7 +67,12 @@ class NodeService:
         stored = self.nodes.get(node_id)
         if stored.revision != request.revision:
             raise ConflictError(message_text(MessageKey.CONFIGURATION_CHANGED))
-        if request.action not in {JobAction.INBOUND, JobAction.TRAFFIC, JobAction.TUNNEL, JobAction.XHTTP}:
+        if request.action not in {
+            JobAction.INBOUND,
+            JobAction.TRAFFIC,
+            JobAction.TUNNEL,
+            JobAction.XHTTP,
+        }:
             return self.preview(node_id, request.action)
         options = request.model_dump(
             mode="json", exclude={"action", "revision", "backup_id"}, exclude_none=True

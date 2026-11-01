@@ -665,13 +665,17 @@ def test_client_mutations_reject_missing_duplicate_and_stale(managed):
     original = copy.deepcopy(managed.items[1])
     for operation, email in [("add_client", "client"), ("delete_client", "missing")]:
         context.payload["options"]["inbound"] = {
-            "id": 1, "operation": operation, "client_email": email,
+            "id": 1,
+            "operation": operation,
+            "client_email": email,
             "expected_fingerprint": public_inbound(original)["fingerprint"],
         }
         with pytest.raises(RuntimeError):
             managed.manager.apply(managed.base)
     context.payload["options"]["inbound"] = {
-        "id": 1, "operation": "add_client", "client_email": "different",
+        "id": 1,
+        "operation": "add_client",
+        "client_email": "different",
         "expected_fingerprint": "0" * 64,
     }
     with pytest.raises(RuntimeError):

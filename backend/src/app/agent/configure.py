@@ -110,7 +110,9 @@ class ConfigureSubscriptions:
                 )
                 provisioner = InboundProvisioner(context, api, self.host)
                 provisioner.apply(base, allow_existing=True)
-            combined_site = render_managed_site(context.payload["files"]["Caddyfile.site"], load_routes(base))
+            combined_site = render_managed_site(
+                context.payload["files"]["Caddyfile.site"], load_routes(base)
+            )
             caddy.apply(base, combined_site)
             links_file = base / "subscriptions.json"
             if links_file.exists():

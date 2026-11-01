@@ -48,15 +48,17 @@ def site_for(route):
         f"        }}\n"
         f"    }}\n"
         f"    handle {{\n"
-        f"        respond \"OK\" 200\n"
+        f'        respond "OK" 200\n'
         f"    }}\n"
         f"}}\n"
     )
 
 
 def render_managed_site(subscriptions_site, routes):
-    return subscriptions_site.rstrip() + "\n" + (
-        "\n" + "\n".join(site_for(r) for r in routes) if routes else ""
+    return (
+        subscriptions_site.rstrip()
+        + "\n"
+        + ("\n" + "\n".join(site_for(r) for r in routes) if routes else "")
     )
 
 
@@ -77,8 +79,10 @@ class XHTTPManager:
             raise RuntimeError(message_text(MessageKey.INBOUND_MANAGED_REQUIRED))
         api = managed_api(self.context, self.inspector, base)
         manifest = json.loads((base / "manifest.json").read_text(encoding="utf-8"))["node"]
-        if (manifest["id"] != node["id"] or
-                manifest.get("deployment", {}).get("caddy_mode") != "existing"):
+        if (
+            manifest["id"] != node["id"]
+            or manifest.get("deployment", {}).get("caddy_mode") != "existing"
+        ):
             raise RuntimeError(message_text(MessageKey.SUBSCRIPTION_CONFIGURE_GUARD))
         site_path = base / "Caddyfile.site"
         routes_path = base / "xhttp-routes.json"
@@ -88,8 +92,11 @@ class XHTTPManager:
         routes = load_routes(base)
         if request["domain"].lower() == node["caddy"]["domain"].lower():
             raise RuntimeError(message_text(MessageKey.DEPLOYMENT_CADDY_COLLISION))
-        if any(r["domain"].lower() == request["domain"].lower()
-               and (request["operation"] == "create" or r["id"] != request["id"]) for r in routes):
+        if any(
+            r["domain"].lower() == request["domain"].lower()
+            and (request["operation"] == "create" or r["id"] != request["id"])
+            for r in routes
+        ):
             raise RuntimeError(message_text(MessageKey.DEPLOYMENT_CADDY_COLLISION))
 
         caddy = ExistingCaddy(self.context, self.inspector)
@@ -100,27 +107,37 @@ class XHTTPManager:
         # Refuse adopting any existing or wildcard third-party hostname. On
         # update, the prior owned hostname is already included in previous_site.
         for route in caddy.finding.get("routes", []):
-            if (existing and any(h.lower() == existing["domain"].lower()
-                                 for h in route.get("hosts", []))
-                    and request["domain"].lower() == existing["domain"].lower()):
+            if (
+                existing
+                and any(h.lower() == existing["domain"].lower() for h in route.get("hosts", []))
+                and request["domain"].lower() == existing["domain"].lower()
+            ):
                 continue
-            if any(fnmatch.fnmatchcase(request["domain"].lower(), h.lower())
-                   or fnmatch.fnmatchcase(h.lower(), request["domain"].lower())
-                   for h in route.get("hosts", [])):
+            if any(
+                fnmatch.fnmatchcase(request["domain"].lower(), h.lower())
+                or fnmatch.fnmatchcase(h.lower(), request["domain"].lower())
+                for h in route.get("hosts", [])
+            ):
                 raise RuntimeError(message_text(MessageKey.DEPLOYMENT_CADDY_COLLISION))
 
         bind = target["subscription_bind"]
-        bridges = [n for proxy in self.inspector.report.get("caddy", [])
-                   if caddy_matches(proxy, target["caddy_id"])
-                   for n in proxy.get("bridge_networks", []) if n.get("gateway") == bind]
+        bridges = [
+            n
+            for proxy in self.inspector.report.get("caddy", [])
+            if caddy_matches(proxy, target["caddy_id"])
+            for n in proxy.get("bridge_networks", [])
+            if n.get("gateway") == bind
+        ]
         if bind != "127.0.0.1" and len(bridges) != 1:
             raise RuntimeError(message_text(MessageKey.DEPLOYMENT_BIND_INVALID))
         other_inbounds = api.request("inbounds/list") or []
         if (
             request["port"] in {node["panel"]["port"], node["panel"]["subscription_port"]}
             or request["port"] in reserved_caddy_ports(self.inspector.report)
-            or any(item["port"] == request["port"] and item["id"] != request.get("id")
-                   for item in other_inbounds)
+            or any(
+                item["port"] == request["port"] and item["id"] != request.get("id")
+                for item in other_inbounds
+            )
         ):
             raise RuntimeError(message_text(MessageKey.DEPLOYMENT_INBOUND_COLLISION))
 
@@ -128,60 +145,92 @@ class XHTTPManager:
         if request["operation"] == "create":
             self.host.require_endpoint(request["port"], bind)
             client = {
-                "id": str(uuid.uuid4()), "subId": secrets.token_urlsafe(18),
+                "id": str(uuid.uuid4()),
+                "subId": secrets.token_urlsafe(18),
                 "email": request.get("client_email") or "client-xhttp",
-                "enable": True, "flow": "", "limitIp": 0,
-                "totalGB": 0, "expiryTime": 0,
+                "enable": True,
+                "flow": "",
+                "limitIp": 0,
+                "totalGB": 0,
+                "expiryTime": 0,
             }
             proposed = {
-                "remark": request["remark"], "enable": True, "listen": bind,
-                "port": request["port"], "protocol": "vless",
+                "remark": request["remark"],
+                "enable": True,
+                "listen": bind,
+                "port": request["port"],
+                "protocol": "vless",
                 "settings": {"clients": [client], "decryption": "none", "fallbacks": []},
                 "streamSettings": {
-                    "network": "xhttp", "security": "none",
+                    "network": "xhttp",
+                    "security": "none",
                     "xhttpSettings": {"host": "", "path": request["path"], "mode": request["mode"]},
                 },
-                "sniffing": {"enabled": True, "destOverride": ["http", "tls", "quic"], "routeOnly": True},
+                "sniffing": {
+                    "enabled": True,
+                    "destOverride": ["http", "tls", "quic"],
+                    "routeOnly": True,
+                },
                 "allocate": {"strategy": "always", "refresh": 5, "concurrency": 3},
             }
-            operation_data = {k: json.dumps(v) if isinstance(v, dict) else v
-                              for k, v in proposed.items()}
+            operation_data = {
+                k: json.dumps(v) if isinstance(v, dict) else v for k, v in proposed.items()
+            }
         else:
             before = api.request(f"inbounds/get/{request['id']}")
             if public_inbound(before)["fingerprint"] != request["expected_fingerprint"]:
                 raise RuntimeError(message_text(MessageKey.INBOUND_STALE))
             stream = object_value(before.get("streamSettings"))
-            if (before.get("protocol") != "vless" or stream.get("network") != "xhttp"
-                    or stream.get("security") != "none"
-                    or before.get("listen") != existing["listen"] or before["port"] != existing["port"]):
+            if (
+                before.get("protocol") != "vless"
+                or stream.get("network") != "xhttp"
+                or stream.get("security") != "none"
+                or before.get("listen") != existing["listen"]
+                or before["port"] != existing["port"]
+            ):
                 raise RuntimeError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
             if request["port"] != before["port"]:
                 self.host.require_endpoint(request["port"], bind)
             proposed = copy.deepcopy(before)
             proposed.update(remark=request["remark"], port=request["port"])
-            stream.setdefault("xhttpSettings", {}).update(path=request["path"], mode=request["mode"])
+            stream.setdefault("xhttpSettings", {}).update(
+                path=request["path"], mode=request["mode"]
+            )
             proposed["streamSettings"] = stream
             operation_data = proposed
 
-        if before and configuration(api.request(f"inbounds/get/{request['id']}")) != configuration(before):
+        if before and configuration(api.request(f"inbounds/get/{request['id']}")) != configuration(
+            before
+        ):
             raise RuntimeError(message_text(MessageKey.INBOUND_STALE))
-        self.database.snapshot(self.inspector.database(), base / f"before-xhttp-{time.time_ns()}.db")
-        fw = FirewallTransaction(
-            self.context, base, enabled=target.get("manage_ufw", True)
+        self.database.snapshot(
+            self.inspector.database(), base / f"before-xhttp-{time.time_ns()}.db"
         )
+        fw = FirewallTransaction(self.context, base, enabled=target.get("manage_ufw", True))
         extra = []
         if bridges:
             b = bridges[0]
-            extra = [rule_spec(request["port"], source=b["subnet"], destination=bind,
-                               interface=b["interface"], scope="xhttp")]
+            extra = [
+                rule_spec(
+                    request["port"],
+                    source=b["subnet"],
+                    destination=bind,
+                    interface=b["interface"],
+                    scope="xhttp",
+                )
+            ]
         written = {}
-        snapshot_files = {p: p.read_bytes() if p.exists() else None
-                          for p in (site_path, routes_path)}
+        snapshot_files = {
+            p: p.read_bytes() if p.exists() else None for p in (site_path, routes_path)
+        }
         changed_id = None
         try:
             fw.ensure(desired_rules(self.context, self.inspector.report, extra=extra))
             if request["operation"] == "create":
-                if any(i.get("remark") == request["remark"] for i in (api.request("inbounds/list") or [])):
+                if any(
+                    i.get("remark") == request["remark"]
+                    for i in (api.request("inbounds/list") or [])
+                ):
                     raise RuntimeError(message_text(MessageKey.DEPLOYMENT_INBOUND_COLLISION))
                 response = api.request("inbounds/add", operation_data)
                 identifier = response.get("id") if isinstance(response, dict) else None
@@ -193,11 +242,16 @@ class XHTTPManager:
             changed_id = identifier
             saved = api.request(f"inbounds/get/{identifier}")
             stream = object_value(saved.get("streamSettings"))
-            if (saved.get("protocol") != "vless" or saved.get("port") != request["port"]
-                    or saved.get("listen") != bind or saved.get("remark") != request["remark"]
-                    or stream.get("network") != "xhttp" or stream.get("security") != "none"
-                    or (stream.get("xhttpSettings") or {}).get("path") != request["path"]
-                    or (stream.get("xhttpSettings") or {}).get("mode") != request["mode"]):
+            if (
+                saved.get("protocol") != "vless"
+                or saved.get("port") != request["port"]
+                or saved.get("listen") != bind
+                or saved.get("remark") != request["remark"]
+                or stream.get("network") != "xhttp"
+                or stream.get("security") != "none"
+                or (stream.get("xhttpSettings") or {}).get("path") != request["path"]
+                or (stream.get("xhttpSettings") or {}).get("mode") != request["mode"]
+            ):
                 raise RuntimeError(message_text(MessageKey.DEPLOYMENT_API_FAILED))
             if before and identities(saved) != identities(before):
                 # identities includes stream/network/settings: compare credentials
@@ -207,15 +261,23 @@ class XHTTPManager:
                 if saved_clients != old_clients:
                     raise RuntimeError(message_text(MessageKey.INBOUND_IDENTITIES))
             api.request("server/restartXrayService", {})
-            updated = {"id": identifier, "domain": request["domain"], "path": request["path"],
-                       "mode": request["mode"], "port": request["port"], "listen": bind}
-            after_routes = ([r for r in routes if r["id"] != identifier] + [updated])
+            updated = {
+                "id": identifier,
+                "domain": request["domain"],
+                "path": request["path"],
+                "mode": request["mode"],
+                "port": request["port"],
+                "listen": bind,
+            }
+            after_routes = [r for r in routes if r["id"] != identifier] + [updated]
             new_site = render_managed_site(
                 self._subscriptions_only(previous_site.decode(), routes), after_routes
             )
             caddy.apply(base, new_site)
-            for p, data in ((routes_path, json.dumps(after_routes, indent=2).encode()),
-                            (site_path, new_site.encode())):
+            for p, data in (
+                (routes_path, json.dumps(after_routes, indent=2).encode()),
+                (site_path, new_site.encode()),
+            ):
                 if (p.read_bytes() if p.exists() else None) != snapshot_files[p] or p.is_symlink():
                     raise RuntimeError(message_text(MessageKey.DEPLOYMENT_CADDY_CHANGED))
                 private_write(p, data)
@@ -238,13 +300,16 @@ class XHTTPManager:
                     if before is None:
                         # A newly created inbound is deleted only while it still
                         # has exactly the same owned configuration.
-                        if (current.get("remark") == request["remark"]
-                                and current.get("port") == request["port"]
-                                and object_value(current.get("settings"))
-                                == object_value(proposed.get("settings"))):
+                        if (
+                            current.get("remark") == request["remark"]
+                            and current.get("port") == request["port"]
+                            and object_value(current.get("settings"))
+                            == object_value(proposed.get("settings"))
+                        ):
                             api.request(f"inbounds/del/{changed_id}", {})
-                    elif (matches_update(current, proposed, before)
-                          or configuration(current) == configuration(proposed)):
+                    elif matches_update(current, proposed, before) or configuration(
+                        current
+                    ) == configuration(proposed):
                         api.request(f"inbounds/update/{changed_id}", before)
                         api.request("server/restartXrayService", {})
                 except Exception:
