@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Activity, RefreshCw, ShieldAlert, Users } from 'lucide-react';
 import { api } from '../../framework/api';
+import { parse } from 'yaml';
 import { Alert, Button, Loading, PageHeading, StatusBadge } from '../../framework/components';
 import { formatDate } from '../../app/format';
 import type {
@@ -67,13 +68,11 @@ export function SubscriptionsPage({
         ? await Promise.all(latestReportIds.split(',').map((id) =>
             api<JobDetail>('/jobs/' + id).catch(() => null)))
         : [];
+      const config = parse(node.yaml);
       const last = details.find((entry) =>
         entry?.report?.selected_panel
-        && entry.report.ssh_host === ((): string | undefined => {
-          // Fresh reports must belong to this exact saved node; compare the
-          // settings through the API revision when available.
-          return node?.yaml.match(/\bhost:\s*(\S+)/)?.[1];
-        })()
+        && entry.report.ssh_host === config.ssh?.host
+        && entry.report.ssh_port === (config.ssh?.port || 22)
       )?.report || null;
       if (!alive) return;
       setRecord(node);

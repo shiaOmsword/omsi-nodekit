@@ -11,6 +11,7 @@ import {
   Menu,
   Network,
   Plus,
+  RadioTower,
   Server,
   WifiOff,
   X,
@@ -23,6 +24,7 @@ const navigation = [
   { path: '/dashboard', page: 'dashboard', label: 'Обзор', icon: LayoutDashboard },
   { path: '/nodes', page: 'nodes', label: 'Ноды', icon: Server },
   { path: '/operations', page: 'operations', label: 'Операции', icon: Activity },
+  { path: '/subscriptions', page: 'subscriptions', label: 'Подписки и ключи', icon: RadioTower },
   { path: '/backups', page: 'backups', label: 'Бэкапы', icon: Archive },
   { path: '/keys', page: 'keys', label: 'SSH-ключи', icon: KeyRound },
   { path: '/logs', page: 'logs', label: 'Логи', icon: FileText },
@@ -86,7 +88,7 @@ export function Shell({
           {navigation.map((item, index) => (
             <div key={item.page}>
               {index === 3 && <div className="nav-section-label">Управление</div>}
-              {index === 5 && <div className="nav-section-label">Система</div>}
+              {index === 6 && <div className="nav-section-label">Система</div>}
               <a
                 href={'#' + item.path}
                 onClick={(e) => link(e, item.path)}

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Action } from '../../types';
 
 export type Route =
-  | { page: 'dashboard' | 'nodes' | 'backups' | 'keys' | 'help' }
+  | { page: 'dashboard' | 'nodes' | 'subscriptions' | 'backups' | 'keys' | 'help' }
   | {
       page: 'node';
       id: string;
@@ -36,7 +36,7 @@ export function parseRoute(hash: string): Route {
     if (parts[1] && !/^[a-f0-9]{32}$/.test(parts[1])) return { page: 'not-found' };
     return { page: parts[0] as 'operations', id: parts[1] };
   }
-  if (parts.length === 1 && ['nodes', 'backups', 'keys', 'help'].includes(parts[0]))
+  if (parts.length === 1 && ['nodes', 'subscriptions', 'backups', 'keys', 'help'].includes(parts[0]))
     return { page: parts[0] as 'nodes' };
   return { page: 'not-found' };
 }

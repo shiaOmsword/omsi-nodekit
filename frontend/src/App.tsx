@@ -31,6 +31,7 @@ import { NodeManagementModal } from './features/nodes/NodeManagementModal';
 import { OperationsPage, OperationDetail } from './features/operations/OperationsPage';
 import { PlanModal } from './features/operations/PlanModal';
 import { BackupsPage } from './features/backups/BackupsPage';
+import { SubscriptionsPage } from './features/subscriptions/SubscriptionsPage';
 import { BackupClientsModal } from './features/backups/BackupClientsModal';
 import { LogsPage } from './features/logs/LogsPage';
 import { SSHKeysPanel } from './features/keys/SSHKeysPanel';
@@ -693,6 +694,25 @@ export default function App() {
           />
         ) : (
           <OperationsPage jobs={w.jobs} nodes={w.nodes} navigate={navigate} />
+        );
+        break;
+      case 'subscriptions':
+        content = (
+          <SubscriptionsPage
+            nodes={w.nodes}
+            jobs={w.jobs}
+            busy={w.busy}
+            onDiscover={(record) => preview(record, 'check')}
+            onPreview={(record, options) => preview(record, 'subscription_maintenance', null, options)}
+            onClient={(record, inbound, remove) => {
+              if (requireSaved()) showModal({ kind: 'client', record, inbound, remove });
+            }}
+            onRestoreClients={(record, inbound, report) => {
+              if (requireSaved())
+                showModal({ kind: 'backup-clients', record, inbound, report });
+            }}
+            onOpenJob={(id) => navigate('/operations/' + id)}
+          />
         );
         break;
       case 'backups':
