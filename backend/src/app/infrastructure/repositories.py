@@ -6,6 +6,7 @@ from app.entities import (
     JobDetails,
     JobEvent,
     JobStatus,
+    NodeState,
     NodeSummary,
     SSHKey,
     StoredNode,
@@ -27,7 +28,35 @@ class SQLiteNodeRepository(NodeRepository):
                 "INSERT INTO nodes (id,name,yaml,revision) VALUES (?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,yaml=excluded.yaml,revision=excluded.revision",
                 (node.id, node.name, node.yaml, node.revision),
             )
-        return node
+        return self.get(node.id)
+
+    def set_state(self, node_id: str, state: NodeState) -> StoredNode:
+        with self.database.connect(immediate=True) as db:
+            row = db.execute("SELECT id FROM nodes WHERE id=?", (node_id,)).fetchone()
+            if row is None:
+                raise NotFoundError(message_text(MessageKey.NODE_NOT_FOUND))
+            active = db.execute(
+                "SELECT 1 FROM jobs WHERE node_id=? AND status IN ('queued','running') LIMIT 1",
+                (node_id,),
+            ).fetchone()
+            if active:
+                raise ConflictError(message_text(MessageKey.NODE_BUSY))
+            db.execute("UPDATE nodes SET state=? WHERE id=?", (state.value, node_id))
+        return self.get(node_id)
+
+    def delete(self, node_id: str) -> None:
+        # This is a local config deletion: historical jobs and backups are preserved.
+        with self.database.connect(immediate=True) as db:
+            row = db.execute("SELECT id FROM nodes WHERE id=?", (node_id,)).fetchone()
+            if row is None:
+                raise NotFoundError(message_text(MessageKey.NODE_NOT_FOUND))
+            active = db.execute(
+                "SELECT 1 FROM jobs WHERE node_id=? AND status IN ('queued','running') LIMIT 1",
+                (node_id,),
+            ).fetchone()
+            if active:
+                raise ConflictError(message_text(MessageKey.NODE_BUSY))
+            db.execute("DELETE FROM nodes WHERE id=?", (node_id,))
 
     def get(self, node_id: str) -> StoredNode:
         with self.database.connect() as db:
@@ -40,7 +69,7 @@ class SQLiteNodeRepository(NodeRepository):
         with self.database.connect() as db:
             return [
                 NodeSummary.model_validate(dict(row))
-                for row in db.execute("SELECT id,name,revision FROM nodes ORDER BY name")
+                for row in db.execute("SELECT id,name,revision,state FROM nodes ORDER BY name")
             ]
 
 
@@ -57,9 +86,13 @@ class SQLiteJobRepository(JobRepository):
             ).fetchone()
             if active:
                 raise ConflictError(message_text(MessageKey.JOB_ALREADY_RUNNING))
-            row = db.execute("SELECT revision FROM nodes WHERE id=?", (job.node_id,)).fetchone()
-            if row is None or row[0] != revision:
+            row = db.execute(
+                "SELECT revision,state FROM nodes WHERE id=?", (job.node_id,)
+            ).fetchone()
+            if row is None or row["revision"] != revision:
                 raise ConflictError(message_text(MessageKey.CONFIGURATION_CHANGED))
+            if row["state"] == NodeState.ARCHIVED:
+                raise ConflictError(message_text(MessageKey.NODE_ARCHIVED))
             db.execute(
                 "INSERT INTO jobs (id,node_id,action,status,created_at) VALUES (?,?,?,?,?)",
                 (job.id, job.node_id, job.action, job.status, job.created_at),

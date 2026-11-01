@@ -1,3 +1,4 @@
+import ipaddress
 import json
 import re
 import shlex
@@ -140,6 +141,59 @@ class CaddyInspector:
             if image != "caddy" and "caddy" not in name and "caddy" not in command:
                 continue
             finding = {"id": f"docker:{container['Id']}", "installation": "docker", **details}
+            gateways = {
+                n.get("Gateway")
+                for n in container.get("NetworkSettings", {}).get("Networks", {}).values()
+                if n.get("Gateway")
+            }
+            finding["host_gateway"] = next(iter(gateways)) if len(gateways) == 1 else None
+            labels = container.get("Config", {}).get("Labels") or {}
+            finding.update(
+                compose_project=labels.get("com.docker.compose.project"),
+                compose_service=labels.get("com.docker.compose.service"),
+                compose_working_dir=labels.get("com.docker.compose.project.working_dir"),
+                compose_files=[
+                    p
+                    for p in labels.get("com.docker.compose.project.config_files", "").split(",")
+                    if p
+                ],
+                bridge_networks=[],
+            )
+            for name, network in (
+                container.get("NetworkSettings", {}).get("Networks") or {}
+            ).items():
+                try:
+                    gateway = ipaddress.IPv4Address(network.get("Gateway"))
+                    metadata = json.loads(
+                        self.inventory.command(
+                            ["docker", "network", "inspect", network.get("NetworkID") or name]
+                        )
+                    )[0]
+                    if metadata.get("Driver") != "bridge":
+                        continue
+                    subnet = next(
+                        ipaddress.IPv4Network(c["Subnet"])
+                        for c in metadata.get("IPAM", {}).get("Config", [])
+                        if c.get("Gateway") == str(gateway) and ":" not in c.get("Subnet", "")
+                    )
+                    interface = (metadata.get("Options") or {}).get(
+                        "com.docker.network.bridge.name"
+                    ) or "br-" + metadata["Id"][:12]
+                    if (
+                        gateway in subnet
+                        and gateway.is_private
+                        and re.fullmatch(r"[a-zA-Z0-9_.-]{1,15}", interface)
+                    ):
+                        finding["bridge_networks"].append(
+                            {
+                                "name": name,
+                                "gateway": str(gateway),
+                                "subnet": str(subnet),
+                                "interface": interface,
+                            }
+                        )
+                except (RuntimeError, ValueError, TypeError, KeyError, IndexError, StopIteration):
+                    pass
             self._config(finding, command, container)
             result.append(finding)
         return result

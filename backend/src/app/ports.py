@@ -11,6 +11,7 @@ from app.entities import (
     JobDetails,
     JobEvent,
     Node,
+    NodeState,
     NodeSummary,
     SSHKey,
     StoredNode,
@@ -26,6 +27,12 @@ class NodeRepository(ABC):
 
     @abstractmethod
     def list(self) -> list[NodeSummary]: ...
+
+    @abstractmethod
+    def set_state(self, node_id: str, state: NodeState) -> StoredNode: ...
+
+    @abstractmethod
+    def delete(self, node_id: str) -> None: ...
 
 
 class JobRepository(ABC):
@@ -86,6 +93,9 @@ class BackupValidator(ABC):
     @abstractmethod
     def validate(self, content: bytes): ...
 
+    @abstractmethod
+    def clients(self, content: bytes) -> dict: ...
+
 
 class ArtifactRenderer(ABC):
     @abstractmethod
@@ -98,7 +108,7 @@ class ArtifactRenderer(ABC):
 class NodeExecutor(ABC):
     @abstractmethod
     def execute(
-        self, node: Node, action: JobAction, backup: bytes | None
+        self, node: Node, action: JobAction, backup: bytes | None, options: dict | None = None
     ) -> Iterator[ExecutionEvent]: ...
 
 

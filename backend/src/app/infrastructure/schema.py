@@ -35,4 +35,11 @@ CREATE TABLE job_reports (
 );
 """,
     ),
+    Migration(
+        3,
+        """
+ALTER TABLE nodes ADD COLUMN state TEXT NOT NULL DEFAULT 'active'
+CHECK (state IN ('active', 'hidden', 'archived'));
+""",
+    ),
 ]

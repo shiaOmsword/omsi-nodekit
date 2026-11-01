@@ -16,6 +16,12 @@ class JobAction(StrEnum):
     FRESH = "fresh"
     RESTORE = "restore"
     BACKUP = "backup"
+    CONFIGURE = "configure"
+    INBOUND = "inbound"
+    TRAFFIC = "traffic"
+    TUNNEL = "tunnel"
+    XHTTP = "xhttp"
+    CLIENT_IMPORT = "client_import"
 
 
 class JobStatus(StrEnum):
@@ -26,10 +32,17 @@ class JobStatus(StrEnum):
     INTERRUPTED = "interrupted"
 
 
+class NodeState(StrEnum):
+    ACTIVE = "active"
+    HIDDEN = "hidden"
+    ARCHIVED = "archived"
+
+
 class NodeSummary(Entity):
     id: str
     name: str
     revision: str
+    state: NodeState = NodeState.ACTIVE
 
 
 class StoredNode(NodeSummary):

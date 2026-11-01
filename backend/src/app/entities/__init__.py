@@ -3,10 +3,12 @@
 from .base import Host, Port, Slug, StrictModel, User
 from .caddy import Caddy
 from .config_request import ConfigRequest
+from .deployment import DeploymentSelection, DeploymentTarget, DiscoverySelection, TunnelInbound
 from .factory import NodeFactory
 from .installation import Installation, InstallationReport, InstallationSelection, KeySelection
 from .job_request import JobRequest
 from .node import Node
+from .node_state_request import NodeStateRequest
 from .panel import Panel
 from .probe import Probe
 from .records import (
@@ -17,6 +19,7 @@ from .records import (
     JobDetails,
     JobEvent,
     JobStatus,
+    NodeState,
     NodeSummary,
     StoredNode,
 )
@@ -35,6 +38,10 @@ __all__ = [
     "Backup",
     "Caddy",
     "ConfigRequest",
+    "DeploymentSelection",
+    "DeploymentTarget",
+    "DiscoverySelection",
+    "TunnelInbound",
     "ExecutionEvent",
     "Host",
     "Job",
@@ -45,6 +52,8 @@ __all__ = [
     "JobStatus",
     "Node",
     "NodeFactory",
+    "NodeState",
+    "NodeStateRequest",
     "NodeSummary",
     "Panel",
     "Port",

@@ -485,3 +485,89 @@ def test_remote_modules_import_without_unix_only_modules(monkeypatch):
     monkeypatch.setattr(builtins, "__import__", without_unix)
     importlib.reload(runtime)
     importlib.reload(deployment)
+
+
+def test_doctor_tls_trust_failure_is_warning_and_disabled_subscriptions_are_skipped(
+    context, tmp_path, monkeypatch, capsys
+):
+    import ssl
+
+    inventory, _ = native_panel(
+        context,
+        tmp_path,
+        monkeypatch,
+        {
+            "webPort": "8443",
+            "webBasePath": "/panel/",
+            "webDomain": "panel.example.com",
+            "webCertFile": "/example/cert",
+            "subEnable": "false",
+        },
+    )
+    panels = PanelInspector(inventory)
+    finding = panels.discover([])[0]
+    finding["certificates"] = []
+    inspector = InstallationInspector(context)
+    inspector.panels, inspector.selected = panels, finding
+
+    def untrusted(*args):
+        raise ssl.SSLCertVerificationError("certificate verify failed")
+
+    monkeypatch.setattr(ExistingDiagnostics, "_socket", lambda self, *args: untrusted())
+    assert ExistingDiagnostics(context, inspector).check() == []
+    events = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert any("Panel TLS:" in event["message"] and event["level"] == "warning" for event in events)
+    assert any("disabled" in event["message"] for event in events)
+    assert not any(
+        "Subscription listener connection failed" in event["message"] for event in events
+    )
+
+
+def test_doctor_private_docker_listener_is_not_false_host_port_failure(
+    context, tmp_path, monkeypatch, capsys
+):
+    inventory = SystemInventory(context)
+    monkeypatch.setattr(inventory, "service", lambda _: {})
+    context.node["panel"]["installation"] = "docker"
+    container = docker_panel(tmp_path)
+    container["NetworkSettings"]["Ports"] = {}
+    container["NetworkSettings"]["Networks"] = {"proxy_net": {"IPAddress": ""}}
+    panels = PanelInspector(inventory)
+    finding = panels.discover([container])[0]
+    inspector = InstallationInspector(context)
+    inspector.panels, inspector.selected = panels, finding
+    assert ExistingDiagnostics(context, inspector)._endpoint(finding, "web") is None
+    assert ExistingDiagnostics(context, inspector).check() == []
+    events = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert any(event["level"] == "warning" for event in events)
+
+
+def test_doctor_subscriptions_with_explicit_unreachable_port_are_reported(
+    context, tmp_path, monkeypatch, capsys
+):
+    inventory, _ = native_panel(
+        context,
+        tmp_path,
+        monkeypatch,
+        {
+            "webPort": "8443",
+            "webBasePath": "/",
+            "subEnable": "true",
+            "subPort": "2097",
+            "subListen": "127.0.0.1",
+        },
+    )
+    panels = PanelInspector(inventory)
+    finding = panels.discover([])[0]
+    inspector = InstallationInspector(context)
+    inspector.panels, inspector.selected = panels, finding
+    monkeypatch.setattr(
+        ExistingDiagnostics,
+        "_socket",
+        lambda self, *args: (_ for _ in ()).throw(ConnectionRefusedError("unavailable")),
+    )
+    failures = ExistingDiagnostics(context, inspector).check(raise_on_failure=False)
+    assert any("Subscription listener connection failed" in msg for msg in failures)
+    assert len(failures) >= 1
+    events = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert any(event["level"] == "error" and "Subscription" in event["message"] for event in events)

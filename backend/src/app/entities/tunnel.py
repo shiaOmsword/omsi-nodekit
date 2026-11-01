@@ -1,4 +1,5 @@
 import re
+from typing import Literal
 
 from pydantic import field_validator
 
@@ -18,6 +19,15 @@ class Tunnel(StrictModel):
     target_port: Port = D.xray_port
     identity_file: str = D.tunnel_identity_file
     known_hosts_file: str = D.tunnel_known_hosts
+    # First-contact trust is opt-in; changed keys are never automatically accepted.
+    host_key_policy: Literal["strict", "accept-new"] = "strict"
+
+    @field_validator("name")
+    @classmethod
+    def reserved_name(cls, value):
+        if value == "panel":
+            raise ValueError(message_text(MessageKey.TUNNEL_CONFIG_INVALID))
+        return value
 
     @field_validator("identity_file", "known_hosts_file")
     @classmethod

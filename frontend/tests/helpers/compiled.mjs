@@ -14,7 +14,7 @@ writeFileSync(join(output, 'package.json'), '{"type":"commonjs"}');
 execFileSync(process.execPath, [require.resolve('typescript/bin/tsc'),
   'src/api.ts', 'src/App.tsx', 'src/framework/components/index.ts', 'src/framework/messages/index.ts',
   '--outDir', output, '--rootDir', 'src', '--module', 'commonjs', '--target', 'ES2022',
-  '--jsx', 'react-jsx', '--esModuleInterop', '--skipLibCheck', '--strict'], { cwd: root, stdio: 'pipe' });
+  '--jsx', 'react-jsx', '--esModuleInterop', '--skipLibCheck', '--strict'], { cwd: root, stdio: 'inherit' });
 
 export function compiled(path) {
   return require(join(output, path));

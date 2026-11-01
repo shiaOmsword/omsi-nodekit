@@ -19,7 +19,7 @@ class ExecuteJob:
         self.executor = executor
         self.backups = backups
 
-    def run(self, job: Job, node, backup_id: str | None):
+    def run(self, job: Job, node, backup_id: str | None, options=None):
         received = None
         with bind_context(job_id=job.id, node_id=node.id):
             try:
@@ -27,7 +27,12 @@ class ExecuteJob:
                 self.jobs.update(job)
                 logger.info(message_text(MessageKey.JOB_STARTED))
                 content = self.backups.content(backup_id) if backup_id else None
-                for event in self.executor.execute(node, job.action, content):
+                execution = (
+                    self.executor.execute(node, job.action, content, options)
+                    if options
+                    else self.executor.execute(node, job.action, content)
+                )
+                for event in execution:
                     if event.report is not None:
                         self.jobs.save_report(job.id, event.report)
                     elif event.backup is not None:
@@ -83,12 +88,35 @@ class JobService:
         self.execute = execute
         self.scheduler = scheduler
 
-    def start(self, node_id: str, action: JobAction, revision: str, backup_id: str | None):
+    def start(
+        self, node_id: str, action: JobAction, revision: str, backup_id: str | None, options=None
+    ):
         stored = self.nodes.get(node_id)
         node = self.factory.from_yaml(stored.yaml)
+        if action in {
+            JobAction.INBOUND,
+            JobAction.TRAFFIC,
+            JobAction.TUNNEL,
+            JobAction.XHTTP,
+            JobAction.CLIENT_IMPORT,
+        }:
+            expected = str(action)
+            if node.panel.installation != "managed" or not options or set(options) != {expected}:
+                raise ValidationError(message_text(MessageKey.INBOUND_MANAGED_REQUIRED))
+        if action == JobAction.TUNNEL:
+            available = {t.name for t in node.tunnels}
+            tunnel = options["tunnel"]
+            if tunnel["name"] not in available or not set(tunnel.get("members", [])) <= available:
+                raise ValidationError(message_text(MessageKey.TUNNEL_CONFIG_INVALID))
         if action in {JobAction.FRESH, JobAction.RESTORE} and node.panel.installation != "managed":
             raise ValidationError(message_text(MessageKey.EXISTING_READ_ONLY))
-        if action == JobAction.RESTORE:
+        if action == JobAction.CONFIGURE and (
+            node.panel.installation != "managed"
+            or not node.deployment
+            or node.deployment.caddy_mode != "existing"
+        ):
+            raise ValidationError(message_text(MessageKey.SUBSCRIPTION_CONFIGURE_GUARD))
+        if action in {JobAction.RESTORE, JobAction.CLIENT_IMPORT}:
             if not backup_id:
                 raise ValidationError(message_text(MessageKey.RESTORE_BACKUP_REQUIRED))
             self.backups.content(backup_id)
@@ -97,7 +125,7 @@ class JobService:
         job = Job.create(node_id, action)
         self.jobs.enqueue(job, revision)
         try:
-            self.scheduler.submit(self.execute.run, job, node, backup_id)
+            self.scheduler.submit(self.execute.run, job, node, backup_id, options)
         except Exception as exc:
             self.jobs.update(
                 job.transition(JobStatus.FAILED, error=message_text(MessageKey.JOB_SCHEDULE_FAILED))

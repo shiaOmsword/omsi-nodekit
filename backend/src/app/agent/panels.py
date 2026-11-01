@@ -1,3 +1,4 @@
+import json
 import sqlite3
 from contextlib import closing
 from pathlib import Path
@@ -7,6 +8,7 @@ from framework.messages import MessageKey
 from framework.messages import text as message_text
 
 from .certificates import CertificateInspector
+from .inbound_inventory import inbound_inventory
 
 SETTING_KEYS = (
     "webListen",
@@ -22,6 +24,7 @@ SETTING_KEYS = (
     "subCertFile",
     "subKeyFile",
     "subEnable",
+    "subURI",
 )
 
 
@@ -31,6 +34,7 @@ class PanelInspector:
         self.context = inventory.context
         self.targets = {}
         self.containers = {}
+        self.probe_ids = {}
 
     def _settings(self, finding, source, resolve, database_type="sqlite"):
         finding.update(settings={}, certificates=[], warnings=[])
@@ -49,6 +53,44 @@ class PanelInspector:
                         f"SELECT key,value FROM settings WHERE key IN ({marks})", SETTING_KEYS
                     )
                 )
+                try:
+                    items, probe_id, truncated = inbound_inventory(db, self.inventory.maximum)
+                    finding.update(
+                        inbounds=items, inbounds_readable=True, inbounds_truncated=truncated
+                    )
+                    self.probe_ids[finding["id"]] = probe_id
+                    mapping_path = self.context.directory() / "inbound-identities.json"
+                    if finding.get("installation") == "managed" and mapping_path.is_file():
+                        try:
+                            mapping = json.loads(mapping_path.read_text(encoding="utf-8"))
+                            for item in items:
+                                item["nodekit_name"] = next(
+                                    (
+                                        name
+                                        for name, record in mapping.items()
+                                        if record["id"] == item["id"]
+                                    ),
+                                    None,
+                                )
+                        except (OSError, ValueError, TypeError, KeyError):
+                            pass
+                    # Domain mapping is an owned, non-secret record; never infer
+                    # it from arbitrary Caddy snippets or expose client UUIDs.
+                    route_file = self.context.directory() / "xhttp-routes.json"
+                    if finding.get("installation") == "managed" and route_file.is_file():
+                        try:
+                            routes = json.loads(route_file.read_text(encoding="utf-8"))
+                            by_id = {r["id"]: r for r in routes}
+                            for item in items:
+                                route = by_id.get(item["id"])
+                                if route and item["network"] == "xhttp":
+                                    item["xhttp_domain"] = route["domain"]
+                        except (OSError, ValueError, TypeError, KeyError):
+                            pass
+                    if truncated:
+                        finding["warnings"].append(message_text(MessageKey.INBOUNDS_UNREADABLE))
+                except (sqlite3.DatabaseError, ValueError, TypeError, AttributeError):
+                    finding["warnings"].append(message_text(MessageKey.INBOUNDS_UNREADABLE))
             maximum = self.inventory.maximum
             if any(
                 not isinstance(v, str) or len(v.encode("utf-8")) > maximum // 16
@@ -77,6 +119,17 @@ class PanelInspector:
 
     def discover(self, containers):
         result = []
+        owned_service = self.inventory.service(self.context.unit("panel"))
+        if owned_service:
+            owned = {
+                "id": f"managed:{self.context.node['id']}",
+                "installation": "managed",
+                "service": self.context.unit("panel"),
+                "active": owned_service.get("ActiveState") == "active",
+                "database_path": str(self.context.directory() / "db" / XUI_DATABASE_FILE),
+            }
+            self._settings(owned, Path(owned["database_path"]), Path)
+            result.append(owned)
         config = self.context.node["panel"]
         service_name = config["service"]
         service = self.inventory.service(service_name)
@@ -145,7 +198,7 @@ class PanelInspector:
             )
             result.append(finding)
         managed_db = self.context.directory() / "db" / XUI_DATABASE_FILE
-        if not managed_found and managed_db.is_file():
+        if not managed_found and not owned_service and managed_db.is_file():
             finding = {
                 "id": f"managed:{self.context.node['id']}",
                 "installation": "managed",

@@ -26,7 +26,13 @@ class Diagnostics:
             self.context.emit(message_text(MessageKey.PANEL_HTTP_OK))
         except (OSError, urllib.error.URLError, RuntimeError) as exc:
             failures.append(message_text(MessageKey.PANEL_HTTP_FAILED, reason=exc))
-        if self.host.port_open(panel["subscription_port"]):
+        target = node.get("deployment")
+        subscription_open = (
+            self.host.port_open(panel["subscription_port"], target["subscription_bind"])
+            if target
+            else self.host.port_open(panel["subscription_port"])
+        )
+        if subscription_open:
             self.context.emit(message_text(MessageKey.SUBSCRIPTION_TCP_OK))
         else:
             failures.append(message_text(MessageKey.SUBSCRIPTION_TCP_FAILED))
@@ -36,7 +42,7 @@ class Diagnostics:
             raise RuntimeError(message_text(MessageKey.DIAGNOSTICS_FAILED, count=len(failures)))
         self.check_transport(node)
 
-    def check_transport(self, node):
+    def check_transport(self, node, *, raise_on_failure=True):
         failures = []
         for tunnel in node["tunnels"]:
             unit = self.context.unit(tunnel["name"])
@@ -79,5 +85,6 @@ class Diagnostics:
             )
         for failure in failures:
             self.context.emit(failure, "error")
-        if failures:
+        if failures and raise_on_failure:
             raise RuntimeError(message_text(MessageKey.DIAGNOSTICS_FAILED, count=len(failures)))
+        return failures

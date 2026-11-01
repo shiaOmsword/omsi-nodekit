@@ -46,6 +46,39 @@ class CertificateFinding(Entity):
     sha256: str | None = None
 
 
+class ClientFinding(Entity):
+    email: str
+    enabled: bool
+    has_subscription: bool = False
+
+
+class InboundFinding(Entity):
+    id: int
+    remark: str
+    protocol: str
+    listen: str
+    port: int
+    enabled: bool
+    network: str = ""
+    security: str = ""
+    client_count: int = 0
+    clients: list[ClientFinding] = Field(default_factory=list)
+    xhttp_path: str = ""
+    xhttp_mode: str = ""
+    xhttp_domain: str | None = None
+    tag: str = ""
+    server_names: list[str] = Field(default_factory=list)
+    target: str = ""
+    fingerprint: str = ""
+    nodekit_name: str | None = None
+
+
+class EndpointCheck(Entity):
+    name: str
+    state: Literal["ok", "error", "warning", "not_checked"]
+    detail: str
+
+
 class PanelFinding(Entity):
     id: str
     installation: str
@@ -61,6 +94,9 @@ class PanelFinding(Entity):
     networks: list[str] = Field(default_factory=list)
     published_ports: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    inbounds: list[InboundFinding] = Field(default_factory=list)
+    inbounds_readable: bool = False
+    inbounds_truncated: bool = False
 
 
 class ProxyRoute(Entity):
@@ -82,17 +118,60 @@ class CaddyFinding(Entity):
     network_mode: str | None = None
     networks: list[str] = Field(default_factory=list)
     published_ports: list[str] = Field(default_factory=list)
+    host_gateway: str | None = None
     routes: list[ProxyRoute] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    compose_project: str | None = None
+    compose_service: str | None = None
+    compose_files: list[str] = Field(default_factory=list)
+    compose_working_dir: str | None = None
+    bridge_networks: list[dict] = Field(default_factory=list)
+
+
+class FirewallFinding(Entity):
+    state: Literal["active", "inactive", "unavailable", "unknown"] = "unknown"
+    default_incoming: str | None = None
+    default_outgoing: str | None = None
+    default_routed: str | None = None
+    rules: list[dict] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
+class DeploymentProfileFinding(Entity):
+    panel_runtime: Literal["native", "docker"]
+    caddy_runtime: Literal["none", "native", "docker"]
+    required: list[str] = Field(default_factory=list)
+    missing: list[str] = Field(default_factory=list)
+    ready: bool
+
+
+class TunnelFinding(Entity):
+    name: str
+    host: str
+    ssh_port: int
+    local_port: int
+    target_port: int
+    active: bool
+    enabled: bool
 
 
 class InstallationReport(Entity):
     observed_at: str
+    ssh_host: str | None = None
+    ssh_port: int | None = None
     panels: list[PanelFinding] = Field(default_factory=list)
     selected_panel: str | None = None
     caddy: list[CaddyFinding] = Field(default_factory=list)
     capabilities: dict[str, bool] = Field(default_factory=dict)
+    profiles: list[DeploymentProfileFinding] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    subscription_checks: list[EndpointCheck] = Field(default_factory=list)
+    subscription_url_template: str | None = None
+    firewall: FirewallFinding | None = None
+    network_checks: list[EndpointCheck] = Field(default_factory=list)
+    egress: dict | None = None
+    traffic_checks: list[EndpointCheck] = Field(default_factory=list)
+    tunnels: list[TunnelFinding] = Field(default_factory=list)
 
 
 class KeySelection(Entity):
