@@ -58,6 +58,7 @@ class NodeService:
         if action in {
             JobAction.INBOUND,
             JobAction.TRAFFIC,
+            JobAction.TCP_TUNING,
             JobAction.TUNNEL,
             JobAction.XHTTP,
             JobAction.CLIENT_IMPORT,
