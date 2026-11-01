@@ -11,7 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
-from app.agent.backup_client_import import BackupClientImporter, conflict_if_existing
+from app.agent.backup_client_import import BackupClientImporter
 from app.agent.inbound_meta import public_inbound
 from app.backup_clients import public_catalog, read_catalog, select_clients
 from app.create_app import create_app
@@ -153,7 +153,6 @@ def test_client_import_job_requires_real_backup_and_valid_refs():
 def importer(owned, monkeypatch, tmp_path):
     context = owned.context
     source = backup(tmp_path / "source.db")
-    base = owned.base
     context.payload["backup"] = base64.b64encode(source.read_bytes()).decode()
     remote = {
         "id": 2,

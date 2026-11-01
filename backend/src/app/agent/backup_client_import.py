@@ -7,7 +7,6 @@ fields stay inside the authenticated SSH operation.
 
 import base64
 import binascii
-import json
 import tempfile
 import time
 from pathlib import Path

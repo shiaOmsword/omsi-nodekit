@@ -9,6 +9,7 @@ from framework.messages import MessageKey
 from framework.messages import text as message_text
 
 from .adaptive_deployment import AdaptiveDeployment
+from .backup_client_import import BackupClientImporter
 from .configure import ConfigureSubscriptions
 from .context import AgentContext
 from .database import PanelDatabase
@@ -18,7 +19,6 @@ from .egress import egress_diagnostics
 from .existing_diagnostics import ExistingDiagnostics
 from .host import HostEnvironment
 from .inbound_manager import InboundManager
-from .backup_client_import import BackupClientImporter
 from .inspection import InstallationInspector
 from .subscriptions import SubscriptionDiagnostics
 from .traffic_probe import TrafficProbe
