@@ -88,7 +88,7 @@ class NodeService:
             mode="json", exclude={"action", "revision", "backup_id"}, exclude_none=True
         )
         node = self.factory.from_yaml(stored.yaml)
-        if node.panel.installation != "managed":
+        if node.panel.installation != "managed" and request.action != JobAction.TCP_TUNING:
             raise ValidationError(message_text(MessageKey.INBOUND_MANAGED_REQUIRED))
         if request.action == JobAction.TUNNEL:
             available = {t.name for t in node.tunnels}
