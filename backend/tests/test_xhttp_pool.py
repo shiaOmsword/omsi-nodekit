@@ -28,7 +28,9 @@ def sample_tunnels():
 def test_pool_preserves_source_and_uses_blocked_fallback():
     source = template()
     source_before = copy.deepcopy(source)
-    updated, record = pool_template(source, "exit", "ultra", "nd-pool", sample_tunnels(), "in-xhttp")
+    updated, record = pool_template(
+        source, "exit", "ultra", "nd-pool", sample_tunnels(), "in-xhttp"
+    )
     assert source == source_before
     assert updated["outbounds"][:3] == source["outbounds"]
     assert len(updated["outbounds"]) == 6
