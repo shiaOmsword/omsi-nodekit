@@ -8,6 +8,8 @@ const { NodeFormModal } = compiled('features/nodes/NodeFormModal.js');
 const { SSHKeysPanel } = compiled('features/keys/SSHKeysPanel.js');
 const { HelpPanel } = compiled('features/help/HelpPanel.js');
 const { InstallationReportView } = compiled('features/nodes/InstallationReportView.js');
+const { SubscriptionsPage } = compiled('features/subscriptions/SubscriptionsPage.js');
+const { parseRoute } = compiled('framework/navigation/router.js');
 const { messages } = compiled('framework/messages/index.js');
 const { guides } = compiled('features/help/guides.js');
 const noop = () => {};
@@ -69,7 +71,7 @@ test('key page offers modal actions and escapes public key names', () => {
 test('all existing guides remain reachable', () => {
   assert.deepEqual(
     guides.map((guide) => guide.id),
-    ['start', 'ssh', 'native', 'docker', 'certificates', 'recovery', 'xhttp', 'tunnel-pool', 'recovery-audit', 'failures'],
+    ['start', 'ssh', 'native', 'docker', 'certificates', 'recovery', 'xhttp', 'tunnel-pool', 'recovery-audit', 'subscription-maintenance', 'failures'],
   );
   for (const guide of guides) {
     const html = renderToStaticMarkup(
@@ -154,4 +156,25 @@ test('inventory leads with a readable summary and retains network and TLS eviden
     assert.ok(html.includes(text), text);
   assert.ok(html.indexOf('report-summary') < html.indexOf('Системные инструменты'));
   assert.ok(html.includes('<details'));
+});
+
+
+test('subscription workspace is a routed management page with guarded cache controls', () => {
+  assert.deepEqual(parseRoute('#/subscriptions'), { page: 'subscriptions' });
+  const html = renderToStaticMarkup(
+    React.createElement(SubscriptionsPage, {
+      nodes: [{ id: 'ultra', name: 'Москва ultra', state: 'active' }],
+      jobs: [],
+      busy: false,
+      onDiscover: noop,
+      onPreview: noop,
+      onClient: noop,
+      onRestoreClients: noop,
+      onOpenJob: noop,
+    }),
+  );
+  assert.ok(html.includes('Подписки и клиенты'));
+  assert.ok(html.includes('Сначала выполни обнаружение'));
+  assert.ok(html.includes('Обновить обнаружение'));
+  assert.ok(!html.includes('private-sub-token'));
 });
