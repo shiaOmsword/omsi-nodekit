@@ -200,6 +200,8 @@ WantedBy=multi-user.target
             steps.append(message_text(MessageKey.XHTTP_APPLY_PLAN))
         elif action == "tunnel":
             steps.append(message_text(MessageKey.TUNNEL_APPLY_PLAN))
+        elif action == "tcp_tuning":
+            steps.append(message_text(MessageKey.TCP_TUNING_PLAN))
         elif action == "traffic":
             steps.append(message_text(MessageKey.TRAFFIC_PLAN))
         elif action == "backup":
@@ -238,6 +240,7 @@ WantedBy=multi-user.target
             "xhttp",
             "client_import",
             "subscription_maintenance",
+            "tcp_tuning",
         }:
             steps.append(message_text(MessageKey.PLAN_READ_ONLY))
         return {
