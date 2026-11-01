@@ -11,7 +11,7 @@ MESSAGES = MappingProxyType(
         MessageKey.TCP_TUNING_STALE: "TCP settings changed after discovery; refresh before applying",
         MessageKey.TCP_TUNING_UNAVAILABLE: "TCP congestion settings are unreadable or the kernel algorithm is unavailable",
         MessageKey.TCP_TUNING_CONFLICT: "Nodekit TCP settings file contains foreign content or is a symlink; preserve and resolve manually",
-        MessageKey.TCP_TUNING_FAILED: "TCP congestion update failed; attempted to restore the old algorithm and Nodekit files",
+        MessageKey.TCP_TUNING_FAILED: "TCP congestion update failed; rollback of Nodekit files and the previous algorithm was attempted",
         MessageKey.TCP_TUNING_APPLIED: "TCP congestion control: {algorithm}; persisted for reboot. Existing TCP and SSH connections unchanged",
         MessageKey.XHTTP_APPLY_PLAN: "Проверить выбранную managed-панель, уникальность домена и порта, приватную сеть Caddy и неизменность конфигурации; создать/обновить VLESS XHTTP inbound без перегенерации существующих клиентов, сохранить SQLite-снимок, добавить только свой Caddy site и scoped UFW rule, проверить результаты и откатить при ошибке. Xray/Caddy могут перезагрузиться",
         MessageKey.BACKUP_CLIENTS_INVALID: "SQLite backup has missing, inconsistent or unsupported VLESS clients; no identities were imported",
