@@ -10,13 +10,18 @@ import json
 import secrets
 import time
 import uuid
-from pathlib import Path
 
 from framework.messages import MessageKey
 from framework.messages import text as message_text
 
 from .caddy_reuse import ExistingCaddy
-from .firewall import FirewallTransaction, caddy_matches, desired_rules, reserved_caddy_ports, rule_spec
+from .firewall import (
+    FirewallTransaction,
+    caddy_matches,
+    desired_rules,
+    reserved_caddy_ports,
+    rule_spec,
+)
 from .inbound_manager import configuration, identities, managed_api, matches_update
 from .inbound_meta import object_value, public_inbound
 from .tunnel_manager import private_write
@@ -173,7 +178,6 @@ class XHTTPManager:
         snapshot_files = {p: p.read_bytes() if p.exists() else None
                           for p in (site_path, routes_path)}
         changed_id = None
-        attempted = False
         try:
             fw.ensure(desired_rules(self.context, self.inspector.report, extra=extra))
             if request["operation"] == "create":
@@ -185,7 +189,6 @@ class XHTTPManager:
                     raise RuntimeError(message_text(MessageKey.DEPLOYMENT_API_FAILED))
             else:
                 identifier = request["id"]
-                attempted = True
                 api.request(f"inbounds/update/{identifier}", operation_data)
             changed_id = identifier
             saved = api.request(f"inbounds/get/{identifier}")

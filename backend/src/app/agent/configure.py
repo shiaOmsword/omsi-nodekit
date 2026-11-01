@@ -12,7 +12,7 @@ from .native_release import NativeRelease
 from .node_network import NodeNetwork
 from .panel_api import InboundProvisioner, PanelAPI
 from .subscriptions import public_base, verify_caddy_upstream
-from .xhttp_manager import render_managed_site, load_routes
+from .xhttp_manager import load_routes, render_managed_site
 
 
 class ConfigureSubscriptions:

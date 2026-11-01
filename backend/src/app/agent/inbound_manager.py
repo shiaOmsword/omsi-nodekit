@@ -2,10 +2,10 @@
 
 import copy
 import json
-import secrets
-import uuid
 import re
+import secrets
 import time
+import uuid
 
 from app.defaults import NODE_DEFAULTS
 from framework.messages import MessageKey
