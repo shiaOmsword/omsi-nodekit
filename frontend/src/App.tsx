@@ -66,7 +66,7 @@ type ModalState =
   | { kind: 'pool'; record: NodeRecord; report: InstallationReport }
   | { kind: 'inbound'; record: NodeRecord; inbound: InboundFinding; remove: boolean }
   | { kind: 'client'; record: NodeRecord; inbound: InboundFinding; remove: boolean }
-  | { kind: 'xhttp'; record: NodeRecord; report: InstallationReport; inbound?: InboundFinding }
+  | { kind: 'xhttp'; record: NodeRecord; report: InstallationReport; inbound?: InboundFinding; publish?: boolean }
   | { kind: 'discovery'; record: NodeRecord; job: JobDetail }
   | { kind: 'plan'; record: NodeRecord; action: Action; backupId: string | null; plan: Plan | null; options?: JobOptions }
   | { kind: 'import'; done?: (backup: Backup) => void }
@@ -439,7 +439,7 @@ export default function App() {
         return <InboundModal {...common} record={modal.record} inbound={modal.inbound} remove={modal.remove}
           onPreview={(options) => preview(modal.record, 'inbound', null, options)} />;
       case 'xhttp':
-        return <XHTTPModal {...common} record={modal.record} report={modal.report} inbound={modal.inbound}
+        return <XHTTPModal {...common} record={modal.record} report={modal.report} inbound={modal.inbound} publish={modal.publish}
           onPreview={(options) => preview(modal.record, 'xhttp', null, options)} />;
       case 'client':
         return <ClientModal {...common} record={modal.record} inbound={modal.inbound} remove={modal.remove}
@@ -634,6 +634,9 @@ export default function App() {
             }}
             onTunnelPool={() => {
               if (w.selected && reportJob?.report && requireSaved()) showModal({ kind: 'pool', record: w.selected, report: reportJob.report });
+            }}
+            onPublishXHTTP={(inbound) => {
+              if (w.selected && reportJob?.report && requireSaved()) showModal({ kind: 'xhttp', record: w.selected, report: reportJob.report, inbound, publish: true });
             }}
             onXHTTP={(inbound) => {
               if (w.selected && reportJob?.report && requireSaved()) showModal({ kind: 'xhttp', record: w.selected, report: reportJob.report, inbound });

@@ -53,6 +53,7 @@ export function NodePage({
   preferredBackup,
   onInbound,
   onXHTTP,
+  onPublishXHTTP,
   onPreparePool,
   onTunnelPool,
   onClient,
@@ -72,6 +73,7 @@ export function NodePage({
   preferredBackup?: string;
   onInbound: (item: InboundFinding, remove: boolean) => void;
   onXHTTP: (item?: InboundFinding) => void;
+  onPublishXHTTP: (item: InboundFinding) => void;
   onPreparePool: () => void;
   onTunnelPool: () => void;
   onClient: (item: InboundFinding, remove: boolean) => void;
@@ -465,7 +467,7 @@ export function NodePage({
         <div className="row-actions"><Button disabled={locked} onClick={() => onPlan('check')}>Обновить</Button><Button disabled={locked || !canDeploy || !report || config?.deployment?.caddy_mode !== 'existing'} onClick={() => onXHTTP()}>+ VLESS / XHTTP</Button><Button variant="primary" disabled={locked || !canDeploy} onClick={onDeployment}>+ VLESS / REALITY</Button></div></div>
         <div className="card-content">{report?.selected_panel ? report.panels.filter((p) => p.id === report.selected_panel).map((panel) => <InboundReport key={panel.id} panel={panel} busy={locked}
           onEdit={panel.installation === 'managed' ? (item) => item.network === 'xhttp' ? onXHTTP(item) : onInbound(item, false) : undefined}
-          onDelete={(item) => onInbound(item, true)} onTest={onTraffic} onClient={onClient} />) :
+          onDelete={(item) => onInbound(item, true)} onTest={onTraffic} onClient={onClient} onPublish={onPublishXHTTP} />) :
           <EmptyState title="Нужен актуальный отчёт выбранной панели" description="Запусти обнаружение и выбери установку 3x-ui." />}</div></section>}
       {route.tab === 'tunnels' && <section className="card">
         <div className="section-heading">

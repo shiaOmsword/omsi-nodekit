@@ -4,8 +4,8 @@ import type { InboundFinding, InstallationReport, JobOptions, NodeRecord } from 
 import { FormDialog } from '../../framework/components';
 import type { FormField, FormValues } from '../../framework/components';
 
-export function XHTTPModal({ record, report, inbound, busy, error, onClose, onPreview }: {
-  record: NodeRecord; report: InstallationReport; inbound?: InboundFinding;
+export function XHTTPModal({ record, report, inbound, publish = false, busy, error, onClose, onPreview }: {
+  record: NodeRecord; report: InstallationReport; inbound?: InboundFinding; publish?: boolean;
   busy: boolean; error: string; onClose: () => void; onPreview: (options: JobOptions) => void;
 }) {
   const config = parse(record.yaml);
@@ -13,7 +13,7 @@ export function XHTTPModal({ record, report, inbound, busy, error, onClose, onPr
   const domain = String(inbound?.xhttp_domain || ('vpn.' + String(config.caddy?.domain || 'example.com')));
   const occupied = new Set(report.panels.flatMap((p) => (p.inbounds || []).map((i) => i.port)));
   const port = inbound?.port || [10080, 10081, 10082, 10083].find((p) => !occupied.has(p)) || 11080;
-  const publishOnly = !!inbound && !inbound.xhttp_domain;
+  const publishOnly = publish || (!!inbound && !inbound.xhttp_domain);
   const [values, setValues] = useState<FormValues>({
     remark: inbound?.remark || 'xhttp-' + record.id,
     domain, port: String(port),
