@@ -78,6 +78,8 @@ class XHTTPManager:
         ):
             raise RuntimeError(message_text(MessageKey.INBOUND_MANAGED_REQUIRED))
         api = managed_api(self.context, self.inspector, base)
+        if request["operation"] == "publish":
+            return self.publish_host(base, api, request)
         manifest = json.loads((base / "manifest.json").read_text(encoding="utf-8"))["node"]
         if (
             manifest["id"] != node["id"]
@@ -330,3 +332,97 @@ class XHTTPManager:
                 raise RuntimeError(message_text(MessageKey.DEPLOYMENT_CADDY_CHANGED))
             previous_site = previous_site.replace("\n" + snippet, "", 1)
         return previous_site
+
+    def publish_host(self, base, api, request):
+        """Publish an existing XHTTP inbound in 3x-ui Hosts; never alter Caddy."""
+        inbound = api.request(f"inbounds/get/{request['id']}")
+        if not isinstance(inbound, dict) or public_inbound(inbound)["fingerprint"] != request["expected_fingerprint"]:
+            raise RuntimeError(message_text(MessageKey.INBOUND_STALE))
+        stream = object_value(inbound.get("streamSettings"))
+        http = object_value(stream.get("xhttpSettings"))
+        if (
+            inbound.get("protocol") != "vless"
+            or stream.get("network") != "xhttp"
+            or stream.get("security") != "none"
+            or http.get("path") != request["path"]
+            or http.get("mode", "auto") != request["mode"]
+            or inbound.get("port") != request["port"]
+        ):
+            raise RuntimeError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
+        marker = f"nodekit:{self.context.node['id']}:host:{request['id']}"
+        ledger = base / "xhttp-hosts.json"
+        if ledger.is_symlink():
+            raise RuntimeError(message_text(MessageKey.DEPLOYMENT_CADDY_CHANGED))
+        original_ledger = ledger.read_bytes() if ledger.is_file() else None
+        records = json.loads(original_ledger) if original_ledger else {}
+        group_id = records.get(str(request["id"]))
+        hosts = api.request("hosts/list") or []
+        if not isinstance(hosts, list):
+            raise RuntimeError(message_text(MessageKey.DEPLOYMENT_API_FAILED))
+        owned = [h for h in hosts if h.get("remark") == marker]
+        if len(owned) > 1 or (owned and not group_id):
+            raise RuntimeError(message_text(MessageKey.DEPLOYMENT_CADDY_COLLISION))
+        if group_id and (len(owned) != 1 or owned[0].get("groupId") != group_id):
+            raise RuntimeError(message_text(MessageKey.DEPLOYMENT_CADDY_CHANGED))
+        if any(
+            h.get("groupId") != group_id
+            and request["id"] in h.get("inboundIds", [])
+            and (request["domain"] in h.get("hosts", []) or h.get("sni") == request["domain"])
+            for h in hosts
+        ):
+            raise RuntimeError(message_text(MessageKey.DEPLOYMENT_CADDY_COLLISION))
+        prior = copy.deepcopy(owned[0]) if owned else None
+        payload = {
+            "groupId": group_id or "",
+            "inboundIds": [request["id"]],
+            "hosts": [request["domain"]],
+            "remark": marker,
+            "port": 443,
+            "security": "tls",
+            "sni": request["domain"],
+            "hostHeader": request["domain"],
+            "path": request["path"],
+            "alpn": ["h2"],
+            "fingerprint": "chrome",
+            "sortOrder": 0,
+            "isDisabled": False,
+            "isHidden": False,
+            "allowInsecure": False,
+            "randomCount": 1,
+        }
+        self.database.snapshot(self.inspector.database(), base / f"before-host-{time.time_ns()}.db")
+        attempted = False
+        try:
+            attempted = True
+            if group_id:
+                api.request(f"hosts/update/{group_id}", payload)
+            else:
+                api.request("hosts/add", payload)
+            after = [h for h in (api.request("hosts/list") or []) if h.get("remark") == marker]
+            if len(after) != 1 or after[0].get("inboundIds") != [request["id"]]:
+                raise RuntimeError(message_text(MessageKey.DEPLOYMENT_API_FAILED))
+            record = after[0]
+            if (
+                record.get("hosts") not in ([request["domain"]], [request["domain"] + ":443"])
+                or record.get("security") != "tls"
+                or record.get("sni") != request["domain"]
+            ):
+                raise RuntimeError(message_text(MessageKey.DEPLOYMENT_API_FAILED))
+            if not group_id:
+                group_id = record["groupId"]
+            if ledger.is_symlink() or (ledger.read_bytes() if ledger.exists() else None) != original_ledger:
+                raise RuntimeError(message_text(MessageKey.DEPLOYMENT_CADDY_CHANGED))
+            private_write(ledger, json.dumps({**records, str(request["id"]): group_id}).encode())
+        except Exception:
+            if attempted:
+                try:
+                    now = [h for h in (api.request("hosts/list") or []) if h.get("remark") == marker]
+                    if len(now) == 1 and now[0].get("inboundIds") == [request["id"]]:
+                        if prior and group_id:
+                            api.request(f"hosts/update/{group_id}", prior)
+                        elif not prior:
+                            api.request(f"hosts/del/{now[0]['groupId']}", {})
+                except Exception:
+                    self.context.emit(message_text(MessageKey.DEPLOYMENT_ROLLBACK_FAILED), "error")
+            raise
+        self.context.emit(message_text(MessageKey.XHTTP_APPLIED, name=request["remark"]))

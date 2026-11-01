@@ -74,7 +74,7 @@ class TunnelRequest(TrafficRequest):
 class XHTTPChange(StrictModel):
     """Managed XHTTP ingress. Private backend binds only to the Caddy host gateway."""
 
-    operation: Literal["create", "update"] = "create"
+    operation: Literal["create", "update", "publish"] = "create"
     id: int | None = Field(default=None, gt=0)
     expected_fingerprint: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
     remark: str = Field(min_length=1, max_length=120)
@@ -94,6 +94,8 @@ class XHTTPChange(StrictModel):
             )
             or ("." not in self.domain or ".." in self.domain)
         ):
+            raise ValueError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
+        if self.operation == "publish" and (not self.id or not self.expected_fingerprint or self.client_email):
             raise ValueError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
         if any(ord(c) < 32 for c in self.remark):
             raise ValueError(message_text(MessageKey.INBOUND_REQUEST_INVALID))

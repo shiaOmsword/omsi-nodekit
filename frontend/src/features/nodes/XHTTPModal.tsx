@@ -13,6 +13,7 @@ export function XHTTPModal({ record, report, inbound, busy, error, onClose, onPr
   const domain = String(inbound?.xhttp_domain || ('vpn.' + String(config.caddy?.domain || 'example.com')));
   const occupied = new Set(report.panels.flatMap((p) => (p.inbounds || []).map((i) => i.port)));
   const port = inbound?.port || [10080, 10081, 10082, 10083].find((p) => !occupied.has(p)) || 11080;
+  const publishOnly = !!inbound && !inbound.xhttp_domain;
   const [values, setValues] = useState<FormValues>({
     remark: inbound?.remark || 'xhttp-' + record.id,
     domain, port: String(port),
@@ -39,7 +40,7 @@ export function XHTTPModal({ record, report, inbound, busy, error, onClose, onPr
   function submit() {
     if (!values.confirm) return;
     const change: NonNullable<JobOptions['xhttp']> = {
-      operation: isEditing ? 'update' : 'create',
+      operation: publishOnly ? 'publish' : isEditing ? 'update' : 'create',
       remark: String(values.remark).trim(),
       domain: String(values.domain).trim(),
       port: Number(values.port),
@@ -54,10 +55,11 @@ export function XHTTPModal({ record, report, inbound, busy, error, onClose, onPr
     }
     onPreview({ xhttp: change });
   }
-  return <FormDialog title={isEditing ? 'Изменить VLESS / XHTTP' : 'Создать VLESS / XHTTP'}
+  return <FormDialog title={publishOnly ? 'Опубликовать XHTTP в подписке' : isEditing ? 'Изменить VLESS / XHTTP' : 'Создать VLESS / XHTTP'}
     description={record.name + ' · Caddy HTTPS → Xray h2c'}
     fields={fields} values={values} onChange={(name, value) => setValues((v) => ({ ...v, [name]: value }))}
     onSubmit={submit} onClose={onClose} busy={busy} error={error} submit="Посмотреть план">
+    {publishOnly && <p className="feature-hint">Публикация существующего inbound в Hosts 3x-ui. Caddy и Xray не меняются. Домен уже должен принимать HTTPS.</p>}
     <p className="feature-hint">Caddy принимает TLS на публичном 443, XHTTP backend работает без TLS. Будут проверены существующие маршруты, SQLite-снимок и UFW. Docker и чужие Caddy сайты не изменятся.</p>
     <p className="feature-hint">Профиль телефона: VLESS / XHTTP / TLS, порт 443, ALPN h2, SNI = домен, путь из формы, flow пустой. После операции проверь Hosts override в 3x-ui для подписок.</p>
     {isEditing && <p className="feature-hint">Редактируются только XHTTP inbound, созданные Nodekit; вручную созданные маршруты не перезаписываются.</p>}
