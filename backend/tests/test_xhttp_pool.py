@@ -243,6 +243,7 @@ def test_xhttp_manager_creates_owned_site_and_inbound_without_touching_other_sit
     }
     items = {}
     next_id = 2
+
     def request(path, data=None):
         if path == "inbounds/list":
             return copy.deepcopy(list(items.values()))
@@ -259,6 +260,7 @@ def test_xhttp_manager_creates_owned_site_and_inbound_without_touching_other_sit
         if path == "server/restartXrayService":
             return None
         raise AssertionError(path)
+
     monkeypatch.setattr(
         "app.agent.xhttp_manager.managed_api", lambda *args: SimpleNamespace(request=request)
     )
