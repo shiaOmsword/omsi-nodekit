@@ -36,6 +36,7 @@ const actionIcons = {
   traffic: Activity,
   tunnel: Activity,
   xhttp: Activity,
+  client_import: Database,
 };
 type NodeRoute = Extract<Route, { page: 'node' }>;
 
@@ -283,7 +284,7 @@ export function NodePage({
       {route.tab === 'operations' &&
         (!action ? (
           <div className="operation-grid">
-            {(Object.keys(actionLabels) as Action[]).filter((id) => !['inbound', 'traffic', 'tunnel', 'xhttp'].includes(id)).map((id) => {
+            {(Object.keys(actionLabels) as Action[]).filter((id) => !['inbound', 'traffic', 'tunnel', 'xhttp', 'client_import'].includes(id)).map((id) => {
               const Icon = actionIcons[id];
               return (
                 <button
