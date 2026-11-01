@@ -23,6 +23,7 @@ class MessageKey(StrEnum):
     TUNNEL_ROUTE_OWNERSHIP = "tunnel_route_ownership"
     TUNNEL_UNIT_CHANGED = "tunnel_unit_changed"
     TUNNEL_KEY_UNREADABLE = "tunnel_key_unreadable"
+    TUNNEL_KNOWN_HOSTS_UNWRITABLE = "tunnel_known_hosts_unwritable"
     TUNNEL_SYSTEMD_FAILED = "tunnel_systemd_failed"
     TUNNEL_LOCAL_PORT_BUSY = "tunnel_local_port_busy"
     TUNNEL_ERROR_TYPE = "tunnel_error_type"

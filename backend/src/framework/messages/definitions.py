@@ -14,6 +14,7 @@ MESSAGES = MappingProxyType(
         MessageKey.TUNNEL_ROUTE_OWNERSHIP: "Saved SSH outbound or route was changed, removed or assigned to another inbound; existing configuration was preserved",
         MessageKey.TUNNEL_UNIT_CHANGED: "SSH service {unit} has a different fragment or content; the existing service was preserved",
         MessageKey.TUNNEL_KEY_UNREADABLE: "Cannot verify read access to {path} as SSH service user {user}; check the path, permissions and runuser availability",
+        MessageKey.TUNNEL_KNOWN_HOSTS_UNWRITABLE: "Automatic first-contact host-key trust requires a non-symlink known_hosts file writable by SSH service user {user}, or a writable parent directory for {path}; fix ownership and permissions, never disable changed-key checks",
         MessageKey.TUNNEL_SYSTEMD_FAILED: "Cannot inspect SSH service {unit}; verify systemd and systemctl availability on the VPS",
         MessageKey.TUNNEL_LOCAL_PORT_BUSY: "SSH loopback port {port} is occupied; choose a free tunnels.local_port",
         MessageKey.TUNNEL_ERROR_TYPE: "SSH tunnel failure type: {kind}; request/response bodies and credentials were suppressed",

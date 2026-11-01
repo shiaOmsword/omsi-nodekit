@@ -100,6 +100,7 @@ WantedBy=multi-user.target
 
     def tunnel_unit(self, node: Node, index: int) -> str:
         tunnel = node.tunnels[index]
+        host_key_checking = "accept-new" if tunnel.host_key_policy == "accept-new" else "yes"
         return f"""[Unit]
 Description=OMSI {node.id} tunnel {tunnel.name}
 Wants=network-online.target
@@ -109,7 +110,7 @@ StartLimitIntervalSec=0
 [Service]
 Type=simple
 User={tunnel.user}
-ExecStart={self.policy.remote_ssh_binary} -F none -N -T -p {tunnel.ssh_port} -i {tunnel.identity_file} -o UserKnownHostsFile={tunnel.known_hosts_file} -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes -o BatchMode=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval={self.ssh.alive_interval} -o ServerAliveCountMax={self.ssh.alive_count} -o ConnectTimeout={self.ssh.connect_timeout} -o ControlMaster=no -o Compression=no -L 127.0.0.1:{tunnel.local_port}:127.0.0.1:{tunnel.target_port} {tunnel.user}@{tunnel.host}
+ExecStart={self.policy.remote_ssh_binary} -F none -N -T -p {tunnel.ssh_port} -i {tunnel.identity_file} -o UserKnownHostsFile={tunnel.known_hosts_file} -o StrictHostKeyChecking={host_key_checking} -o IdentitiesOnly=yes -o BatchMode=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval={self.ssh.alive_interval} -o ServerAliveCountMax={self.ssh.alive_count} -o ConnectTimeout={self.ssh.connect_timeout} -o ControlMaster=no -o Compression=no -L 127.0.0.1:{tunnel.local_port}:127.0.0.1:{tunnel.target_port} {tunnel.user}@{tunnel.host}
 Restart=always
 RestartSec={self.policy.tunnel_restart_seconds}
 
