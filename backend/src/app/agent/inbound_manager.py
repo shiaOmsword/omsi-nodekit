@@ -176,6 +176,7 @@ class InboundManager:
             [rule_spec(new["port"], p) for p in protocols(new)]
             if change["operation"] == "update"
             and new["enabled"]
+            and new["network"] != "xhttp"
             and new["listen"] not in {"127.0.0.1", "::1"}
             else []
         )

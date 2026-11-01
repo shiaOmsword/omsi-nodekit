@@ -8,7 +8,6 @@ import pytest
 from pydantic import ValidationError
 
 from app.agent.firewall import desired_rules, rule_spec
-from app.agent.inbound_meta import public_inbound
 from app.agent.tunnel_manager import routed_template
 from app.agent.tunnel_pool import pool_template
 from app.agent.xhttp_manager import XHTTPManager, render_managed_site, site_for
