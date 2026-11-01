@@ -214,7 +214,11 @@ def importer(owned, monkeypatch, tmp_path):
         }
     }
     state = SimpleNamespace(
-        clients=[], inbound=remote, calls=[], links={}, fail_on_second=False,
+        clients=[],
+        inbound=remote,
+        calls=[],
+        links={},
+        fail_on_second=False,
         fail_link_after_write=False,
     )
 
@@ -341,8 +345,10 @@ def link_backup(path, cross_client=False):
     """A 3x-ui 3.11 DB where one client aggregates another client subscription."""
     backup(path)
     with sqlite3.connect(path) as db:
-        db.execute("INSERT INTO settings(key,value) VALUES (?,?)",
-                   ("subURI", "https://new.example.com:2096/sub/"))
+        db.execute(
+            "INSERT INTO settings(key,value) VALUES (?,?)",
+            ("subURI", "https://new.example.com:2096/sub/"),
+        )
         db.execute(
             "CREATE TABLE client_external_links ("
             "id INTEGER PRIMARY KEY,client_id INTEGER,kind TEXT,value TEXT,"
@@ -351,14 +357,20 @@ def link_backup(path, cross_client=False):
         )
         db.execute(
             "INSERT INTO client_external_links VALUES (1,3,?,?,?,?,?,?,?)",
-            ("subscription", "https://new.example.com:2096/sub/keepSubIdBeta",
-             "", 1, 0, "", 0),
+            ("subscription", "https://new.example.com:2096/sub/keepSubIdBeta", "", 1, 0, "", 0),
         )
         if cross_client:
             db.execute(
                 "INSERT INTO client_external_links VALUES (2,4,?,?,?,?,?,?,?)",
-                ("subscription", "https://new.example.com:2096/sub/keepSubIdAlpha",
-                 "", 1, 0, "", 0),
+                (
+                    "subscription",
+                    "https://new.example.com:2096/sub/keepSubIdAlpha",
+                    "",
+                    1,
+                    0,
+                    "",
+                    0,
+                ),
             )
     return path
 
@@ -384,7 +396,10 @@ def test_linked_import_preserves_refs_and_original_sub_ids(importer, tmp_path):
     assert links[0] == {
         "kind": "subscription",
         "value": "https://new.example.com:2096/sub/keepSubIdBeta",
-        "remark": "", "enable": True, "expiryTime": 0, "namePrefix": "",
+        "remark": "",
+        "enable": True,
+        "expiryTime": 0,
+        "namePrefix": "",
     }
     assert importer.state.clients[0]["subId"] == "keepSubIdAlpha"
     assert importer.state.clients[1]["subId"] == "keepSubIdBeta"
@@ -431,8 +446,12 @@ def test_restoring_links_to_existing_client_preserves_other_links(importer, tmp_
     context.payload["backup"] = base64.b64encode(source.read_bytes()).decode()
     importer.manager.apply(importer.owned.base)
     unrelated = {
-        "kind": "subscription", "value": "https://public.example.org/sub/external",
-        "remark": "existing", "enable": True, "expiryTime": 0, "namePrefix": "",
+        "kind": "subscription",
+        "value": "https://public.example.org/sub/external",
+        "remark": "existing",
+        "enable": True,
+        "expiryTime": 0,
+        "namePrefix": "",
     }
     importer.state.links["alpha"] = [unrelated]
     importer.manager.apply(importer.owned.base)

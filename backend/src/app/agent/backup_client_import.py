@@ -173,7 +173,8 @@ class BackupClientImporter:
         include_links = change.get("include_external_links", True)
         link_plans, link_count = (
             build_sync_plan(context, api, catalog, clients, records, pending)
-            if include_links else ([], 0)
+            if include_links
+            else ([], 0)
         )
         if not pending and not link_plans:
             context.emit(message_text(MessageKey.CLIENT_IMPORT_SUCCEEDED, count=0, skipped=skipped))
@@ -188,9 +189,11 @@ class BackupClientImporter:
             configuration(api.request(f"inbounds/get/{change['target_inbound_id']}"))
             != configuration(before)
             or api.request("clients/list") != records
-            or (link_plans and build_sync_plan(
-                context, api, catalog, clients, records, pending
-            )[0] != link_plans)
+            or (
+                link_plans
+                and build_sync_plan(context, api, catalog, clients, records, pending)[0]
+                != link_plans
+            )
         ):
             raise RuntimeError(message_text(MessageKey.INBOUND_STALE))
 

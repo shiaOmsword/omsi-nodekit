@@ -125,8 +125,8 @@ def build_sync_plan(context, api, catalog, selected, existing, pending):
     if not links_count:
         return [], 0
     source_uri = next(
-        (client.get("_source_sub_uri") for client in selected
-         if client.get("_external_links")), None
+        (client.get("_source_sub_uri") for client in selected if client.get("_external_links")),
+        None,
     )
     if source_uri != subscription_target(context):
         raise RuntimeError(message_text(MessageKey.CLIENT_EXTERNAL_PUBLIC_URL))
@@ -141,23 +141,22 @@ def build_sync_plan(context, api, catalog, selected, existing, pending):
         source_links = client.get("_external_links", [])
         if not source_links:
             continue
-        originals = [
-            {key: value[key] for key in FIELDS}
-            for value in source_links
-        ]
+        originals = [{key: value[key] for key in FIELDS} for value in source_links]
         incoming = _canonical(originals)
         is_new = client["email"].lower() in pending_emails
         before = [] if is_new else _current_details(api, client["email"], client)
         desired, new_links = _merge(before, incoming)
         if new_links:
-            plans.append({
-                "email": client["email"],
-                "client": client,
-                "new": is_new,
-                "before": before,
-                "desired": desired,
-                "added": new_links,
-            })
+            plans.append(
+                {
+                    "email": client["email"],
+                    "client": client,
+                    "new": is_new,
+                    "before": before,
+                    "desired": desired,
+                    "added": new_links,
+                }
+            )
             total_new += new_links
     return plans, total_new
 

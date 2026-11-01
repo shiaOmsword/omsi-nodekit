@@ -119,9 +119,7 @@ def read_catalog(path):
                 raise ValueError(message_text(MessageKey.BACKUP_CLIENTS_INVALID))
             source_clients = db.execute("SELECT id, sub_id FROM clients").fetchall()
             subscriber_ids = {
-                row["id"]: row["sub_id"]
-                for row in source_clients
-                if isinstance(row["sub_id"], str)
+                row["id"]: row["sub_id"] for row in source_clients if isinstance(row["sub_id"], str)
             }
             external_by_id, source_sub_uri = read_external_links(db, subscriber_ids)
             flow_override = "ci.flow_override" if "flow_override" in relation else "''"

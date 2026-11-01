@@ -76,8 +76,15 @@ def read_external_links(db, subscriber_ids):
         return {}, None
     fields = {row[1] for row in db.execute("PRAGMA table_info(client_external_links)")}
     required = {
-        "id", "client_id", "kind", "value", "remark", "enable",
-        "expiry_time", "name_prefix", "sort_index",
+        "id",
+        "client_id",
+        "kind",
+        "value",
+        "remark",
+        "enable",
+        "expiry_time",
+        "name_prefix",
+        "sort_index",
     }
     if not required <= fields:
         invalid()
@@ -102,29 +109,36 @@ def read_external_links(db, subscriber_ids):
         valid_url = _public_https(value)
         ref_sub_id = None
         if valid_url and base and value.startswith(base):
-            suffix = value[len(base):]
+            suffix = value[len(base) :]
             if suffix in subscriber_ids.values():
                 ref_sub_id = suffix
         kind = row["kind"]
         expiry = row["expiry_time"]
         enabled = row["enable"]
         compatible = (
-            kind == "subscription" and valid_url and ref_sub_id is not None
-            and isinstance(expiry, int) and expiry >= 0
+            kind == "subscription"
+            and valid_url
+            and ref_sub_id is not None
+            and isinstance(expiry, int)
+            and expiry >= 0
             and enabled in (0, 1)
-            and isinstance(row["remark"], str) and len(row["remark"]) <= 256
-            and isinstance(row["name_prefix"], str) and len(row["name_prefix"]) <= 256
+            and isinstance(row["remark"], str)
+            and len(row["remark"]) <= 256
+            and isinstance(row["name_prefix"], str)
+            and len(row["name_prefix"]) <= 256
         )
-        links[owner].append({
-            "kind": kind,
-            "value": value,
-            "remark": row["remark"] or "",
-            "enable": bool(enabled),
-            "expiryTime": expiry,
-            "namePrefix": row["name_prefix"] or "",
-            "_ref_sub_id": ref_sub_id,
-            "_compatible": compatible,
-        })
+        links[owner].append(
+            {
+                "kind": kind,
+                "value": value,
+                "remark": row["remark"] or "",
+                "enable": bool(enabled),
+                "expiryTime": expiry,
+                "namePrefix": row["name_prefix"] or "",
+                "_ref_sub_id": ref_sub_id,
+                "_compatible": compatible,
+            }
+        )
     return dict(links), base
 
 
