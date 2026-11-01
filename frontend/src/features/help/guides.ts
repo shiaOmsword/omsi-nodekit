@@ -99,6 +99,7 @@ export const guides: Guide[] = [
       'Скачай snapshot .db и сохрани приватно зашифрованную копию каталога Nodekit, SSH-ключей и манифеста.',
       'Запусти read-only tools/backup_audit.py с параметрами --live, --backup и --root. Он сравнивает содержимое таблиц и показывает наличие sidecar-файлов без секретов.',
       'Проверь отдельно systemd SSH units, настройки UFW, Caddy host source mount, SSL assets и сохранение других сайтов.',
+      'Для выборочного переноса клиентов открой «Бэкапы» → «Клиенты» или VLESS inbound → «Из бэкапа». Выбирай исходный inbound, целевой inbound и клиентов, не меняя UUID и subId.',
       'Отработай удаление ТОЛЬКО собственной managed панели сначала на disposable копии VPS; глобальные Docker/Caddy/UFW операции запрещены.',
       'После restore проверь SQLite, inbound/clients, Xray routing, Caddy публичный HTTPS, подписку, каждый SSH выход и реальный egress IP телефона.',
     ],
