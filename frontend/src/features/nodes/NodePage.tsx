@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { parse } from 'yaml';
 import {
   Activity,
+  Gauge,
   ArrowLeft,
   ArrowRight,
   Database,
@@ -34,6 +35,7 @@ const actionIcons = {
   configure: Settings2,
   inbound: Settings2,
   traffic: Activity,
+  tcp_tuning: Gauge,
   tunnel: Activity,
   xhttp: Activity,
   client_import: Database,
@@ -62,6 +64,7 @@ export function NodePage({
   onRestoreClients,
   onTraffic,
   onTunnel,
+  onTCPTuning,
 }: {
   route: NodeRoute;
   workspace: Workspace;
@@ -83,8 +86,10 @@ export function NodePage({
   onRestoreClients: (item: InboundFinding) => void;
   onTraffic: (item: InboundFinding) => void;
   onTunnel: () => void;
+  onTCPTuning: (algorithm: 'bbr' | 'cubic', fingerprint: string) => void;
 }) {
   const [backupId, setBackupId] = useState(preferredBackup || '');
+  const [tcpChoice, setTcpChoice] = useState<'bbr' | 'cubic'>('bbr');
   useEffect(() => {
     if (preferredBackup) setBackupId(preferredBackup);
   }, [preferredBackup]);
@@ -495,6 +500,32 @@ export function NodePage({
           <p className="feature-hint">Пул распределяет новые соединения по отдельным SSH-сессиям. При потере всех выходов fallback блокирует соединения, не подменяя зарубежный IP на российский. Существующие TCP-сессии не мигрируют автоматически.</p>
           <p className="feature-hint">Для независимого резервирования провайдеров/локаций одного пула недостаточно; здесь проверяется один общий выходной VLESS endpoint.</p>
           <p className="feature-hint">Неизвестный SSH fingerprint может автоматически приниматься только при явном host_key_policy: accept-new в YAML. Изменённый ключ известной ноды всегда отклоняется.</p>
+        </div>
+      </section>}
+      {route.tab === 'network' && <section className="card">
+        <div className="section-heading">
+          <div><h2>TCP congestion control</h2><p>Алгоритм новых TCP-соединений VPS. Не меняет текущие SSH-сессии.</p></div>
+        </div>
+        <div className="card-content">
+          {!report?.tcp_tuning ? <p className="feature-hint">Запусти обнаружение, чтобы прочитать настройки ядра.</p> : <>
+            <dl className="detail-list">
+              <dt>Сейчас</dt><dd><strong>{report.tcp_tuning.current.toUpperCase()}</strong></dd>
+              <dt>Доступно</dt><dd>{report.tcp_tuning.available.join(', ')}</dd>
+              <dt>Настройка Nodekit</dt><dd>{report.tcp_tuning.managed_algorithm?.toUpperCase() || 'Не обнаружена (возможно, настроено вручную)'}</dd>
+            </dl>
+            {report.tcp_tuning.conflict && <p className="report-warning">Файл настроек Nodekit отличается от ожидаемого или является symlink. Изменения заблокированы.</p>}
+            <div className="row-actions">
+              <label htmlFor="tcp-algorithm">Алгоритм</label>
+              <select id="tcp-algorithm" value={tcpChoice} onChange={(event) => setTcpChoice(event.target.value as 'bbr' | 'cubic')}>
+                <option value="bbr">BBR</option>
+                <option value="cubic">CUBIC</option>
+              </select>
+              <Button disabled={locked || report.tcp_tuning.conflict} onClick={() => onTCPTuning(tcpChoice, report.tcp_tuning!.fingerprint)}>
+                Посмотреть план TCP
+              </Button>
+            </div>
+            <p className="feature-hint">Настройка сохраняется при перезагрузке и действует по умолчанию для новых TCP-соединений всей VPS. SSH, 3x-ui и Caddy автоматически не перезапускаются.</p>
+          </>}
         </div>
       </section>}
       {route.tab === 'network' && <section className="card"><div className="section-heading"><div><h2>Сеть и диагностика</h2><p>UFW, публикации Caddy, подписки и маршруты Xray.</p></div>
