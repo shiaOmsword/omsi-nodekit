@@ -211,3 +211,64 @@ fallback на московский direct.
 реальной VPS и полного интеграционного smoke считать этот механизм
 новым экспериментальным сценарием и не переводить на него сразу
 единственный рабочий клиентский inbound.
+
+## Первый SSH host key: строгая проверка и опциональный TOFU
+
+Подключение с рабочего ПК не заполняет
+`/home/omsi/.ssh/known_hosts` на **московской VPS**.
+Сервер `78.17.45.177` на портах `22` и `2222` обычно имеет
+разные записи в `known_hosts`: для стандартного порта `78.17.45.177`,
+для нестандартного `[78.17.45.177]:2222`.
+Из-за `StrictHostKeyChecking=yes` и `BatchMode=yes` первый
+неизвестный host key блокирует systemd SSH forward без приглашения.
+
+По умолчанию Nodekit сохраняет строгую проверку. Чтобы один **новый**
+SSH endpoint мог принять ключ сервера при первом соединении,
+явно добавь в YAML конкретного туннеля:
+
+```yaml
+  - name: nd-3
+    host: 78.17.45.177
+    user: omsi
+    ssh_port: 22
+    local_port: 15445
+    target_port: 11474
+    identity_file: /home/omsi/.ssh/ultra_gb_tunnel
+    known_hosts_file: /home/omsi/.ssh/known_hosts
+    host_key_policy: accept-new
+```
+
+Это включает `StrictHostKeyChecking=accept-new` и сохраняет `BatchMode=yes`
+и `IdentitiesOnly=yes`. **Новый** host key сохраняется в `known_hosts`,
+а если известный fingerprint **изменился**, OpenSSH разрывает соединение.
+`StrictHostKeyChecking=no` не используется. В режиме TOFU пользователь
+SSH-службы должен иметь право записи в свой `known_hosts` или его
+родительский каталог (если файла пока нет). Символьные ссылки в TOFU
+запрещены. По соображениям безопасности этот режим не включён по
+умолчанию: на первом подключении возможна атака посредника; для
+критичных нод лучше проверить fingerprint через независимый канал.
+
+Проверить с московской VPS без изменения Nodekit:
+
+```bash
+ssh-keygen -F 78.17.45.177 -f /home/omsi/.ssh/known_hosts
+ssh-keygen -F '[78.17.45.177]:2222' -f /home/omsi/.ssh/known_hosts
+
+ssh -F none -p 22 -i /home/omsi/.ssh/ultra_gb_tunnel \
+  -o UserKnownHostsFile=/home/omsi/.ssh/known_hosts \
+  -o StrictHostKeyChecking=yes \
+  -o IdentitiesOnly=yes -o BatchMode=yes -v \
+  omsi@78.17.45.177 true
+```
+
+Если неизвестный host key — будет `Host key verification failed`.
+Если отклонён ключ пользователя — `Permission denied (publickey)`.
+Если TCP forwarding запрещён на выходной VPS — проверить настройки
+`AllowTcpForwarding`, `PermitOpen`, ограничения в `authorized_keys`
+и `journalctl -u omsi-ultra-nd-3.service`.
+
+Важное ограничение: на уже существующем systemd unit изменение
+`host_key_policy` меняет `ExecStart`. Nodekit намеренно не
+перезаписывает unit, если он отличается от сгенерированного. Для
+применения новой политики к ранее созданной службе требуется
+контролируемое обновление только доказанно принадлежащего Nodekit unit.

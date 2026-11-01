@@ -100,7 +100,7 @@ export function NodePage({
   const archived = state === 'archived';
   const locked = w.busy || !!runningJob || archived || w.dirty;
   const config = w.config;
-  const sshTunnels: { name: string; host: string; ssh_port: number; local_port: number; target_port: number }[] = parse(node.yaml)?.tunnels || [];
+  const sshTunnels: { name: string; host: string; ssh_port: number; local_port: number; target_port: number; host_key_policy?: 'strict' | 'accept-new' }[] = parse(node.yaml)?.tunnels || [];
   const sourceMatches =
     !!reportJob?.report &&
     reportJob.report.ssh_host === config?.ssh.host &&
@@ -481,14 +481,16 @@ export function NodePage({
         </div>
         <div className="card-content">
           {!sshTunnels.length ? <EmptyState title="Нет туннелей в YAML" description="Добавь tunnels в конфигурации ноды: host, ssh_port, local_port, target_port, identity_file, known_hosts_file." /> :
-            <div className="table-scroll"><table className="data-table"><thead><tr><th>Туннель</th><th>SSH</th><th>Локальный порт → выход</th><th>Systemd</th></tr></thead><tbody>
+            <div className="table-scroll"><table className="data-table"><thead><tr><th>Туннель</th><th>SSH</th><th>Локальный порт → выход</th><th>Ключ сервера</th><th>Systemd</th></tr></thead><tbody>
               {sshTunnels.map((t) => { const live = report?.tunnels?.find((item) => item.name === t.name);
                 return <tr key={t.name}><td><strong>{t.name}</strong></td><td><code>{t.host}:{t.ssh_port || 22}</code></td>
                   <td><code>127.0.0.1:{t.local_port} → 127.0.0.1:{t.target_port}</code></td>
+                  <td>{t.host_key_policy === 'accept-new' ? 'Автодоверие при первом подключении' : 'Только известный ключ'}</td>
                   <td>{live ? live.active ? 'Работает' : 'Не запущен' : 'Нет свежей проверки'}</td></tr>; })}
             </tbody></table></div>}
           <p className="feature-hint">Пул распределяет новые соединения по отдельным SSH-сессиям. При потере всех выходов fallback блокирует соединения, не подменяя зарубежный IP на российский. Существующие TCP-сессии не мигрируют автоматически.</p>
           <p className="feature-hint">Для независимого резервирования провайдеров/локаций одного пула недостаточно; здесь проверяется один общий выходной VLESS endpoint.</p>
+          <p className="feature-hint">Неизвестный SSH fingerprint может автоматически приниматься только при явном host_key_policy: accept-new в YAML. Изменённый ключ известной ноды всегда отклоняется.</p>
         </div>
       </section>}
       {route.tab === 'network' && <section className="card"><div className="section-heading"><div><h2>Сеть и диагностика</h2><p>UFW, публикации Caddy, подписки и маршруты Xray.</p></div>
