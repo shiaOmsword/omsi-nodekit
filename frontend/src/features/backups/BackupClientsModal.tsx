@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../framework/api';
+import { parse } from 'yaml';
 import { Alert, Button, Loading, Modal } from '../../framework/components';
 import type {
   Backup, BackupClientCatalog, InboundFinding, InstallationReport, Job,
@@ -33,6 +34,11 @@ export function BackupClientsModal({
   const [loading, setLoading] = useState(false);
   const [nodeLoading, setNodeLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
+  // Polling updates jobs every four seconds; the dialog must not reset the
+  // selected inbound unless a relevant job ID/status actually changes.
+  const jobKey = jobs.filter((job) =>
+    job.node_id === nodeId && job.status === 'succeeded').slice(0, 12)
+    .map((job) => job.id).join(',');
 
   useEffect(() => {
     let alive = true;
@@ -73,12 +79,15 @@ export function BackupClientsModal({
     setDestinationId(null);
     async function load() {
       const selectedNode = await api<NodeRecord>('/nodes/' + nodeId);
-      const prior = jobs.filter((job) =>
-        job.node_id === nodeId && job.status === 'succeeded').slice(0, 12);
+      const cfg = parse(selectedNode.yaml);
       let last: InstallationReport | null = null;
-      for (const job of prior) {
-        const detail = await api<JobDetail>('/jobs/' + job.id);
-        if (detail.report && detail.report.selected_panel) {
+      for (const jobId of (jobKey ? jobKey.split(',') : [])) {
+        const detail = await api<JobDetail>('/jobs/' + jobId);
+        if (
+          detail.report?.selected_panel
+          && detail.report.ssh_host === cfg.ssh?.host
+          && detail.report.ssh_port === (cfg.ssh?.port || 22)
+        ) {
           last = detail.report;
           break;
         }
@@ -89,7 +98,7 @@ export function BackupClientsModal({
       .catch(() => { if (alive) setLoadError('Не удалось прочитать ноду или её отчёт.'); })
       .finally(() => { if (alive) setNodeLoading(false); });
     return () => { alive = false; };
-  }, [nodeId, record, inbound, report, jobs]);
+  }, [nodeId, record, inbound, report, jobKey]);
 
   const source = catalog?.inbounds.find((s) => s.id === sourceId);
   const panel = inventory?.panels.find((p) => p.id === inventory.selected_panel);
