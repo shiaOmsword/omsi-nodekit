@@ -66,3 +66,14 @@ test('rediscovery preserves explicit network automation preferences', () => {
   assert.equal(result.deployment.manage_ufw, false);
   assert.equal(result.deployment.manage_caddy_ports, false);
 });
+
+test('TCP BBR action has a dedicated route and warns about socket scope', () => {
+  assert.equal(parseRoute('#/nodes/ultra/operations/tcp_tuning').action, 'tcp_tuning');
+  const props = { record, busy: false, error: '', onClose: noop, onReload: noop, onLaunch: noop };
+  const html = renderToStaticMarkup(React.createElement(PlanModal, { ...props, action: 'tcp_tuning',
+    plan: { remote_dir: '/opt/nodekit/test-node', files: {}, steps: [], options: {
+      tcp_tuning: { algorithm: 'bbr', expected_fingerprint: 'a'.repeat(64) },
+    } } }));
+  assert.ok(html.includes('Изменяет сервер'));
+  assert.ok(html.includes('Действующие SSH-сессии'));
+});
