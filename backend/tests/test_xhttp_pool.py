@@ -348,6 +348,7 @@ def test_publish_existing_xhttp_host_preserves_caddy(owned, monkeypatch):
         },
     }
     from app.agent.inbound_meta import public_inbound
+
     request = {
         "operation": "publish",
         "id": 2,
@@ -360,6 +361,7 @@ def test_publish_existing_xhttp_host_preserves_caddy(owned, monkeypatch):
     }
     context.payload["options"] = {"xhttp": request}
     hosts = []
+
     def api_request(path, payload=None):
         if path == "inbounds/get/2":
             return copy.deepcopy(inbound)
@@ -369,6 +371,7 @@ def test_publish_existing_xhttp_host_preserves_caddy(owned, monkeypatch):
             hosts.append({**payload, "groupId": "managed-host", "hosts": ["vpn.example.com:443"]})
             return None
         raise AssertionError(path)
+
     api = SimpleNamespace(request=api_request)
     before = owned.shared.read_bytes()
     manager = XHTTPManager(context, None, owned.operation.database, owned.inspector)
