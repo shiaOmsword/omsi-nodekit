@@ -294,7 +294,12 @@ def test_pool_migrates_two_owned_single_routes():
         original, "exit", sample_tunnels()[1], "ssh-ultra-nd-2", "in-xhttp"
     )
     updated, record = pool_template(
-        staged, "exit", "ultra", "nd-pool", sample_tunnels(), "in-xhttp",
+        staged,
+        "exit",
+        "ultra",
+        "nd-pool",
+        sample_tunnels(),
+        "in-xhttp",
         singles=[
             {"name": "nd", "outbound": first_out, "rule": first_rule},
             {"name": "nd-2", "outbound": second_out, "rule": second_rule},
@@ -314,8 +319,15 @@ def test_pool_refuses_modified_existing_route():
     )
     with pytest.raises(ValueError):
         pool_template(
-            staged, "exit", "ultra", "nd-pool", sample_tunnels(), "in-xhttp",
-            singles=[{"name": "nd", "outbound": outbound, "rule": {**rule, "outboundTag": "direct"}}],
+            staged,
+            "exit",
+            "ultra",
+            "nd-pool",
+            sample_tunnels(),
+            "in-xhttp",
+            singles=[
+                {"name": "nd", "outbound": outbound, "rule": {**rule, "outboundTag": "direct"}}
+            ],
         )
 
 
@@ -323,16 +335,27 @@ def test_publish_existing_xhttp_host_preserves_caddy(owned, monkeypatch):
     context = owned.context
     base = owned.base
     inbound = {
-        "id": 2, "port": 10080, "listen": "127.0.0.1",
-        "remark": "phone", "enable": True, "protocol": "vless",
-        "streamSettings": {"network": "xhttp", "security": "none",
-                           "xhttpSettings": {"path": "/xhttp-ultra/", "mode": "auto"}},
+        "id": 2,
+        "port": 10080,
+        "listen": "127.0.0.1",
+        "remark": "phone",
+        "enable": True,
+        "protocol": "vless",
+        "streamSettings": {
+            "network": "xhttp",
+            "security": "none",
+            "xhttpSettings": {"path": "/xhttp-ultra/", "mode": "auto"},
+        },
     }
     from app.agent.inbound_meta import public_inbound
     request = {
-        "operation": "publish", "id": 2, "port": 10080,
-        "domain": "vpn.example.com", "path": "/xhttp-ultra/",
-        "mode": "auto", "remark": "phone",
+        "operation": "publish",
+        "id": 2,
+        "port": 10080,
+        "domain": "vpn.example.com",
+        "path": "/xhttp-ultra/",
+        "mode": "auto",
+        "remark": "phone",
         "expected_fingerprint": public_inbound(inbound)["fingerprint"],
     }
     context.payload["options"] = {"xhttp": request}

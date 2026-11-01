@@ -95,7 +95,9 @@ class XHTTPChange(StrictModel):
             or ("." not in self.domain or ".." in self.domain)
         ):
             raise ValueError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
-        if self.operation == "publish" and (not self.id or not self.expected_fingerprint or self.client_email):
+        if self.operation == "publish" and (
+            not self.id or not self.expected_fingerprint or self.client_email
+        ):
             raise ValueError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
         if any(ord(c) < 32 for c in self.remark):
             raise ValueError(message_text(MessageKey.INBOUND_REQUEST_INVALID))

@@ -336,7 +336,10 @@ class XHTTPManager:
     def publish_host(self, base, api, request):
         """Publish an existing XHTTP inbound in 3x-ui Hosts; never alter Caddy."""
         inbound = api.request(f"inbounds/get/{request['id']}")
-        if not isinstance(inbound, dict) or public_inbound(inbound)["fingerprint"] != request["expected_fingerprint"]:
+        if (
+            not isinstance(inbound, dict)
+            or public_inbound(inbound)["fingerprint"] != request["expected_fingerprint"]
+        ):
             raise RuntimeError(message_text(MessageKey.INBOUND_STALE))
         stream = object_value(inbound.get("streamSettings"))
         http = object_value(stream.get("xhttpSettings"))
@@ -410,13 +413,18 @@ class XHTTPManager:
                 raise RuntimeError(message_text(MessageKey.DEPLOYMENT_API_FAILED))
             if not group_id:
                 group_id = record["groupId"]
-            if ledger.is_symlink() or (ledger.read_bytes() if ledger.exists() else None) != original_ledger:
+            if (
+                ledger.is_symlink()
+                or (ledger.read_bytes() if ledger.exists() else None) != original_ledger
+            ):
                 raise RuntimeError(message_text(MessageKey.DEPLOYMENT_CADDY_CHANGED))
             private_write(ledger, json.dumps({**records, str(request["id"]): group_id}).encode())
         except Exception:
             if attempted:
                 try:
-                    now = [h for h in (api.request("hosts/list") or []) if h.get("remark") == marker]
+                    now = [
+                        h for h in (api.request("hosts/list") or []) if h.get("remark") == marker
+                    ]
                     if len(now) == 1 and now[0].get("inboundIds") == [request["id"]]:
                         if prior and group_id:
                             api.request(f"hosts/update/{group_id}", prior)
