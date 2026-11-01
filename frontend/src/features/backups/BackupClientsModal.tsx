@@ -31,6 +31,7 @@ export function BackupClientsModal({
   const [destinationId, setDestinationId] = useState<number | null>(inbound?.id || null);
   const [selected, setSelected] = useState<string[]>([]);
   const [search, setSearch] = useState('');
+  const [includeLinks, setIncludeLinks] = useState(true);
   const [loading, setLoading] = useState(false);
   const [nodeLoading, setNodeLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
@@ -109,6 +110,13 @@ export function BackupClientsModal({
   const ready = source?.clients.filter((client) => client.restorable) || [];
   const visible = useMemo(() => source?.clients.filter((client) =>
     client.email.toLowerCase().includes(search.toLowerCase())) || [], [source, search]);
+  const dependentRefs = source?.clients.filter((item) => selected.includes(item.ref))
+    .flatMap((item) => item.depends_on) || [];
+  const missingRefs = Array.from(new Set(dependentRefs.filter((ref) => !selected.includes(ref))));
+  const selectedLinkCount = source?.clients.filter((item) => selected.includes(item.ref))
+    .reduce((count, item) => count + item.external_link_count, 0) || 0;
+  const invalidLinks = includeLinks && !!source?.clients.some((item) =>
+    selected.includes(item.ref) && !item.external_links_compatible);
 
   function preview() {
     if (!node || !currentBackup || !source || !destination || !selected.length) return;
@@ -118,6 +126,7 @@ export function BackupClientsModal({
         target_inbound_id: destination.id,
         expected_fingerprint: destination.fingerprint!,
         client_refs: selected,
+        include_external_links: includeLinks,
       },
     });
   }
@@ -129,7 +138,7 @@ export function BackupClientsModal({
     footer={<>
       <Button disabled={busy} onClick={onClose}>Отмена</Button>
       <Button variant="primary" loading={busy} onClick={preview}
-        disabled={loading || nodeLoading || !source || !destination || !currentBackup || !selected.length || selected.length > 100}>
+        disabled={loading || nodeLoading || !source || !destination || !currentBackup || !selected.length || selected.length > 100 || invalidLinks || (includeLinks && missingRefs.length > 0)}>
         Посмотреть план · {selected.length}
       </Button>
     </>}>
@@ -185,11 +194,23 @@ export function BackupClientsModal({
             Снять выбор
           </Button>
         </div>
+        <label className="feature-hint">
+          <input type="checkbox" checked={includeLinks}
+            onChange={(event) => setIncludeLinks(event.target.checked)} />
+          Восстановить связанные подписки из бэкапа (найдено: {selectedLinkCount})
+        </label>
+        {includeLinks && missingRefs.length > 0 && <div className="feature-hint">
+          Для восстановления связей нужно также перенести {missingRefs.length} связанных клиентов.
+          <Button small onClick={() => setSelected((items) =>
+            Array.from(new Set([...items, ...missingRefs])).slice(0, 100)
+          )}>Добавить связанных</Button>
+        </div>}
+        {invalidLinks && <Alert tone="error">Часть внешних ссылок не соответствует безопасной схеме публичных подписок из этого дампа. Выключи восстановление связей, чтобы перенести только клиентов.</Alert>}
         <input aria-label="Найти клиента в бэкапе" placeholder="Фильтр по email"
           value={search} onChange={(event) => setSearch(event.target.value)} />
         <div className="table-scroll" style={{ maxHeight: 260, overflowY: 'auto' }}>
           <table className="data-table"><thead><tr>
-            <th>Перенести</th><th>Email</th><th>Состояние</th><th>Подписка</th>
+            <th>Перенести</th><th>Email</th><th>Состояние</th><th>Подписка</th><th>Внешних ссылок</th>
           </tr></thead><tbody>
             {visible.map((client) => <tr key={client.ref}>
               <td><input type="checkbox" aria-label={'Выбрать ' + client.email}
@@ -200,6 +221,7 @@ export function BackupClientsModal({
               <td>{client.email || 'Без имени'}</td>
               <td>{client.enabled ? 'Включён' : 'Выключен'}</td>
               <td>{client.restorable ? 'UUID и subId сохранены' : 'Нет корректного UUID / subId'}</td>
+              <td>{client.external_link_count}</td>
             </tr>)}
           </tbody></table>
         </div>

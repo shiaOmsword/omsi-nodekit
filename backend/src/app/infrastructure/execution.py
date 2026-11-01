@@ -29,6 +29,7 @@ class RemoteAgentBuilder:
         files = [
             "app/defaults.py",
             "app/backup_clients.py",
+            "app/backup_external_links.py",
             "framework/database/__init__.py",
             "framework/database/sqlite.py",
             "framework/database/snapshots.py",

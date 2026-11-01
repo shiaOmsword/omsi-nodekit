@@ -15,11 +15,11 @@ export interface BackupClientCatalog {
     remark: string;
     protocol: string;
     client_count: number;
-    clients: { ref: string; email: string; enabled: boolean; has_subscription: boolean; restorable: boolean }[];
+    clients: { ref: string; email: string; enabled: boolean; has_subscription: boolean; restorable: boolean; external_link_count: number; external_links_compatible: boolean; depends_on: string[] }[];
   }[];
 }
 export interface JobOptions {
-  client_import?: { source_inbound_id: number; target_inbound_id: number; expected_fingerprint: string; client_refs: string[] };
+  client_import?: { source_inbound_id: number; target_inbound_id: number; expected_fingerprint: string; client_refs: string[]; include_external_links: boolean };
   tunnel?: { name: string; outbound_tag: string; id: number; expected_fingerprint: string; members?: string[]; pool_name?: string };
   inbound?: { id: number; expected_fingerprint: string; operation: 'update' | 'delete' | 'add_client' | 'delete_client'; client_email?: string; remark?: string; port?: number; server_name?: string; close_unmanaged_rule?: boolean };
   traffic?: { id: number; expected_fingerprint: string };
