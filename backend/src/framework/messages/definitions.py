@@ -16,6 +16,7 @@ MESSAGES = MappingProxyType(
         MessageKey.CLIENT_EXTERNAL_PUBLIC_URL: "The source linked-subscription URL differs from the destination's configured public subURI; verify Caddy and domain before restoring links",
         MessageKey.CLIENT_EXTERNAL_CONFLICT: "Existing client's external subscriptions differ from source or changed during import; no unrelated subscriptions were overwritten",
         MessageKey.CLIENT_EXTERNAL_SYNCED: "Restored {count} linked subscriptions on {owners} client accounts without changing their UUID or subId",
+        MessageKey.CLIENT_EXTERNAL_PLAN: "Import owned, same-origin HTTPS subscription links after all referenced subIds exist; verify exact target subURI, detect circular dependencies, preserve other clients' external links, recheck identity and compensate only own changes",
         MessageKey.XHTTP_APPLIED: "VLESS XHTTP inbound {name} настроен с приватным backend и Caddy site. Проверь внешний клиент, TLS и Hosts override подписки",
         MessageKey.TUNNEL_SOURCE_FORMAT: "Outbound {tag}: provide either flat VLESS settings.address/port/id or exactly one vnext endpoint with users; mixed or incomplete endpoint schemas are not supported",
         MessageKey.TUNNEL_SOURCE_MISSING: "Outbound {tag} is missing, duplicated or is the managed SSH copy itself; select the original exit outbound and refresh discovery",

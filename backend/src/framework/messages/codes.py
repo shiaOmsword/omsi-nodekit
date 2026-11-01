@@ -53,6 +53,7 @@ class MessageKey(StrEnum):
     CLIENT_EXTERNAL_PUBLIC_URL = "client_external_public_url"
     CLIENT_EXTERNAL_CONFLICT = "client_external_conflict"
     CLIENT_EXTERNAL_SYNCED = "client_external_synced"
+    CLIENT_EXTERNAL_PLAN = "client_external_plan"
     INBOUND_STALE = "inbound_stale"
     INBOUND_MANAGED_REQUIRED = "inbound_managed_required"
     INBOUND_UPDATED = "inbound_updated"
