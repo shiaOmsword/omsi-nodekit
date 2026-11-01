@@ -14,11 +14,11 @@ export function InboundModal({ record, inbound, remove, busy, error, onClose, on
     { name: 'confirm', label: 'Удалить inbound и всех его клиентов', type: 'checkbox', required: true },
   ] : [
     { name: 'remark', label: 'Название inbound', required: true, maxLength: 120 },
-    { name: 'port', label: 'Порт inbound', type: 'number', required: true, min: 1, max: 65535 },
+    ...(inbound.network !== 'xhttp' ? [{ name: 'port', label: 'Порт inbound', type: 'number', required: true, min: 1, max: 65535 } as FormField] : []),
     ...(inbound.security === 'reality' ? [{ name: 'server_name', label: 'REALITY SNI', required: true,
       hint: 'Обновятся SNI и адрес REALITY target с прежним target-портом. Ключи и клиенты сохранятся.' } as FormField] : []),
   ];
-  fields.push({ name: 'close_unmanaged_rule', label: 'Удалить старое ручное разрешение UFW этого TCP-порта', type: 'checkbox',
+  if (inbound.network !== 'xhttp') fields.push({ name: 'close_unmanaged_rule', label: 'Удалить старое ручное разрешение UFW этого TCP-порта', type: 'checkbox',
     hint: 'Только точное правило для старого порта, если он больше не используется. Общие правила, диапазоны и порты других сервисов сохраняются. Правила Nodekit согласуются автоматически.' });
   function submit() {
     const change: NonNullable<JobOptions['inbound']> = { id: inbound.id,
@@ -26,7 +26,7 @@ export function InboundModal({ record, inbound, remove, busy, error, onClose, on
       close_unmanaged_rule: !!values.close_unmanaged_rule };
     if (!remove) {
       if (values.remark !== inbound.remark) change.remark = String(values.remark);
-      if (Number(values.port) !== inbound.port) change.port = Number(values.port);
+      if (inbound.network !== 'xhttp' && Number(values.port) !== inbound.port) change.port = Number(values.port);
       if (values.server_name !== originalSni) change.server_name = String(values.server_name);
       if (!change.remark && !change.port && !change.server_name) return;
     }

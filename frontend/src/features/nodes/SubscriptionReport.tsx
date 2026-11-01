@@ -38,7 +38,7 @@ export function InboundReport({ panel, busy = false, onEdit, onDelete, onTest, o
         <tbody>{inbounds.map((item) => <tr key={item.id}>
           <td><strong>{item.remark || 'Inbound ' + item.id}</strong><small>#{item.id}</small></td>
           <td>{item.protocol.toUpperCase()}<small>{[item.network, item.security].filter(Boolean).join(' · ')}</small></td>
-          <td><code>{item.listen}:{item.port}</code></td>
+          <td><code>{item.listen}:{item.port}</code>{item.xhttp_domain && <small>{item.xhttp_domain}:443 {item.xhttp_path}</small>}</td>
           <td><StatusBadge tone={item.enabled ? 'mint' : 'amber'}>{item.enabled ? 'Включён' : 'Выключен'}</StatusBadge></td>
           <td><strong>{item.client_count}</strong>{item.clients.map((client, i) => <small key={i}>
             {client.email || 'Без имени'} · {client.enabled ? 'включён' : 'выключен'} · {client.has_subscription ? 'ID подписки задан' : 'без ID подписки'}

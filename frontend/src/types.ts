@@ -8,11 +8,12 @@ export interface NodeSummary {
 export interface NodeRecord extends NodeSummary {
   yaml: string;
 }
-export type Action = 'check' | 'doctor' | 'fresh' | 'restore' | 'backup' | 'configure' | 'inbound' | 'traffic' | 'tunnel';
+export type Action = 'check' | 'doctor' | 'fresh' | 'restore' | 'backup' | 'configure' | 'inbound' | 'traffic' | 'tunnel' | 'xhttp';
 export interface JobOptions {
   tunnel?: { name: string; outbound_tag: string; id: number; expected_fingerprint: string };
   inbound?: { id: number; expected_fingerprint: string; operation: 'update' | 'delete' | 'add_client' | 'delete_client'; client_email?: string; remark?: string; port?: number; server_name?: string; close_unmanaged_rule?: boolean };
   traffic?: { id: number; expected_fingerprint: string };
+  xhttp?: { operation: 'create' | 'update'; id?: number; expected_fingerprint?: string; remark: string; domain: string; port: number; path: string; mode: 'auto' | 'packet-up' | 'stream-up'; client_email?: string };
 }
 export interface Job {
   id: string;
@@ -130,6 +131,9 @@ export interface PanelFinding {
     target?: string;
     fingerprint?: string;
     nodekit_name?: string | null;
+    xhttp_path?: string;
+    xhttp_mode?: string;
+    xhttp_domain?: string | null;
   }[];
 }
 export type InboundFinding = NonNullable<PanelFinding['inbounds']>[number];
