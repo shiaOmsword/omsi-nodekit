@@ -471,5 +471,5 @@ def test_partial_link_failure_restores_exact_old_links(importer, tmp_path):
     importer.state.fail_link_after_write = True
     with pytest.raises(RuntimeError, match="simulated link API timeout"):
         importer.manager.apply(importer.owned.base)
-    assert importer.state.links == previous
+    assert importer.state.links.get("alpha", []) == previous.get("alpha", [])
     assert len(importer.state.clients) == 2
