@@ -54,6 +54,19 @@ class TrafficRequest(StrictModel):
 class TunnelRequest(TrafficRequest):
     name: Slug
     outbound_tag: str = Field(min_length=1, max_length=120, pattern=r"^[a-zA-Z0-9_.-]+$")
+    members: list[Slug] = Field(default_factory=list, max_length=6)
+    pool_name: Slug | None = None
+
+    @model_validator(mode="after")
+    def pool_arguments(self):
+        if self.members and (
+            len(self.members) < 2 or len(self.members) != len(set(self.members))
+            or self.name != self.members[0] or self.pool_name is None
+        ):
+            raise ValueError(message_text(MessageKey.TUNNEL_CONFIG_INVALID))
+        if not self.members and self.pool_name is not None:
+            raise ValueError(message_text(MessageKey.TUNNEL_CONFIG_INVALID))
+        return self
 
 class XHTTPChange(StrictModel):
     """Managed XHTTP ingress. Private backend binds only to the Caddy host gateway."""

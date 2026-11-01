@@ -215,6 +215,9 @@ class TunnelManager:
     def apply(self, base):
         context = self.context
         request = context.payload["options"]["tunnel"]
+        if request.get("members"):
+            from .tunnel_pool import TunnelPoolManager
+            return TunnelPoolManager(context, self.host, self.database, self.inspector).apply(base)
         api = managed_api(context, self.inspector, base)
         stage = self.stage("configuration and ownership preflight")
         attempted, forward = False, None
@@ -242,6 +245,8 @@ class TunnelManager:
                 originals[path] = path.read_bytes() if path.exists() else None
             manifest = json.loads(originals[manifest_path])
             previous = json.loads(originals[state_path]) if originals[state_path] else None
+            if previous and previous.get("pooled_into"):
+                raise TunnelPreflightError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
             if previous and previous.get("inbound_id", request["id"]) != request["id"]:
                 raise ValueError()
             if previous and previous.get("inbound_id") == request["id"]:
