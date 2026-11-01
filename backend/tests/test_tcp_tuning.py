@@ -105,7 +105,7 @@ def test_operator_file_is_preserved(tcp, foreign):
     with pytest.raises(RuntimeError, match="foreign"):
         tcp.manager.apply()
     assert not tcp.commands
-    assert (tcp.sysctl.is_symlink() if foreign == "symlink" else tcp.sysctl.read_text() == foreign)
+    assert tcp.sysctl.is_symlink() if foreign == "symlink" else tcp.sysctl.read_text() == foreign
 
 
 def test_failure_reverts_owned_files_and_live_algorithm(tcp):
