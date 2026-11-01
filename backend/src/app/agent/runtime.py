@@ -21,6 +21,7 @@ from .host import HostEnvironment
 from .inbound_manager import InboundManager
 from .inspection import InstallationInspector
 from .subscriptions import SubscriptionDiagnostics
+from .subscription_maintenance import SubscriptionMaintenanceAgent
 from .traffic_probe import TrafficProbe
 from .tunnel_manager import TunnelManager
 from .xhttp_manager import XHTTPManager
@@ -87,6 +88,11 @@ class RemoteAgent:
                 finally:
                     inspector = InstallationInspector(context)
                     inspector.inspect()
+            elif action == "subscription_maintenance":
+                inspector.inspect()
+                SubscriptionMaintenanceAgent(context, self.host, self.database, inspector).apply(base)
+                inspector = InstallationInspector(context)
+                inspector.inspect()
             elif action == "client_import":
                 inspector.inspect()
                 try:

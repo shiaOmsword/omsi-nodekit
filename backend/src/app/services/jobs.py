@@ -99,6 +99,7 @@ class JobService:
             JobAction.TUNNEL,
             JobAction.XHTTP,
             JobAction.CLIENT_IMPORT,
+            JobAction.SUBSCRIPTION_MAINTENANCE,
         }:
             expected = str(action)
             if node.panel.installation != "managed" or not options or set(options) != {expected}:
