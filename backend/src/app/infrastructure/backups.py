@@ -2,6 +2,7 @@ import sqlite3
 import tempfile
 from pathlib import Path
 
+from app.backup_clients import public_catalog, read_catalog
 from app.config import Limits
 from app.defaults import XUI_SETTINGS_COLUMNS, XUI_TABLES
 from app.ports import BackupFiles, BackupValidator
@@ -35,6 +36,15 @@ class XuiBackupValidator(BackupValidator):
                 )
             except (sqlite3.DatabaseError, ValueError) as exc:
                 raise ValidationError(message_text(MessageKey.BACKUP_SQLITE_INVALID)) from exc
+
+    def clients(self, content: bytes) -> dict:
+        with tempfile.TemporaryDirectory(prefix="nodekit-clients-") as folder:
+            source = Path(folder) / "source.db"
+            source.write_bytes(content)
+            try:
+                return public_catalog(read_catalog(source))
+            except (sqlite3.DatabaseError, ValueError, TypeError, KeyError) as exc:
+                raise ValidationError(message_text(MessageKey.BACKUP_CLIENTS_INVALID)) from exc
 
 
 class LocalBackupFiles(BackupFiles):

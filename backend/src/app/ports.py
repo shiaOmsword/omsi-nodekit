@@ -93,6 +93,9 @@ class BackupValidator(ABC):
     @abstractmethod
     def validate(self, content: bytes): ...
 
+    @abstractmethod
+    def clients(self, content: bytes) -> dict: ...
+
 
 class ArtifactRenderer(ABC):
     @abstractmethod

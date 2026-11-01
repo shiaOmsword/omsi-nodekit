@@ -12,6 +12,9 @@ import uuid
 from contextlib import closing
 from pathlib import Path
 
+from framework.messages import MessageKey
+from framework.messages import text as message_text
+
 MAX_INBOUNDS = 100
 MAX_CLIENTS = 3000
 EMAIL = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_.@-]{0,79}$")
@@ -44,7 +47,7 @@ def _object(value):
     if isinstance(value, str):
         value = json.loads(value or "{}")
     if not isinstance(value, dict):
-        raise ValueError("Invalid source client settings")
+        raise ValueError(message_text(MessageKey.BACKUP_CLIENTS_INVALID))
     return value
 
 
@@ -68,7 +71,7 @@ def _append(items, source_id, remark, protocol, reference, client):
         {"id": source_id, "remark": remark, "protocol": protocol, "clients": []},
     )
     if len(target["clients"]) >= MAX_CLIENTS:
-        raise ValueError("Client catalog limit reached")
+        raise ValueError(message_text(MessageKey.BACKUP_CLIENTS_INVALID))
     client = dict(client)
     target["clients"].append(
         {
@@ -90,13 +93,13 @@ def read_catalog(path):
         db.execute("PRAGMA query_only=ON")
         tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         if "inbounds" not in tables:
-            raise ValueError("Missing source inbounds")
+            raise ValueError(message_text(MessageKey.BACKUP_CLIENTS_INVALID))
         sources = db.execute(
             "SELECT id,remark,protocol,settings FROM inbounds ORDER BY id LIMIT ?",
             (MAX_INBOUNDS + 1,),
         ).fetchall()
         if len(sources) > MAX_INBOUNDS:
-            raise ValueError("Too many source inbounds")
+            raise ValueError(message_text(MessageKey.BACKUP_CLIENTS_INVALID))
         for row in sources:
             if row["protocol"] == "vless":
                 found[row["id"]] = {
@@ -112,7 +115,7 @@ def read_catalog(path):
             actual = {r[1] for r in db.execute("PRAGMA table_info(clients)")}
             relation = {r[1] for r in db.execute("PRAGMA table_info(client_inbounds)")}
             if not required_clients <= actual or not {"client_id", "inbound_id"} <= relation:
-                raise ValueError("Unsupported normalized clients schema")
+                raise ValueError(message_text(MessageKey.BACKUP_CLIENTS_INVALID))
             flow_override = "ci.flow_override" if "flow_override" in relation else "''"
             rows = db.execute(
                 "SELECT i.id AS source_inbound_id, c.*, "
@@ -124,7 +127,7 @@ def read_catalog(path):
                 (MAX_CLIENTS + 1,),
             ).fetchall()
             if len(rows) > MAX_CLIENTS:
-                raise ValueError("Too many source clients")
+                raise ValueError(message_text(MessageKey.BACKUP_CLIENTS_INVALID))
             for row in rows:
                 source = found.get(row["source_inbound_id"])
                 if source is None:
@@ -148,13 +151,13 @@ def read_catalog(path):
                 settings = _object(row["settings"])
                 clients = settings.get("clients", [])
                 if not isinstance(clients, list):
-                    raise ValueError("Invalid legacy client list")
+                    raise ValueError(message_text(MessageKey.BACKUP_CLIENTS_INVALID))
                 for index, client in enumerate(clients):
                     if not isinstance(client, dict):
-                        raise ValueError("Invalid legacy client entry")
+                        raise ValueError(message_text(MessageKey.BACKUP_CLIENTS_INVALID))
                     count += 1
                     if count > MAX_CLIENTS:
-                        raise ValueError("Too many source clients")
+                        raise ValueError(message_text(MessageKey.BACKUP_CLIENTS_INVALID))
                     # Use only attributes supported by the 3x-ui client API.
                     safe = {name: client[name] for name in FIELDS.values() if name in client}
                     _append(
@@ -192,15 +195,15 @@ def public_catalog(private_catalog):
 
 def select_clients(private_catalog, inbound_id, refs):
     if not refs or len(refs) > 100 or len(refs) != len(set(refs)):
-        raise ValueError("Invalid selected client references")
+        raise ValueError(message_text(MessageKey.BACKUP_CLIENTS_INVALID))
     sources = [s for s in private_catalog if s["id"] == inbound_id]
     if len(sources) != 1:
-        raise ValueError("Source inbound was not found")
+        raise ValueError(message_text(MessageKey.BACKUP_CLIENTS_INVALID))
     by_ref = {c["ref"]: c for c in sources[0]["clients"]}
     if len(by_ref) != len(sources[0]["clients"]):
-        raise ValueError("Ambiguous source clients")
+        raise ValueError(message_text(MessageKey.BACKUP_CLIENTS_INVALID))
     if any(ref not in by_ref or not by_ref[ref]["restorable"] for ref in refs):
-        raise ValueError("Client has missing/invalid subscription ID or UUID")
+        raise ValueError(message_text(MessageKey.BACKUP_CLIENTS_INVALID))
     selected = [dict(by_ref[ref]["data"]) for ref in refs]
     emails = [c["email"].lower() for c in selected]
     sub_ids = [c["subId"] for c in selected]
@@ -210,5 +213,5 @@ def select_clients(private_catalog, inbound_id, refs):
         or len(set(sub_ids)) != len(sub_ids)
         or len(set(uuids)) != len(uuids)
     ):
-        raise ValueError("Duplicate client identity in selected source")
+        raise ValueError(message_text(MessageKey.BACKUP_CLIENTS_INVALID))
     return selected

@@ -1,8 +1,3 @@
-import sqlite3
-import tempfile
-from pathlib import Path
-
-from app.backup_clients import public_catalog, read_catalog
 from app.config import Limits
 from app.entities import Backup, Node
 from app.ports import BackupFiles, BackupRepository, BackupValidator
@@ -59,15 +54,8 @@ class BackupService:
         return content
 
     def clients(self, backup_id: str):
-        """Bounded, read-only client catalog; private UUID/subId remain in the dump."""
-        content = self.content(backup_id)
-        with tempfile.TemporaryDirectory(prefix="nodekit-clients-") as folder:
-            source = Path(folder) / "source.db"
-            source.write_bytes(content)
-            try:
-                return public_catalog(read_catalog(source))
-            except (sqlite3.DatabaseError, ValueError, TypeError, KeyError) as exc:
-                raise ValidationError(message_text(MessageKey.BACKUP_CLIENTS_INVALID)) from exc
+        """Catalog only public client metadata after checksum and SQLite validation."""
+        return self.validator.clients(self.content(backup_id))
 
     def download(self, backup_id: str, *, manifest=False):
         metadata = self.backups.get(backup_id)

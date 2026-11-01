@@ -7,6 +7,7 @@ fields stay inside the authenticated SSH operation.
 
 import base64
 import binascii
+import sqlite3
 import tempfile
 import time
 from pathlib import Path
@@ -141,7 +142,7 @@ class BackupClientImporter:
                 clients = select_clients(
                     read_catalog(source), change["source_inbound_id"], change["client_refs"]
                 )
-            except (ValueError, KeyError, TypeError) as exc:
+            except (sqlite3.DatabaseError, ValueError, KeyError, TypeError) as exc:
                 raise RuntimeError(message_text(MessageKey.BACKUP_CLIENTS_INVALID)) from exc
 
         api = managed_api(context, self.inspector, base)
