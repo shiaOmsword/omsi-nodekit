@@ -53,6 +53,7 @@ def main():
         parser.add_argument("--" + name, type=Path, required=True)
     parser.add_argument("--sshd", type=Path)
     parser.add_argument("--ssh-backend", choices=("openssh", "paramiko"), default="openssh")
+    parser.add_argument("--outbound-format", choices=("flat", "vnext"), default="flat")
     args = parser.parse_args()
     if os.name != "posix" or os.geteuid() != 0:
         parser.error("Use a disposable Linux root environment")
@@ -432,6 +433,14 @@ https://localhost:{https_port}, https://127.0.0.1:{https_port} {{
                     },
                 },
             }
+            if args.outbound_format == "flat":
+                endpoint = source["settings"]["vnext"][0]
+                source["settings"] = {
+                    "address": endpoint["address"],
+                    "port": endpoint["port"],
+                    **endpoint["users"][0],
+                    "testseed": [900, 500, 900, 256],
+                }
             config = TunnelManager.template(api)
             config["outbounds"].append(source)
             # Only this isolated fixture targets a loopback HTTPS server.
@@ -530,6 +539,7 @@ https://localhost:{https_port}, https://127.0.0.1:{https_port} {{
                         "systemctl": "simulated; real generated SSH ExecStart used",
                         "live_VPS_modified": False,
                         "ssh_server": args.ssh_backend,
+                        "outbound_format": args.outbound_format,
                     }
                 )
             )
