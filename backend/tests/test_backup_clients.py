@@ -211,6 +211,7 @@ def importer(owned, monkeypatch, tmp_path):
         }
     }
     state = SimpleNamespace(clients=[], inbound=remote, calls=[], fail_on_second=False)
+
     def request(route, payload=None):
         state.calls.append(route)
         if route == "inbounds/get/2":
