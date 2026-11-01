@@ -8,8 +8,8 @@ from .network import (
     BackupClientImport,
     InboundChange,
     SubscriptionMaintenance,
-    TrafficRequest,
     TCPTuningRequest,
+    TrafficRequest,
     TunnelRequest,
     XHTTPChange,
 )
