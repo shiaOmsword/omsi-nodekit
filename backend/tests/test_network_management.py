@@ -636,6 +636,7 @@ def test_parameterized_plan_does_not_execute_and_revision_is_checked(settings, o
             == 422
         )
 
+
 def test_add_and_remove_client_keep_existing_identity_and_backup(managed, capsys):
     manager = managed.manager
     old = copy.deepcopy(managed.items[1])

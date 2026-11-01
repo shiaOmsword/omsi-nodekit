@@ -70,6 +70,7 @@ class TunnelRequest(TrafficRequest):
             raise ValueError(message_text(MessageKey.TUNNEL_CONFIG_INVALID))
         return self
 
+
 class XHTTPChange(StrictModel):
     """Managed XHTTP ingress. Private backend binds only to the Caddy host gateway."""
 
