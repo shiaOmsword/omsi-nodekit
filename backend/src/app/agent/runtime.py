@@ -20,8 +20,8 @@ from .existing_diagnostics import ExistingDiagnostics
 from .host import HostEnvironment
 from .inbound_manager import InboundManager
 from .inspection import InstallationInspector
-from .subscriptions import SubscriptionDiagnostics
 from .subscription_maintenance import SubscriptionMaintenanceAgent
+from .subscriptions import SubscriptionDiagnostics
 from .traffic_probe import TrafficProbe
 from .tunnel_manager import TunnelManager
 from .xhttp_manager import XHTTPManager

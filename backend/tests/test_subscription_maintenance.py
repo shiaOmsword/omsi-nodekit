@@ -11,8 +11,6 @@ from pydantic import ValidationError
 from app.agent.inbound_meta import public_inbound
 from app.agent.subscription_maintenance import (
     SubscriptionMaintenanceAgent,
-    dns_resolve,
-    owned_panel_container,
     public_subscription_probe,
     share_link_count,
     verify_client,
