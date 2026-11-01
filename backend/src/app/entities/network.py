@@ -1,3 +1,4 @@
+import re
 from typing import Literal
 
 from pydantic import Field, field_validator, model_validator
@@ -101,4 +102,20 @@ class XHTTPChange(StrictModel):
             raise ValueError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
         if any(ord(c) < 32 for c in self.remark):
             raise ValueError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
+        return self
+
+
+class BackupClientImport(StrictModel):
+    source_inbound_id: int = Field(gt=0)
+    target_inbound_id: int = Field(gt=0)
+    expected_fingerprint: str = Field(pattern=r"^[a-f0-9]{64}$")
+    client_refs: list[str] = Field(min_length=1, max_length=100)
+
+    @model_validator(mode="after")
+    def valid_refs(self):
+        if len(set(self.client_refs)) != len(self.client_refs) or any(
+            re.fullmatch(r"(?:n:[1-9][0-9]{0,12}|l:[0-9]{1,6})", item) is None
+            for item in self.client_refs
+        ):
+            raise ValueError(message_text(MessageKey.BACKUP_CLIENTS_INVALID))
         return self

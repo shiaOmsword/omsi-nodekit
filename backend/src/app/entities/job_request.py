@@ -4,7 +4,7 @@ from framework.messages import MessageKey
 from framework.messages import text as message_text
 
 from .base import StrictModel
-from .network import InboundChange, TrafficRequest, TunnelRequest, XHTTPChange
+from .network import BackupClientImport, InboundChange, TrafficRequest, TunnelRequest, XHTTPChange
 from .records import JobAction
 
 
@@ -16,6 +16,7 @@ class JobRequest(StrictModel):
     traffic: TrafficRequest | None = None
     tunnel: TunnelRequest | None = None
     xhttp: XHTTPChange | None = None
+    client_import: BackupClientImport | None = None
 
     @model_validator(mode="after")
     def operation_arguments(self):
@@ -27,4 +28,8 @@ class JobRequest(StrictModel):
             raise ValueError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
         if (self.action == JobAction.XHTTP) != (self.xhttp is not None):
             raise ValueError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
+        if (self.action == JobAction.CLIENT_IMPORT) != (self.client_import is not None):
+            raise ValueError(message_text(MessageKey.BACKUP_CLIENTS_INVALID))
+        if self.action == JobAction.CLIENT_IMPORT and not self.backup_id:
+            raise ValueError(message_text(MessageKey.RESTORE_BACKUP_REQUIRED))
         return self

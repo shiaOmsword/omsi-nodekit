@@ -191,6 +191,8 @@ WantedBy=multi-user.target
             steps.append(message_text(MessageKey.SUBSCRIPTION_CONFIGURE_PLAN))
         elif action == "inbound":
             steps.append(message_text(MessageKey.INBOUND_PLAN))
+        elif action == "client_import":
+            steps.append(message_text(MessageKey.CLIENT_IMPORT_PLAN))
         elif action == "xhttp":
             steps.append(message_text(MessageKey.XHTTP_APPLY_PLAN))
         elif action == "tunnel":
@@ -224,7 +226,7 @@ WantedBy=multi-user.target
             and node.deployment.caddy_mode == "existing"
         ):
             steps.append(message_text(MessageKey.NETWORK_COMPOSE_PLAN))
-        if action not in {"fresh", "restore", "configure", "inbound", "tunnel", "xhttp"}:
+        if action not in {"fresh", "restore", "configure", "inbound", "tunnel", "xhttp", "client_import"}:
             steps.append(message_text(MessageKey.PLAN_READ_ONLY))
         return {
             "action": action,
