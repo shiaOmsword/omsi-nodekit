@@ -75,10 +75,10 @@ class NodeService:
         node = self.factory.from_yaml(stored.yaml)
         if node.panel.installation != "managed":
             raise ValidationError(message_text(MessageKey.INBOUND_MANAGED_REQUIRED))
-        if request.action == JobAction.TUNNEL and request.tunnel.name not in {
-            t.name for t in node.tunnels
-        }:
-            raise ValidationError(message_text(MessageKey.TUNNEL_CONFIG_INVALID))
+        if request.action == JobAction.TUNNEL:
+            available = {t.name for t in node.tunnels}
+            if request.tunnel.name not in available or not set(request.tunnel.members) <= available:
+                raise ValidationError(message_text(MessageKey.TUNNEL_CONFIG_INVALID))
         plan = self.renderer.plan(node, request.action)
         return {
             **plan,

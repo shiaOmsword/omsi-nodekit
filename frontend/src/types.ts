@@ -10,7 +10,7 @@ export interface NodeRecord extends NodeSummary {
 }
 export type Action = 'check' | 'doctor' | 'fresh' | 'restore' | 'backup' | 'configure' | 'inbound' | 'traffic' | 'tunnel' | 'xhttp';
 export interface JobOptions {
-  tunnel?: { name: string; outbound_tag: string; id: number; expected_fingerprint: string };
+  tunnel?: { name: string; outbound_tag: string; id: number; expected_fingerprint: string; members?: string[]; pool_name?: string };
   inbound?: { id: number; expected_fingerprint: string; operation: 'update' | 'delete' | 'add_client' | 'delete_client'; client_email?: string; remark?: string; port?: number; server_name?: string; close_unmanaged_rule?: boolean };
   traffic?: { id: number; expected_fingerprint: string };
   xhttp?: { operation: 'create' | 'update'; id?: number; expected_fingerprint?: string; remark: string; domain: string; port: number; path: string; mode: 'auto' | 'packet-up' | 'stream-up'; client_email?: string };
@@ -188,6 +188,7 @@ export interface InstallationReport {
   }[] } | null;
   network_checks?: { name: string; state: 'ok' | 'error' | 'warning' | 'not_checked'; detail: string }[];
   traffic_checks?: { name: string; state: 'ok' | 'error' | 'warning' | 'not_checked'; detail: string }[];
+  tunnels?: { name: string; host: string; ssh_port: number; local_port: number; target_port: number; active: boolean; enabled: boolean }[];
   egress?: { readable: boolean; default_tag?: string | null; outbounds: { tag: string; protocol: string; via: string | null }[];
     rules: {index: number; inbound_tags: string[]; outbound_tag: string; balancer_tag: string; conditional: boolean}[]; warnings: string[] } | null;
 }

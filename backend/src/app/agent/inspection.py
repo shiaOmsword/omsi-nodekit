@@ -43,6 +43,25 @@ class InstallationInspector:
         self.report["firewall"] = public_firewall(inspect_firewall(self.context))
         self.report["network_checks"] = network_checks(self.context, self.report)
         self.report["egress"] = routing_inventory(self.context, self)
+        # Read-only systemd health; never claim that an active SSH process proves
+        # VLESS authentication or actual egress return traffic.
+        if capabilities.get("systemctl"):
+            self.report["tunnels"] = [
+                {
+                    "name": t["name"],
+                    "host": t["host"],
+                    "ssh_port": t["ssh_port"],
+                    "local_port": t["local_port"],
+                    "target_port": t["target_port"],
+                    "active": self.context.status(
+                        ["systemctl", "is-active", "--quiet", self.context.unit(t["name"])]
+                    ) == 0,
+                    "enabled": self.context.status(
+                        ["systemctl", "is-enabled", "--quiet", self.context.unit(t["name"])]
+                    ) == 0,
+                }
+                for t in self.context.node["tunnels"][:24]
+            ]
         self.publish()
         self.context.emit(message_text(MessageKey.INSPECTION_COMPLETED))
         return self.report
