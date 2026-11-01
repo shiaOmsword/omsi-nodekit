@@ -17,6 +17,7 @@ from app.backup_clients import read_catalog, select_clients
 from framework.messages import MessageKey
 from framework.messages import text as message_text
 
+from .client_external_sync import build_sync_plan, rollback_links, synchronize_links
 from .inbound_manager import configuration, managed_api
 from .inbound_meta import object_value, public_inbound
 
@@ -82,6 +83,9 @@ def conflict_if_existing(selected, existing, target, target_id):
 def new_payload(client, inbound, inbound_id):
     """Keep immutable identifiers and policy, adapt unsupported Vision flow."""
     data = dict(client)
+    # Backup-only metadata must never enter the 3x-ui Clients API.
+    data.pop("_external_links", None)
+    data.pop("_source_sub_uri", None)
     stream = object_value(inbound.get("streamSettings"))
     flow_supported = stream.get("security") == "reality" and stream.get("network", "tcp") in {
         "tcp",
@@ -141,8 +145,9 @@ class BackupClientImporter:
             source.chmod(0o600)
             try:
                 self.database.validate(source)
+                catalog = read_catalog(source)
                 clients = select_clients(
-                    read_catalog(source), change["source_inbound_id"], change["client_refs"]
+                    catalog, change["source_inbound_id"], change["client_refs"]
                 )
             except (sqlite3.DatabaseError, ValueError, KeyError, TypeError) as exc:
                 raise RuntimeError(message_text(MessageKey.BACKUP_CLIENTS_INVALID)) from exc
@@ -165,7 +170,12 @@ class BackupClientImporter:
         pending, skipped = conflict_if_existing(
             clients, records, before, change["target_inbound_id"]
         )
-        if not pending:
+        include_links = change.get("include_external_links", True)
+        link_plans, link_count = (
+            build_sync_plan(context, api, catalog, clients, records, pending)
+            if include_links else ([], 0)
+        )
+        if not pending and not link_plans:
             context.emit(message_text(MessageKey.CLIENT_IMPORT_SUCCEEDED, count=0, skipped=skipped))
             return
 
@@ -178,10 +188,14 @@ class BackupClientImporter:
             configuration(api.request(f"inbounds/get/{change['target_inbound_id']}"))
             != configuration(before)
             or api.request("clients/list") != records
+            or (link_plans and build_sync_plan(
+                context, api, catalog, clients, records, pending
+            )[0] != link_plans)
         ):
             raise RuntimeError(message_text(MessageKey.INBOUND_STALE))
 
         created = []
+        attempted_links = []
         try:
             for client in pending:
                 # Record the attempted identity before making the API request:
@@ -212,7 +226,10 @@ class BackupClientImporter:
                     or inbound_row.get("subId") != item["subId"]
                 ):
                     raise RuntimeError(message_text(MessageKey.INBOUND_IDENTITIES))
-            api.request("server/restartXrayService", {})
+            if link_plans:
+                synchronize_links(api, link_plans, attempted_links)
+            if pending:
+                api.request("server/restartXrayService", {})
             context.emit(
                 message_text(
                     MessageKey.CLIENT_IMPORT_SUCCEEDED,
@@ -220,7 +237,17 @@ class BackupClientImporter:
                     skipped=skipped,
                 )
             )
+            if link_count:
+                context.emit(
+                    message_text(
+                        MessageKey.CLIENT_EXTERNAL_SYNCED,
+                        count=link_count,
+                        owners=len(link_plans),
+                    )
+                )
         except Exception:
+            if attempted_links:
+                rollback_links(api, attempted_links, context.emit)
             # Roll back ONLY new identities still attached solely to this
             # inbound and matching the source's exact UUID + subId.
             for item in reversed(created):
@@ -239,7 +266,8 @@ class BackupClientImporter:
                 except Exception:
                     context.emit(message_text(MessageKey.DEPLOYMENT_ROLLBACK_FAILED), "error")
             try:
-                api.request("server/restartXrayService", {})
+                if created:
+                    api.request("server/restartXrayService", {})
             except Exception:
                 context.emit(message_text(MessageKey.DEPLOYMENT_ROLLBACK_FAILED), "error")
             raise
