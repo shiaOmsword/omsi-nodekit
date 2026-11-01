@@ -6,6 +6,15 @@ from .codes import MessageKey
 
 MESSAGES = MappingProxyType(
     {
+        MessageKey.TUNNEL_SOURCE_FORMAT: "Outbound {tag}: provide either flat VLESS settings.address/port/id or exactly one vnext endpoint with users; mixed or incomplete endpoint schemas are not supported",
+        MessageKey.TUNNEL_SOURCE_MISSING: "Outbound {tag} is missing, duplicated or is the managed SSH copy itself; select the original exit outbound and refresh discovery",
+        MessageKey.TUNNEL_SOURCE_UNSUPPORTED: "Outbound {tag}: SSH exit requires VLESS RAW/TCP with REALITY and no proxySettings, dialerProxy or sendThrough",
+        MessageKey.TUNNEL_ROUTE_OWNERSHIP: "Saved SSH outbound or route was changed, removed or assigned to another inbound; existing configuration was preserved",
+        MessageKey.TUNNEL_UNIT_CHANGED: "SSH service {unit} has a different fragment or content; the existing service was preserved",
+        MessageKey.TUNNEL_KEY_UNREADABLE: "Cannot verify read access to {path} as SSH service user {user}; check the path, permissions and runuser availability",
+        MessageKey.TUNNEL_SYSTEMD_FAILED: "Cannot inspect SSH service {unit}; verify systemd and systemctl availability on the VPS",
+        MessageKey.TUNNEL_LOCAL_PORT_BUSY: "SSH loopback port {port} is occupied; choose a free tunnels.local_port",
+        MessageKey.TUNNEL_ERROR_TYPE: "SSH tunnel failure type: {kind}; request/response bodies and credentials were suppressed",
         MessageKey.TUNNEL_CONFIG_INVALID: "Select a configured tunnel and a single-endpoint VLESS RAW/REALITY outbound without proxy chaining; refresh the selected inbound before applying",
         MessageKey.TUNNEL_APPLY_PLAN: "Verify the remote SSH identity and pinned host key; snapshot SQLite; install an owned loopback-only systemd SSH forward with keepalive/restart; verify real HTTPS through the exit inbound; clone the chosen outbound with UUID/REALITY preserved and route only the selected inbound through it; verify runtime and roll back on failure. Xray may restart",
         MessageKey.TUNNEL_APPLIED: "SSH tunnel {name}: HTTPS returned through the exit inbound; selected inbound now uses {tag}. Phone-to-Moscow connectivity is not tested",

@@ -15,6 +15,7 @@ from framework.messages import text as message_text
 from .egress import curl_probe, runtime_paths
 from .inbound_manager import managed_api
 from .inbound_meta import public_inbound
+from .tunnel_errors import TunnelPreflightError
 from .tunnel_forward import TunnelForward
 
 
@@ -35,11 +36,15 @@ def loopback_outbound(source, tag, local_port):
                 not isinstance(user, dict) or not user.get("id") for user in endpoints[0]["users"]
             )
         ):
-            raise ValueError()
+            raise TunnelPreflightError(
+                message_text(MessageKey.TUNNEL_SOURCE_FORMAT, tag=source["tag"])
+            )
         endpoint = endpoints[0]
     else:
         if not isinstance(settings.get("id"), str) or not settings["id"]:
-            raise ValueError()
+            raise TunnelPreflightError(
+                message_text(MessageKey.TUNNEL_SOURCE_FORMAT, tag=source["tag"])
+            )
         endpoint = settings
     port = endpoint.get("port")
     if (
@@ -49,7 +54,7 @@ def loopback_outbound(source, tag, local_port):
         or isinstance(port, bool)
         or not 1 <= port <= 65535
     ):
-        raise ValueError()
+        raise TunnelPreflightError(message_text(MessageKey.TUNNEL_SOURCE_FORMAT, tag=source["tag"]))
     endpoint.update(address="127.0.0.1", port=local_port)
     outbound["tag"] = tag
     return outbound
@@ -59,7 +64,7 @@ def routed_template(original, source_tag, tunnel, owned_tag, inbound_tag, previo
     config = copy.deepcopy(original)
     sources = [o for o in config.get("outbounds", []) if o.get("tag") == source_tag]
     if len(sources) != 1 or source_tag == owned_tag:
-        raise ValueError()
+        raise TunnelPreflightError(message_text(MessageKey.TUNNEL_SOURCE_MISSING, tag=source_tag))
     source = sources[0]
     stream = source.get("streamSettings") or {}
     if (
@@ -70,13 +75,15 @@ def routed_template(original, source_tag, tunnel, owned_tag, inbound_tag, previo
         or (stream.get("sockopt") or {}).get("dialerProxy")
         or source.get("sendThrough")
     ):
-        raise ValueError()
+        raise TunnelPreflightError(
+            message_text(MessageKey.TUNNEL_SOURCE_UNSUPPORTED, tag=source_tag)
+        )
     outbound = loopback_outbound(source, owned_tag, tunnel["local_port"])
     existing = [o for o in config["outbounds"] if o.get("tag") == owned_tag]
     if existing and (not previous or existing != [previous["outbound"]]):
-        raise ValueError()
+        raise TunnelPreflightError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
     if previous and not existing:
-        raise ValueError()
+        raise TunnelPreflightError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
     if existing:
         config["outbounds"] = [
             outbound if o.get("tag") == owned_tag else o for o in config["outbounds"]
@@ -86,15 +93,15 @@ def routed_template(original, source_tag, tunnel, owned_tag, inbound_tag, previo
     rules = config.setdefault("routing", {}).setdefault("rules", [])
     if previous:
         if previous["rule"].get("inboundTag") != [inbound_tag] or previous["rule"] not in rules:
-            raise ValueError()
+            raise TunnelPreflightError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
         if rules.count(previous["rule"]) != 1:
-            raise ValueError()
+            raise TunnelPreflightError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
         index = rules.index(previous["rule"])
         if any(r.get("outboundTag") == owned_tag for r in rules[:index] + rules[index + 1 :]):
-            raise ValueError()
+            raise TunnelPreflightError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
         return config, outbound, previous["rule"]
     if any(r.get("outboundTag") == owned_tag for r in rules):
-        raise ValueError()
+        raise TunnelPreflightError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
     rule = {"type": "field", "inboundTag": [inbound_tag], "outboundTag": owned_tag}
     protected = {o.get("tag") for o in config["outbounds"] if o.get("protocol") == "blackhole"}
     api_tag = (config.get("api") or {}).get("tag")
@@ -218,13 +225,15 @@ class TunnelManager:
             if len(tunnels) != 1 or request["name"] == "panel":
                 raise ValueError()
             tunnel = tunnels[0]
+            stage = self.stage("selected inbound freshness")
             inbound = public_inbound(api.request(f"inbounds/get/{request['id']}"))
             if (
                 not inbound["enabled"]
                 or not inbound["tag"]
                 or inbound["fingerprint"] != request["expected_fingerprint"]
             ):
-                raise ValueError()
+                raise TunnelPreflightError(message_text(MessageKey.INBOUND_STALE))
+            stage = self.stage("saved SSH ownership metadata")
             state_path = base / f"tunnel-{request['name']}.json"
             manifest_path = base / "manifest.json"
             for path in (state_path, manifest_path):
@@ -239,7 +248,9 @@ class TunnelManager:
                 # 3x-ui migrates the route tag when an inbound's port changes.
                 previous["rule"]["inboundTag"] = [inbound["tag"]]
             tag = f"ssh-{context.node['id']}-{tunnel['name']}"
+            stage = self.stage("local panel Xray template API")
             original = self.template(api)
+            stage = self.stage("exit outbound format and route ownership")
             proposed, outbound, rule = routed_template(
                 original,
                 request["outbound_tag"],
@@ -248,8 +259,10 @@ class TunnelManager:
                 inbound["tag"],
                 previous,
             )
+            stage = self.stage("SSH service, key files and local port")
             forward = TunnelForward(context, self.host, tunnel)
             forward.preflight()
+            stage = self.stage("private recovery snapshots")
             stamp = time.time_ns()
             self.database.snapshot(self.inspector.database(), base / f"before-tunnel-{stamp}.db")
             recovery = base / f"before-tunnel-{stamp}.json"
@@ -293,6 +306,12 @@ class TunnelManager:
                 private_write(path, data)
                 writes[path] = data
         except Exception as exc:
+            if isinstance(exc, TunnelPreflightError):
+                context.emit(str(exc), "error")
+            else:
+                context.emit(
+                    message_text(MessageKey.TUNNEL_ERROR_TYPE, kind=type(exc).__name__), "error"
+                )
             safe_to_stop = True
             if attempted:
                 try:

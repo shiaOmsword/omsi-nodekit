@@ -456,3 +456,66 @@ def test_incomplete_or_mixed_vless_schemas_fail_before_mutation(settings):
     with pytest.raises(ValueError):
         routed_template(config, "exit", {"local_port": 15443}, "ssh-msk-nd", "in-xhttp")
     assert config == before
+
+
+def test_schema_error_is_actionable_and_never_logs_settings(operation, capsys):
+    operation.state.config["outbounds"][-1]["settings"] = {
+        "address": "exit.example",
+        "port": 11474,
+        "testseed": "private-sensitive-value",
+    }
+    with pytest.raises(RuntimeError):
+        operation.manager.apply(operation.owned.base)
+    log = capsys.readouterr().out
+    assert "Outbound exit" in log and "vnext" in log and "flat VLESS" in log
+    assert "private-sensitive-value" not in log
+    assert "xray/update" not in operation.state.calls
+
+
+def test_failed_key_check_logs_only_user_and_path(operation, monkeypatch, capsys):
+    command = operation.owned.context.command
+
+    def fail_key(args, **kwargs):
+        if args[0] == "runuser":
+            raise RuntimeError("private-command-output")
+        return command(args, **kwargs)
+
+    monkeypatch.setattr(operation.owned.context, "command", fail_key)
+    with pytest.raises(RuntimeError):
+        operation.manager.apply(operation.owned.base)
+    log = capsys.readouterr().out
+    assert "/home/omsi/.ssh/gb" in log and "service user omsi" in log
+    assert "private-command-output" not in log
+
+
+def test_unexpected_api_error_is_classified_without_exposing_its_message(
+    operation, monkeypatch, capsys
+):
+    def broken_api(*args):
+        raise RuntimeError("private-api-response")
+
+    monkeypatch.setattr(operation.manager, "template", broken_api)
+    with pytest.raises(RuntimeError):
+        operation.manager.apply(operation.owned.base)
+    log = capsys.readouterr().out
+    assert "local panel Xray template API" in log and "RuntimeError" in log
+    assert "private-api-response" not in log
+
+
+def test_flat_outbound_runs_the_full_apply_and_reapply_path(operation):
+    source = operation.state.config["outbounds"][-1]
+    source["settings"] = {
+        "address": "exit.example",
+        "port": 11474,
+        "id": "private-uuid",
+        "encryption": "none",
+        "flow": "xtls-rprx-vision",
+        "testseed": [900, 500, 900, 256],
+    }
+    before = copy.deepcopy(source)
+    operation.manager.apply(operation.owned.base)
+    operation.manager.apply(operation.owned.base)
+    assert source == before
+    saved = operation.state.config["outbounds"][-1]
+    assert saved["settings"] == {**before["settings"], "address": "127.0.0.1", "port": 15443}
+    assert saved["streamSettings"] == before["streamSettings"]

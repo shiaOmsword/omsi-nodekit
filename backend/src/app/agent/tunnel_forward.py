@@ -2,6 +2,11 @@
 
 from pathlib import Path
 
+from framework.messages import MessageKey
+from framework.messages import text as message_text
+
+from .tunnel_errors import TunnelPreflightError
+
 
 class TunnelForward:
     def __init__(self, context, host, tunnel):
@@ -17,24 +22,41 @@ class TunnelForward:
         if self.path.is_symlink() or (
             self.path.exists() and self.path.read_text(encoding="utf-8") != self.content
         ):
-            raise ValueError()
-        fragment = context.command(
-            ["systemctl", "show", "-p", "FragmentPath", "--value", self.unit]
-        )
+            raise TunnelPreflightError(message_text(MessageKey.TUNNEL_UNIT_CHANGED, unit=self.unit))
+        try:
+            fragment = context.command(
+                ["systemctl", "show", "-p", "FragmentPath", "--value", self.unit]
+            )
+        except RuntimeError as exc:
+            raise TunnelPreflightError(
+                message_text(MessageKey.TUNNEL_SYSTEMD_FAILED, unit=self.unit)
+            ) from exc
         if fragment and Path(fragment) != self.path:
-            raise ValueError()
+            raise TunnelPreflightError(message_text(MessageKey.TUNNEL_UNIT_CHANGED, unit=self.unit))
         for key in ("identity_file", "known_hosts_file"):
-            context.command(["runuser", "-u", tunnel["user"], "--", "test", "-r", tunnel[key]])
+            try:
+                context.command(["runuser", "-u", tunnel["user"], "--", "test", "-r", tunnel[key]])
+            except RuntimeError as exc:
+                raise TunnelPreflightError(
+                    message_text(
+                        MessageKey.TUNNEL_KEY_UNREADABLE, user=tunnel["user"], path=tunnel[key]
+                    )
+                ) from exc
         self.enabled = context.status(["systemctl", "is-enabled", "--quiet", self.unit]) == 0
         self.active = context.status(["systemctl", "is-active", "--quiet", self.unit]) == 0
         if not self.active:
-            self.host.require_endpoint(tunnel["local_port"], "127.0.0.1")
+            try:
+                self.host.require_endpoint(tunnel["local_port"], "127.0.0.1")
+            except RuntimeError as exc:
+                raise TunnelPreflightError(
+                    message_text(MessageKey.TUNNEL_LOCAL_PORT_BUSY, port=tunnel["local_port"])
+                ) from exc
 
     def start(self):
         if self.path.is_symlink() or (
             self.path.exists() and self.path.read_text(encoding="utf-8") != self.content
         ):
-            raise ValueError()
+            raise TunnelPreflightError(message_text(MessageKey.TUNNEL_UNIT_CHANGED, unit=self.unit))
         if not self.path.exists():
             with self.path.open("x", encoding="utf-8") as file:
                 file.write(self.content)
@@ -54,7 +76,7 @@ class TunnelForward:
         if not (self.touched or self.created):
             return
         if self.path.is_symlink() or self.path.read_text(encoding="utf-8") != self.content:
-            raise ValueError()
+            raise TunnelPreflightError(message_text(MessageKey.TUNNEL_UNIT_CHANGED, unit=self.unit))
         if not self.active:
             self.context.command(["systemctl", "stop", self.unit])
         if not self.enabled:

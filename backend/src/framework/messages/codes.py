@@ -17,6 +17,15 @@ class ErrorCode(StrEnum):
 
 
 class MessageKey(StrEnum):
+    TUNNEL_SOURCE_FORMAT = "tunnel_source_format"
+    TUNNEL_SOURCE_MISSING = "tunnel_source_missing"
+    TUNNEL_SOURCE_UNSUPPORTED = "tunnel_source_unsupported"
+    TUNNEL_ROUTE_OWNERSHIP = "tunnel_route_ownership"
+    TUNNEL_UNIT_CHANGED = "tunnel_unit_changed"
+    TUNNEL_KEY_UNREADABLE = "tunnel_key_unreadable"
+    TUNNEL_SYSTEMD_FAILED = "tunnel_systemd_failed"
+    TUNNEL_LOCAL_PORT_BUSY = "tunnel_local_port_busy"
+    TUNNEL_ERROR_TYPE = "tunnel_error_type"
     TUNNEL_CONFIG_INVALID = "tunnel_config_invalid"
     TUNNEL_APPLY_PLAN = "tunnel_apply_plan"
     TUNNEL_APPLIED = "tunnel_applied"
