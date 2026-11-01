@@ -155,6 +155,14 @@ class TunnelFinding(Entity):
     enabled: bool
 
 
+class TCPTuningFinding(Entity):
+    current: str
+    available: list[str]
+    managed_algorithm: str | None = None
+    conflict: bool = False
+    fingerprint: str
+
+
 class InstallationReport(Entity):
     observed_at: str
     ssh_host: str | None = None
@@ -172,6 +180,7 @@ class InstallationReport(Entity):
     egress: dict | None = None
     traffic_checks: list[EndpointCheck] = Field(default_factory=list)
     tunnels: list[TunnelFinding] = Field(default_factory=list)
+    tcp_tuning: TCPTuningFinding | None = None
 
 
 class KeySelection(Entity):

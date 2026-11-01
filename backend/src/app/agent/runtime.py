@@ -22,6 +22,7 @@ from .inbound_manager import InboundManager
 from .inspection import InstallationInspector
 from .subscription_maintenance import SubscriptionMaintenanceAgent
 from .subscriptions import SubscriptionDiagnostics
+from .tcp_tuning import TCPConfigurator
 from .traffic_probe import TrafficProbe
 from .tunnel_manager import TunnelManager
 from .xhttp_manager import XHTTPManager
@@ -116,6 +117,8 @@ class RemoteAgent:
                 finally:
                     inspector = InstallationInspector(context)
                     inspector.inspect()
+            elif action == "tcp_tuning":
+                TCPConfigurator(context).apply()
             elif action == "traffic":
                 inspector.inspect()
                 try:

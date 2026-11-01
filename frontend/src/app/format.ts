@@ -1,6 +1,7 @@
 import type { Action, Job, JobDetail } from '../types';
 
 export const actionLabels: Record<Action, { title: string; description: string }> = {
+  tcp_tuning: { title: "TCP / BBR", description: "Проверить и сохранить TCP congestion control на VPS. Действующие SSH-сессии не перезапускаются." },
   subscription_maintenance: { title: 'Обслуживание подписок', description: 'Проверить публичный HTTPS/DNS или вручную перезапустить только управляемую 3x-ui для очистки серверного кэша.' },
   client_import: { title: 'Клиенты из бэкапа', description: 'Выборочно восстановить VLESS-клиентов, не меняя их UUID и ID подписки.' },
   xhttp: { title: 'VLESS / XHTTP', description: 'Приватный XHTTP inbound, публичный HTTPS в Caddy и scoped UFW.' },

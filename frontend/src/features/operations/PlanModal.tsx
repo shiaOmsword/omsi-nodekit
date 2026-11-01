@@ -62,9 +62,9 @@ export function PlanModal({
           <>
             <div className="plan-context">
               <span
-                className={'tag ' + (['fresh', 'restore', 'configure', 'inbound', 'tunnel', 'xhttp', 'client_import', 'subscription_maintenance'].includes(action) ? 'tag-warning' : '')}
+                className={'tag ' + (['fresh', 'restore', 'configure', 'inbound', 'tunnel', 'xhttp', 'client_import', 'subscription_maintenance', 'tcp_tuning'].includes(action) ? 'tag-warning' : '')}
               >
-                {['fresh', 'restore', 'configure', 'inbound', 'tunnel', 'xhttp'].includes(action) || (action === 'subscription_maintenance' && plan.options?.subscription_maintenance?.mode === 'clear_server_cache')
+                {['fresh', 'restore', 'configure', 'inbound', 'tunnel', 'xhttp', 'tcp_tuning'].includes(action) || (action === 'subscription_maintenance' && plan.options?.subscription_maintenance?.mode === 'clear_server_cache')
                   ? 'Изменяет сервер'
                   : 'Сервисы на VPS не изменяются'}
               </span>
@@ -115,6 +115,7 @@ export function PlanModal({
                 установкой.
               </p>
             )}
+            {action === 'tcp_tuning' && <p className="feature-hint">Изменяется системный алгоритм для новых TCP-сокетов и управляемые Nodekit sysctl/modules-load файлы. Действующие SSH-сессии не переключаются автоматически; для них требуется отдельное переподключение. Чужие файлы конфигурации сохраняются.</p>}
             {action === 'subscription_maintenance' && <p className="feature-hint">
               Аудит читает настройки, DNS и один публичный URL подписки без изменения сервисов.
               Ручной сброс серверного кэша реализован только через перезапуск принадлежащего Nodekit контейнера 3x-ui и может прервать VPN-соединения. Кэш V2BOX, Hiddify, DNS ОС и shared Caddy не затрагиваются.

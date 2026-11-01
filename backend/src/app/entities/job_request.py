@@ -8,6 +8,7 @@ from .network import (
     BackupClientImport,
     InboundChange,
     SubscriptionMaintenance,
+    TCPTuningRequest,
     TrafficRequest,
     TunnelRequest,
     XHTTPChange,
@@ -21,6 +22,7 @@ class JobRequest(StrictModel):
     revision: str = Field(pattern=r"^[a-f0-9]{64}$")
     inbound: InboundChange | None = None
     traffic: TrafficRequest | None = None
+    tcp_tuning: TCPTuningRequest | None = None
     tunnel: TunnelRequest | None = None
     xhttp: XHTTPChange | None = None
     client_import: BackupClientImport | None = None
@@ -30,6 +32,8 @@ class JobRequest(StrictModel):
     def operation_arguments(self):
         if (self.action == JobAction.INBOUND) != (self.inbound is not None):
             raise ValueError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
+        if (self.action == JobAction.TCP_TUNING) != (self.tcp_tuning is not None):
+            raise ValueError(message_text(MessageKey.TCP_TUNING_REQUEST_INVALID))
         if (self.action == JobAction.TRAFFIC) != (self.traffic is not None):
             raise ValueError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
         if (self.action == JobAction.TUNNEL) != (self.tunnel is not None):

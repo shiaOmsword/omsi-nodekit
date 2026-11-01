@@ -6,6 +6,13 @@ from .codes import MessageKey
 
 MESSAGES = MappingProxyType(
     {
+        MessageKey.TCP_TUNING_REQUEST_INVALID: "Choose BBR or CUBIC with the latest TCP settings fingerprint",
+        MessageKey.TCP_TUNING_PLAN: "Verify TCP congestion algorithm and owned configuration; set BBR/CUBIC for new sockets and persist across reboot; preserve existing SSH/Xray/Caddy processes; roll back on failure",
+        MessageKey.TCP_TUNING_STALE: "TCP settings changed after discovery; refresh before applying",
+        MessageKey.TCP_TUNING_UNAVAILABLE: "TCP congestion settings are unreadable or the kernel algorithm is unavailable",
+        MessageKey.TCP_TUNING_CONFLICT: "Nodekit TCP settings file contains foreign content or is a symlink; preserve and resolve manually",
+        MessageKey.TCP_TUNING_FAILED: "TCP congestion update failed; rollback of Nodekit files and the previous algorithm was attempted",
+        MessageKey.TCP_TUNING_APPLIED: "TCP congestion control: {algorithm}; persisted for reboot. Existing TCP and SSH connections unchanged",
         MessageKey.XHTTP_APPLY_PLAN: "Проверить выбранную managed-панель, уникальность домена и порта, приватную сеть Caddy и неизменность конфигурации; создать/обновить VLESS XHTTP inbound без перегенерации существующих клиентов, сохранить SQLite-снимок, добавить только свой Caddy site и scoped UFW rule, проверить результаты и откатить при ошибке. Xray/Caddy могут перезагрузиться",
         MessageKey.BACKUP_CLIENTS_INVALID: "SQLite backup has missing, inconsistent or unsupported VLESS clients; no identities were imported",
         MessageKey.CLIENT_IMPORT_PLAN: "Read the selected verified SQLite backup; compare source client identities against every client on the destination 3x-ui; reject email/UUID/subId conflicts; snapshot the destination SQLite; create only missing clients through the 3x-ui Clients API; verify unchanged subscription IDs; attempt scoped rollback of newly created identities if an error occurs. Caddy, Docker, existing inbounds, routes and SSH tunnels are not changed",
