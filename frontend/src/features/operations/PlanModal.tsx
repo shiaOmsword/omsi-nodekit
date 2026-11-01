@@ -49,7 +49,7 @@ export function PlanModal({
             loading={busy}
             icon={<Play size={16} />}
           >
-            {plan?.options?.inbound?.operation === 'delete' ? 'Удалить inbound' : 'Запустить операцию'}
+            {plan?.options?.inbound?.operation === 'delete' ? 'Удалить inbound' : plan?.options?.subscription_maintenance?.mode === 'clear_server_cache' ? 'Перезапустить 3x-ui' : 'Запустить операцию'}
           </Button>
         </>
       }

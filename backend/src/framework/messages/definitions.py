@@ -58,6 +58,7 @@ MESSAGES = MappingProxyType(
         MessageKey.SUB_CACHE_AUDIT_PLAN: "Read managed panel settings, resolve public DNS and inspect a selected subscription through public HTTPS without revealing its URL, UUID or subId",
         MessageKey.SUB_CACHE_RESTART_PLAN: "Only after explicit confirmation: restart the Docker Compose service=panel container owned by this Nodekit project to clear in-memory 3x-ui caches; brief VPN disruption is expected. Never restart Caddy, Docker daemon, SSH, OS DNS or user devices",
         MessageKey.SUB_CACHE_PUBLIC_URL_MISMATCH: "Current 3x-ui subURI differs from the configured public HTTPS subscription root; check domain, port, path and Caddy",
+        MessageKey.SUB_CACHE_DNS_FAILED: "Public domain could not be resolved by this VPS DNS; this says nothing about client application caches",
         MessageKey.SUB_CACHE_DNS_CHECK: "Public DNS for {host}: {addresses} (resolved by this VPS; other resolvers and mobile devices may differ)",
         MessageKey.SUB_CACHE_TLS_OK: "Public HTTPS subscription: HTTP {status}, {count} share links; HTTP Cache-Control: {cache_control}; no client tokens were logged",
         MessageKey.SUB_CACHE_TLS_FAILED: "Could not retrieve a real subscription over public HTTPS from this VPS; verify DNS, TLS certificate, Caddy and nested subscription reachability",

@@ -140,7 +140,7 @@ def owned_panel_container(context, inspector):
     container = selected.get("container")
     if selected.get("installation") != "managed" or not container:
         raise RuntimeError(message_text(MessageKey.SUB_CACHE_RESTART_GUARD))
-    if context.node.get("deployment", {}).get("panel_runtime") != "docker":
+    if (context.node.get("deployment") or {}).get("panel_runtime") != "docker":
         raise RuntimeError(message_text(MessageKey.SUB_CACHE_RESTART_GUARD))
     try:
         result = json.loads(context.command(["docker", "inspect", container]))
@@ -233,7 +233,7 @@ class SubscriptionMaintenanceAgent:
                     ),
                 )
             except (OSError, ValueError):
-                context.emit(message_text(MessageKey.SUB_CACHE_TLS_FAILED), "warning")
+                context.emit(message_text(MessageKey.SUB_CACHE_DNS_FAILED), "warning")
         if sub_id and expected:
             try:
                 status, count, cache_control = public_subscription_probe(context, sub_id)

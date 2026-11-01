@@ -71,6 +71,7 @@ class MessageKey(StrEnum):
     SUB_CACHE_RESTART_PLAN = "sub_cache_restart_plan"
     SUB_CACHE_PUBLIC_URL_MISMATCH = "sub_cache_public_url_mismatch"
     SUB_CACHE_DNS_CHECK = "sub_cache_dns_check"
+    SUB_CACHE_DNS_FAILED = "sub_cache_dns_failed"
     SUB_CACHE_TLS_OK = "sub_cache_tls_ok"
     SUB_CACHE_TLS_FAILED = "sub_cache_tls_failed"
     SUB_CACHE_CLIENT_INVALID = "sub_cache_client_invalid"

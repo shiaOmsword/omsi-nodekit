@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Activity, RefreshCw, ShieldAlert, Users } from 'lucide-react';
+import { Activity, RefreshCw, ShieldAlert } from 'lucide-react';
 import { api } from '../../framework/api';
 import { parse } from 'yaml';
 import { Alert, Button, Loading, PageHeading, StatusBadge } from '../../framework/components';
@@ -33,7 +33,7 @@ export function SubscriptionsPage({
   const [reading, setReading] = useState(false);
   const [error, setError] = useState('');
   const [inboundId, setInboundId] = useState<number | null>(null);
-  const [clientEmail, setClientEmail] = useState('');
+  const [clientEmail, setClientEmail] = useState('__first__');
   const [acknowledged, setAcknowledged] = useState(false);
 
   const latestReportIds = useMemo(
@@ -56,7 +56,7 @@ export function SubscriptionsPage({
     setRecord(null);
     setReport(null);
     setInboundId(null);
-    setClientEmail('');
+    setClientEmail('__first__');
     setAcknowledged(false);
     if (!selectedId) {
       setReading(false);
@@ -101,11 +101,13 @@ export function SubscriptionsPage({
     : [];
   const inbound = inbounds.find((item) => item.id === inboundId) || inbounds[0];
   const clients = inbound?.clients || [];
-  const chosenEmail = clients.some((client) => client.email === clientEmail)
-    ? clientEmail : clients.find((client) => client.enabled && client.has_subscription)?.email || '';
+  const chosenEmail = clientEmail === '__first__'
+    ? clients.find((client) => client.enabled && client.has_subscription)?.email || ''
+    : clients.some((client) => client.email === clientEmail) ? clientEmail : '';
   const managed = record && panel?.installation === 'managed';
   const canAudit = !!managed && !!inbound?.fingerprint && !reading && !busy && !needsRefresh;
-  const restartAllowed = canAudit && record?.yaml.includes('panel_runtime: docker') === true
+  const nodeConfig = record ? parse(record.yaml) : null;
+  const restartAllowed = canAudit && nodeConfig?.deployment?.panel_runtime === 'docker'
     && !!panel?.container;
   const lastAudit = jobs.find((job) => job.node_id === selectedId && job.action === 'subscription_maintenance');
 
@@ -140,7 +142,7 @@ export function SubscriptionsPage({
           <select aria-label="Выбрать VLESS inbound" value={inbound?.id || ''}
             disabled={!inbounds.length} onChange={(e) => {
               setInboundId(Number(e.target.value) || null);
-              setClientEmail('');
+              setClientEmail('__first__');
               setAcknowledged(false);
             }}>
             {!inbounds.length && <option value="">Сначала выполни обнаружение</option>}
@@ -219,10 +221,10 @@ export function SubscriptionsPage({
             <p>{item.description}</p>
           </div>)}
         </div>
-        <Alert tone="warning">В 3x-ui 3.11.0 нет отдельного API для сброса кэша
-          вложенных подписок. Принудительный сброс требует перезапуска **только**
+        <div className="info-banner" role="note">В 3x-ui 3.11.0 нет отдельного API для сброса кэша
+          вложенных подписок. Принудительный сброс требует перезапуска только
           принадлежащего Nodekit Docker-контейнера панели. Это затронет все inbound
-          этой панели и может кратко отключить VPN; Caddy и SSH не перезапускаются.</Alert>
+          этой панели и может кратко отключить VPN; Caddy и SSH не перезапускаются.</div>
         <label className="feature-hint">
           <input type="checkbox" checked={acknowledged} onChange={(e) => setAcknowledged(e.target.checked)} />
           Я понимаю, что VPN-сессии на этой панели могут прерваться
