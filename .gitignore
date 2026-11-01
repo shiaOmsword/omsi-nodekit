@@ -80,3 +80,21 @@ backend/config/*.local.yaml
 playwright-report/
 test-results/
 *.tsbuildinfo
+
+# Extra local/production secrets (patterns are a safety net, not secret scanning)
+.ssh/
+known_hosts
+authorized_keys
+id_rsa*
+id_ecdsa*
+id_ed25519*
+*.p8
+*.p12
+*.pfx
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
+*.db-journal
+*.ovpn
+*.age
