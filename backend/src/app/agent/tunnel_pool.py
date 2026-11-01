@@ -250,6 +250,7 @@ class TunnelPoolManager:
                 raise ValueError()
             api.request("server/restartXrayService", {})
             stage = "runtime and egress verification"
+
             def active():
                 try:
                     path, _ = __import__(
@@ -263,6 +264,7 @@ class TunnelPoolManager:
                     )
                 except (OSError, ValueError, TypeError, KeyError, AttributeError):
                     return False
+
             manager.wait(active)
             for outbound in record["outbounds"]:
                 manager.probe(outbound)

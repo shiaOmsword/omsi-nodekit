@@ -72,6 +72,7 @@ class TunnelRequest(TrafficRequest):
 
 class XHTTPChange(StrictModel):
     """Managed XHTTP ingress. Private backend binds only to the Caddy host gateway."""
+
     operation: Literal["create", "update"] = "create"
     id: int | None = Field(default=None, gt=0)
     expected_fingerprint: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")

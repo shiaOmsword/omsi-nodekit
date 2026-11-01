@@ -28,15 +28,11 @@ def tests_tunnels():
 def test_pool_preserves_source_and_uses_blocked_fallback():
     source = template()
     source_before = copy.deepcopy(source)
-    updated, record = pool_template(
-        source, "exit", "ultra", "nd-pool", tests_tunnels(), "in-xhttp"
-    )
+    updated, record = pool_template(source, "exit", "ultra", "nd-pool", tests_tunnels(), "in-xhttp")
     assert source == source_before
     assert updated["outbounds"][:3] == source["outbounds"]
     assert len(updated["outbounds"]) == 6
-    assert {o["settings"]["vnext"][0]["port"] for o in record["outbounds"]} == {
-        15443, 15444, 15445
-    }
+    assert {o["settings"]["vnext"][0]["port"] for o in record["outbounds"]} == {15443, 15444, 15445}
     assert record["balancer"]["strategy"]["type"] == "roundRobin"
     assert record["balancer"]["fallbackTag"] == "blocked"
     assert record["balancer"]["selector"] == ["ssh-ultra-pool-nd-pool-"]
@@ -46,7 +42,12 @@ def test_pool_preserves_source_and_uses_blocked_fallback():
     assert updated["observatory"]["subjectSelector"] == ["ssh-ultra-pool-nd-pool-"]
     assert updated["observatory"]["probeInterval"] == "15s"
     repeat, repeat_record = pool_template(
-        updated, "exit", "ultra", "nd-pool", tests_tunnels(), "in-xhttp",
+        updated,
+        "exit",
+        "ultra",
+        "nd-pool",
+        tests_tunnels(),
+        "in-xhttp",
         previous=record,
     )
     assert repeat == updated and repeat_record == record
@@ -57,7 +58,12 @@ def test_pool_can_migrate_exact_owned_single_without_changing_default():
         template(), "exit", tests_tunnels()[0], "ssh-ultra-nd", "in-xhttp"
     )
     new, record = pool_template(
-        original, "exit", "ultra", "nd-pool", tests_tunnels(), "in-xhttp",
+        original,
+        "exit",
+        "ultra",
+        "nd-pool",
+        tests_tunnels(),
+        "in-xhttp",
         single={"outbound": single_outbound, "rule": single_rule},
     )
     assert single_outbound not in new["outbounds"]
@@ -74,8 +80,9 @@ def test_pool_rejects_foreign_changes_and_missing_failclosed_fallback():
     wrong = copy.deepcopy(source)
     wrong["outbounds"][-1]["settings"]["vnext"][0]["port"] = 12345
     with pytest.raises(ValueError):
-        pool_template(wrong, "exit", "ultra", "nd-pool", tests_tunnels(),
-                      "in-xhttp", previous=record)
+        pool_template(
+            wrong, "exit", "ultra", "nd-pool", tests_tunnels(), "in-xhttp", previous=record
+        )
     unblocked = template()
     unblocked["outbounds"] = [o for o in unblocked["outbounds"] if o["tag"] != "blocked"]
     with pytest.raises(ValueError):
@@ -85,24 +92,28 @@ def test_pool_rejects_foreign_changes_and_missing_failclosed_fallback():
 def test_pool_preserves_existing_unrelated_observer():
     source = template()
     source["observatory"] = {
-        "subjectSelector": ["external-"], "probeInterval": "20s",
-        "probeUrl": "https://example.com/", "enableConcurrency": False
+        "subjectSelector": ["external-"],
+        "probeInterval": "20s",
+        "probeUrl": "https://example.com/",
+        "enableConcurrency": False,
     }
-    result, _ = pool_template(
-        source, "exit", "ultra", "nd-pool", tests_tunnels(), "in-xhttp"
-    )
+    result, _ = pool_template(source, "exit", "ultra", "nd-pool", tests_tunnels(), "in-xhttp")
     assert source["observatory"]["subjectSelector"] == ["external-"]
-    assert result["observatory"]["subjectSelector"] == [
-        "external-", "ssh-ultra-pool-nd-pool-"
-    ]
+    assert result["observatory"]["subjectSelector"] == ["external-", "ssh-ultra-pool-nd-pool-"]
 
 
 def test_multi_ssh_request_requires_valid_unique_members():
     base = {
-        "action": "tunnel", "revision": "a" * 64,
-        "tunnel": {"name": "nd", "id": 1, "outbound_tag": "exit",
-                   "expected_fingerprint": "f" * 64,
-                   "pool_name": "nd-pool", "members": ["nd", "nd-2", "nd-3"]},
+        "action": "tunnel",
+        "revision": "a" * 64,
+        "tunnel": {
+            "name": "nd",
+            "id": 1,
+            "outbound_tag": "exit",
+            "expected_fingerprint": "f" * 64,
+            "pool_name": "nd-pool",
+            "members": ["nd", "nd-2", "nd-3"],
+        },
     }
     assert JobRequest.model_validate(base).tunnel.members == ["nd", "nd-2", "nd-3"]
     for items in ([], ["nd"], ["nd", "nd"], ["nd-2", "nd"]):
@@ -113,8 +124,14 @@ def test_multi_ssh_request_requires_valid_unique_members():
 
 
 def test_xhttp_site_preserves_original_path_and_h2c_private_transport():
-    route = {"id": 2, "domain": "vpn.example.com", "path": "/xhttp-ultra/",
-             "port": 10080, "listen": "172.30.50.1", "mode": "auto"}
+    route = {
+        "id": 2,
+        "domain": "vpn.example.com",
+        "path": "/xhttp-ultra/",
+        "port": 10080,
+        "listen": "172.30.50.1",
+        "mode": "auto",
+    }
     snippet = site_for(route)
     assert "@nodekit_xhttp path /xhttp-ultra/*" in snippet
     assert "handle @nodekit_xhttp" in snippet
@@ -129,11 +146,21 @@ def test_xhttp_site_preserves_original_path_and_h2c_private_transport():
 
 
 def test_xhttp_validation_rejects_uncertain_adoption_and_invalid_paths():
-    base = dict(operation="create", remark="xhttp-ultra", domain="vpn.example.com",
-                port=10080, path="/xhttp-ultra/", mode="auto")
+    base = dict(
+        operation="create",
+        remark="xhttp-ultra",
+        domain="vpn.example.com",
+        port=10080,
+        path="/xhttp-ultra/",
+        mode="auto",
+    )
     assert XHTTPChange.model_validate(base).operation == "create"
-    for changed in (dict(path="/invalid path/"), dict(domain="no-dots"),
-                    dict(operation="update"), dict(operation="create", id=4)):
+    for changed in (
+        dict(path="/invalid path/"),
+        dict(domain="no-dots"),
+        dict(operation="update"),
+        dict(operation="create", id=4),
+    ):
         with pytest.raises(ValidationError):
             XHTTPChange.model_validate({**base, **changed})
 
@@ -141,28 +168,61 @@ def test_xhttp_validation_rejects_uncertain_adoption_and_invalid_paths():
 def test_private_xhttp_backend_generates_only_bridge_scoped_ufw(owned, monkeypatch):
     context = owned.context
     monkeypatch.setattr(context, "directory", lambda: owned.base)
-    context.node["deployment"].update(caddy_id="docker:shared-caddy",
-                                      subscription_bind="172.30.50.1")
-    (owned.base / "xhttp-routes.json").write_text(json.dumps([
-        {"id": 2, "domain": "vpn.example.com", "path": "/xhttp/",
-         "port": 10080, "listen": "172.30.50.1", "mode": "auto"}
-    ]))
+    context.node["deployment"].update(
+        caddy_id="docker:shared-caddy", subscription_bind="172.30.50.1"
+    )
+    (owned.base / "xhttp-routes.json").write_text(
+        json.dumps(
+            [
+                {
+                    "id": 2,
+                    "domain": "vpn.example.com",
+                    "path": "/xhttp/",
+                    "port": 10080,
+                    "listen": "172.30.50.1",
+                    "mode": "auto",
+                }
+            ]
+        )
+    )
     proxy = {
-        "id": "docker:shared-caddy", "installation": "docker", "container": "shared-caddy",
+        "id": "docker:shared-caddy",
+        "installation": "docker",
+        "container": "shared-caddy",
         "bridge_networks": [
-            {"gateway": "172.30.50.1", "subnet": "172.30.50.0/24",
-             "interface": "br-example"}
+            {"gateway": "172.30.50.1", "subnet": "172.30.50.0/24", "interface": "br-example"}
         ],
     }
-    report = {"caddy": [proxy], "panels": [{
-        "id": "managed:ultra", "inbounds": [
-            {"id": 2, "enabled": True, "network": "xhttp",
-             "listen": "172.30.50.1", "protocol": "vless", "port": 10080}
+    report = {
+        "caddy": [proxy],
+        "panels": [
+            {
+                "id": "managed:ultra",
+                "inbounds": [
+                    {
+                        "id": 2,
+                        "enabled": True,
+                        "network": "xhttp",
+                        "listen": "172.30.50.1",
+                        "protocol": "vless",
+                        "port": 10080,
+                    }
+                ],
+            }
         ],
-    }], "selected_panel": "managed:ultra"}
+        "selected_panel": "managed:ultra",
+    }
     rules = desired_rules(context, report)
-    assert rule_spec(10080, source="172.30.50.0/24", destination="172.30.50.1",
-                     interface="br-example", scope="xhttp") in rules
+    assert (
+        rule_spec(
+            10080,
+            source="172.30.50.0/24",
+            destination="172.30.50.1",
+            interface="br-example",
+            scope="xhttp",
+        )
+        in rules
+    )
     assert rule_spec(10080) not in rules
 
 
@@ -170,11 +230,17 @@ def test_xhttp_manager_creates_owned_site_and_inbound_without_touching_other_sit
     owned, monkeypatch, capsys
 ):
     context = owned.context
-    context.payload["options"] = {"xhttp": {
-        "operation": "create", "remark": "phone-xhttp", "domain": "vpn.example.com",
-        "port": 10080, "path": "/xhttp-ultra/", "mode": "auto",
-        "client_email": "phone",
-    }}
+    context.payload["options"] = {
+        "xhttp": {
+            "operation": "create",
+            "remark": "phone-xhttp",
+            "domain": "vpn.example.com",
+            "port": 10080,
+            "path": "/xhttp-ultra/",
+            "mode": "auto",
+            "client_email": "phone",
+        }
+    }
     items = {}
     next_id = 2
     def request(path, data=None):
@@ -193,12 +259,19 @@ def test_xhttp_manager_creates_owned_site_and_inbound_without_touching_other_sit
         if path == "server/restartXrayService":
             return None
         raise AssertionError(path)
-    monkeypatch.setattr("app.agent.xhttp_manager.managed_api",
-                        lambda *args: SimpleNamespace(request=request))
-    monkeypatch.setattr("app.agent.firewall.inspect_firewall",
-                        lambda *args: {"state": "unavailable", "rules": [], "warnings": []})
-    manager = XHTTPManager(context, SimpleNamespace(require_endpoint=lambda *a: None),
-                           owned.operation.database, owned.inspector)
+    monkeypatch.setattr(
+        "app.agent.xhttp_manager.managed_api", lambda *args: SimpleNamespace(request=request)
+    )
+    monkeypatch.setattr(
+        "app.agent.firewall.inspect_firewall",
+        lambda *args: {"state": "unavailable", "rules": [], "warnings": []},
+    )
+    manager = XHTTPManager(
+        context,
+        SimpleNamespace(require_endpoint=lambda *a: None),
+        owned.operation.database,
+        owned.inspector,
+    )
     manager.apply(owned.base)
     assert len(items) == 1
     assert items[2]["listen"] == "127.0.0.1"
