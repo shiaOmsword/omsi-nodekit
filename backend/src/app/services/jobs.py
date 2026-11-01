@@ -103,7 +103,7 @@ class JobService:
             JobAction.SUBSCRIPTION_MAINTENANCE,
         }:
             expected = str(action)
-            if node.panel.installation != "managed" or not options or set(options) != {expected}:
+            if (action != JobAction.TCP_TUNING and node.panel.installation != "managed") or not options or set(options) != {expected}:
                 raise ValidationError(message_text(MessageKey.INBOUND_MANAGED_REQUIRED))
         if action == JobAction.TUNNEL:
             available = {t.name for t in node.tunnels}
