@@ -6,7 +6,6 @@ raw share links are never auto-adopted: 3x-ui may fetch remote subscriptions.
 """
 
 import ipaddress
-import sqlite3
 from collections import defaultdict
 from urllib.parse import urlsplit
 
