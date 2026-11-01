@@ -12,6 +12,7 @@ import uuid
 from contextlib import closing
 from pathlib import Path
 
+from app.backup_external_links import read_external_links
 from framework.messages import MessageKey
 from framework.messages import text as message_text
 
@@ -116,6 +117,11 @@ def read_catalog(path):
             relation = {r[1] for r in db.execute("PRAGMA table_info(client_inbounds)")}
             if not required_clients <= actual or not {"client_id", "inbound_id"} <= relation:
                 raise ValueError(message_text(MessageKey.BACKUP_CLIENTS_INVALID))
+            source_clients = db.execute("SELECT id, sub_id FROM clients").fetchall()
+            subscriber_ids = {
+                row["id"]: row["sub_id"] for row in source_clients if isinstance(row["sub_id"], str)
+            }
+            external_by_id, source_sub_uri = read_external_links(db, subscriber_ids)
             flow_override = "ci.flow_override" if "flow_override" in relation else "''"
             rows = db.execute(
                 "SELECT i.id AS source_inbound_id, c.*, "
@@ -135,6 +141,8 @@ def read_catalog(path):
                 client = {field: row[name] for name, field in FIELDS.items() if name in actual}
                 if isinstance(row["selected_flow"], str) and row["selected_flow"]:
                     client["flow"] = row["selected_flow"]
+                client["_external_links"] = external_by_id.get(row["id"], [])
+                client["_source_sub_uri"] = source_sub_uri
                 _append(
                     found,
                     source["id"],
@@ -172,7 +180,7 @@ def read_catalog(path):
 
 
 def public_catalog(private_catalog):
-    """Never return UUIDs, subIds, secrets or raw settings to the browser."""
+    """Return link counts and same-inbound dependencies, never tokens or URLs."""
     return {
         "inbounds": [
             {
@@ -182,8 +190,21 @@ def public_catalog(private_catalog):
                 "client_count": len(source["clients"]),
                 "clients": [
                     {
-                        key: item[key]
-                        for key in ("ref", "email", "enabled", "has_subscription", "restorable")
+                        **{
+                            key: item[key]
+                            for key in ("ref", "email", "enabled", "has_subscription", "restorable")
+                        },
+                        "external_link_count": len(item["data"].get("_external_links", [])),
+                        "external_links_compatible": all(
+                            link.get("_compatible", False)
+                            for link in item["data"].get("_external_links", [])
+                        ),
+                        "depends_on": [
+                            dependent["ref"]
+                            for link in item["data"].get("_external_links", [])
+                            for dependent in source["clients"]
+                            if dependent["data"].get("subId") == link.get("_ref_sub_id")
+                        ],
                     }
                     for item in source["clients"]
                 ],

@@ -106,6 +106,7 @@ class XHTTPChange(StrictModel):
 
 
 class BackupClientImport(StrictModel):
+    include_external_links: bool = True
     source_inbound_id: int = Field(gt=0)
     target_inbound_id: int = Field(gt=0)
     expected_fingerprint: str = Field(pattern=r"^[a-f0-9]{64}$")
