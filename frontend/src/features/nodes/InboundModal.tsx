@@ -42,3 +42,29 @@ export function InboundModal({ record, inbound, remove, busy, error, onClose, on
       <p className="feature-hint">Xray может кратковременно перезапуститься. После смены порта/SNI обнови подписку в клиентах. Здесь подготавливается только план; запуск — следующим подтверждением.</p></div>
   </FormDialog>;
 }
+
+export function ClientModal({ record, inbound, remove, busy, error, onClose, onPreview }: {
+  record: NodeRecord; inbound: InboundFinding; remove: boolean; busy: boolean; error: string;
+  onClose: () => void; onPreview: (options: JobOptions) => void;
+}) {
+  const clients = inbound.clients.map((c) => c.email).filter(Boolean);
+  const [values, setValues] = useState<FormValues>({ email: remove ? clients[0] || '' : '', confirm: false });
+  const fields: FormField[] = remove
+    ? [{ name: 'email', label: 'Клиент', type: 'select', required: true,
+        options: clients.map((email) => ({ value: email, label: email })) },
+      { name: 'confirm', label: 'Удалить выбранного клиента без удаления inbound', type: 'checkbox', required: true }]
+    : [{ name: 'email', label: 'Имя нового клиента', required: true, maxLength: 80,
+        pattern: '[a-zA-Z0-9][a-zA-Z0-9_.@\\-]{0,79}',
+        hint: 'UUID и ID подписки создаются на VPS; секретные идентификаторы не включаются в отчёт.' }];
+  return <FormDialog title={remove ? 'Удалить клиента' : 'Добавить клиента'}
+    description={record.name + ' · ' + inbound.remark} fields={fields} values={values}
+    onChange={(name, value) => setValues((v) => ({ ...v, [name]: value }))}
+    onSubmit={() => {
+      if (!values.email || (remove && !values.confirm)) return;
+      onPreview({ inbound: { id: inbound.id, expected_fingerprint: inbound.fingerprint!,
+        operation: remove ? 'delete_client' : 'add_client', client_email: String(values.email) } });
+    }}
+    onClose={onClose} busy={busy} error={error} submit="Посмотреть план">
+    <p className="feature-hint">Сначала Nodekit сохранит SQLite-снимок. Изменится только список клиентов выбранного VLESS inbound; остальные настройки не пересоздаются.</p>
+  </FormDialog>;
+}

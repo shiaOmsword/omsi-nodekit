@@ -11,7 +11,7 @@ export interface NodeRecord extends NodeSummary {
 export type Action = 'check' | 'doctor' | 'fresh' | 'restore' | 'backup' | 'configure' | 'inbound' | 'traffic' | 'tunnel';
 export interface JobOptions {
   tunnel?: { name: string; outbound_tag: string; id: number; expected_fingerprint: string };
-  inbound?: { id: number; expected_fingerprint: string; operation: 'update' | 'delete'; remark?: string; port?: number; server_name?: string; close_unmanaged_rule?: boolean };
+  inbound?: { id: number; expected_fingerprint: string; operation: 'update' | 'delete' | 'add_client' | 'delete_client'; client_email?: string; remark?: string; port?: number; server_name?: string; close_unmanaged_rule?: boolean };
   traffic?: { id: number; expected_fingerprint: string };
 }
 export interface Job {

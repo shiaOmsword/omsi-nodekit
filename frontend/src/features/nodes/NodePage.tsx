@@ -50,6 +50,7 @@ export function NodePage({
   onImport,
   preferredBackup,
   onInbound,
+  onClient,
   onTraffic,
   onTunnel,
 }: {
@@ -65,6 +66,7 @@ export function NodePage({
   onImport: (done?: (backup: Backup) => void) => void;
   preferredBackup?: string;
   onInbound: (item: InboundFinding, remove: boolean) => void;
+  onClient: (item: InboundFinding, remove: boolean) => void;
   onTraffic: (item: InboundFinding) => void;
   onTunnel: () => void;
 }) {
@@ -453,7 +455,7 @@ export function NodePage({
         <div className="row-actions"><Button disabled={locked || !canDeploy || !report} onClick={onTunnel}>SSH-выход</Button><Button disabled={locked} onClick={() => onPlan('check')}>Обновить</Button><Button variant="primary" disabled={locked || !canDeploy} onClick={onDeployment}>Добавить inbound</Button></div></div>
         <div className="card-content">{report?.selected_panel ? report.panels.filter((p) => p.id === report.selected_panel).map((panel) => <InboundReport key={panel.id} panel={panel} busy={locked}
           onEdit={panel.installation === 'managed' ? (item) => onInbound(item, false) : undefined}
-          onDelete={(item) => onInbound(item, true)} onTest={onTraffic} />) :
+          onDelete={(item) => onInbound(item, true)} onTest={onTraffic} onClient={onClient} />) :
           <EmptyState title="Нужен актуальный отчёт выбранной панели" description="Запусти обнаружение и выбери установку 3x-ui." />}</div></section>}
       {route.tab === 'network' && <section className="card"><div className="section-heading"><div><h2>Сеть и диагностика</h2><p>UFW, публикации Caddy, подписки и маршруты Xray.</p></div>
         <Button disabled={locked} onClick={() => onPlan('doctor')}>Запустить диагностику</Button></div><div className="card-content">

@@ -635,3 +635,45 @@ def test_parameterized_plan_does_not_execute_and_revision_is_checked(settings, o
             ).status_code
             == 422
         )
+
+def test_add_and_remove_client_keep_existing_identity_and_backup(managed, capsys):
+    manager = managed.manager
+    old = copy.deepcopy(managed.items[1])
+    managed.context.payload["options"]["inbound"] = {
+        "id": 1,
+        "operation": "add_client",
+        "client_email": "extra@example.com",
+        "expected_fingerprint": public_inbound(old)["fingerprint"],
+    }
+    manager.apply(managed.base)
+    clients = managed.items[1]["settings"]["clients"]
+    assert len(clients) == 2
+    assert clients[0] == old["settings"]["clients"][0]
+    assert clients[1]["email"] == "extra@example.com"
+    assert clients[1]["id"] and clients[1]["subId"]
+    assert managed.items[1]["streamSettings"] == old["streamSettings"]
+    assert list(managed.base.glob("before-client-*.db"))
+    assert clients[1]["id"] not in capsys.readouterr().out
+
+    managed.context.payload["options"]["inbound"]["operation"] = "delete_client"
+    manager.apply(managed.base)
+    assert managed.items[1] == old
+
+
+def test_client_mutations_reject_missing_duplicate_and_stale(managed):
+    context = managed.context
+    original = copy.deepcopy(managed.items[1])
+    for operation, email in [("add_client", "client"), ("delete_client", "missing")]:
+        context.payload["options"]["inbound"] = {
+            "id": 1, "operation": operation, "client_email": email,
+            "expected_fingerprint": public_inbound(original)["fingerprint"],
+        }
+        with pytest.raises(RuntimeError):
+            managed.manager.apply(managed.base)
+    context.payload["options"]["inbound"] = {
+        "id": 1, "operation": "add_client", "client_email": "different",
+        "expected_fingerprint": "0" * 64,
+    }
+    with pytest.raises(RuntimeError):
+        managed.manager.apply(managed.base)
+    assert managed.items[1] == original

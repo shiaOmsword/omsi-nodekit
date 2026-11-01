@@ -25,8 +25,9 @@ export function SubscriptionReport({ report }: { report: InstallationReport }) {
   </div>;
 }
 
-export function InboundReport({ panel, busy = false, onEdit, onDelete, onTest }: { panel: PanelFinding; busy?: boolean;
-  onEdit?: (item: InboundFinding) => void; onDelete?: (item: InboundFinding) => void; onTest?: (item: InboundFinding) => void }) {
+export function InboundReport({ panel, busy = false, onEdit, onDelete, onTest, onClient }: { panel: PanelFinding; busy?: boolean;
+  onEdit?: (item: InboundFinding) => void; onDelete?: (item: InboundFinding) => void; onTest?: (item: InboundFinding) => void;
+  onClient?: (item: InboundFinding, remove: boolean) => void }) {
   if (!panel.inbounds_readable) return <p className="feature-hint">Inbound не прочитаны. Повтори обнаружение после обновления Nodekit; существующие записи не изменяются.</p>;
   const inbounds = panel.inbounds || [];
   return <div className="report-section">
@@ -44,6 +45,8 @@ export function InboundReport({ panel, busy = false, onEdit, onDelete, onTest }:
           </small>)}</td>
           {onEdit && <td><div className="inbound-actions">
             <Button small disabled={busy || !item.fingerprint} onClick={() => onEdit(item)}>Изменить</Button>
+            {onClient && item.protocol === 'vless' && <Button small disabled={busy || !item.fingerprint} onClick={() => onClient(item, false)}>+ Клиент</Button>}
+            {onClient && item.protocol === 'vless' && item.clients.length > 0 && <Button small disabled={busy || !item.fingerprint} onClick={() => onClient(item, true)}>− Клиент</Button>}
             <Button small disabled={busy || !item.fingerprint || !item.enabled || item.protocol !== 'vless' || item.security !== 'reality' || !['tcp', 'raw'].includes(item.network)} onClick={() => onTest?.(item)}>Проверить трафик</Button>
             <Button small className="danger-button" disabled={busy || !item.fingerprint} onClick={() => onDelete?.(item)}>Удалить</Button>
           </div></td>}
