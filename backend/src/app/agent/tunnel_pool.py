@@ -82,7 +82,8 @@ def pool_template(
                 expected = loopback_outbound(source, tag, tunnel["local_port"])
                 if (
                     saved.get("outbound") != expected
-                    or saved.get("rule") != {
+                    or saved.get("rule")
+                    != {
                         "type": "field",
                         "inboundTag": [inbound_tag],
                         "outboundTag": tag,
@@ -96,13 +97,12 @@ def pool_template(
             # Another rule or balancer referencing an old single tag may not
             # be owned by this pool; replacing it could break a third-party route.
             owned_rules = [row["rule"] for row in singles]
-            if any(
-                r.get("outboundTag") in old_tags
-                for r in rules
-                if r not in owned_rules
-            ) or any(
-                any(t == selector or t.startswith(selector) for selector in b.get("selector", [])
-                    for t in old_tags)
+            if any(r.get("outboundTag") in old_tags for r in rules if r not in owned_rules) or any(
+                any(
+                    t == selector or t.startswith(selector)
+                    for selector in b.get("selector", [])
+                    for t in old_tags
+                )
                 for b in routing.get("balancers", [])
             ):
                 raise TunnelPreflightError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
@@ -332,7 +332,8 @@ class TunnelPoolManager:
             manifest["node"]["tunnels"] = list(applied.values())
             record.update(inbound_id=request["id"], pool_name=pool_name)
             record["migrated_names"] = (
-                previous.get("migrated_names", []) if previous
+                previous.get("migrated_names", [])
+                if previous
                 else [row["name"] for row in single_records]
             )
             changes = {pool_path: record, manifest_path: manifest}
