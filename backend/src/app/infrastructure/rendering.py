@@ -193,8 +193,7 @@ WantedBy=multi-user.target
             steps.append(message_text(MessageKey.INBOUND_PLAN))
         elif action == "client_import":
             steps.append(message_text(MessageKey.CLIENT_IMPORT_PLAN))
-            if options and options.get("client_import", {}).get("include_external_links", True):
-                steps.append(message_text(MessageKey.CLIENT_EXTERNAL_PLAN))
+            steps.append(message_text(MessageKey.CLIENT_EXTERNAL_PLAN))
         elif action == "xhttp":
             steps.append(message_text(MessageKey.XHTTP_APPLY_PLAN))
         elif action == "tunnel":
