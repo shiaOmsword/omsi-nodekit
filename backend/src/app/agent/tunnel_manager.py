@@ -18,6 +18,43 @@ from .inbound_meta import public_inbound
 from .tunnel_forward import TunnelForward
 
 
+def loopback_outbound(source, tag, local_port):
+    """Keep both supported VLESS schemas intact; change only the dial endpoint."""
+    outbound = copy.deepcopy(source)
+    settings = outbound.get("settings") or {}
+    if "vnext" in settings:
+        endpoints = settings["vnext"]
+        if (
+            any(key in settings for key in ("address", "port", "id"))
+            or not isinstance(endpoints, list)
+            or len(endpoints) != 1
+            or not isinstance(endpoints[0], dict)
+            or not isinstance(endpoints[0].get("users"), list)
+            or not endpoints[0]["users"]
+            or any(
+                not isinstance(user, dict) or not user.get("id") for user in endpoints[0]["users"]
+            )
+        ):
+            raise ValueError()
+        endpoint = endpoints[0]
+    else:
+        if not isinstance(settings.get("id"), str) or not settings["id"]:
+            raise ValueError()
+        endpoint = settings
+    port = endpoint.get("port")
+    if (
+        not isinstance(endpoint.get("address"), str)
+        or not endpoint["address"]
+        or not isinstance(port, int)
+        or isinstance(port, bool)
+        or not 1 <= port <= 65535
+    ):
+        raise ValueError()
+    endpoint.update(address="127.0.0.1", port=local_port)
+    outbound["tag"] = tag
+    return outbound
+
+
 def routed_template(original, source_tag, tunnel, owned_tag, inbound_tag, previous=None):
     config = copy.deepcopy(original)
     sources = [o for o in config.get("outbounds", []) if o.get("tag") == source_tag]
@@ -25,12 +62,8 @@ def routed_template(original, source_tag, tunnel, owned_tag, inbound_tag, previo
         raise ValueError()
     source = sources[0]
     stream = source.get("streamSettings") or {}
-    endpoints = (source.get("settings") or {}).get("vnext", [])
     if (
         source.get("protocol") != "vless"
-        or len(endpoints) != 1
-        or not endpoints[0].get("users")
-        or not endpoints[0].get("address")
         or stream.get("network", "tcp") not in {"tcp", "raw"}
         or stream.get("security") != "reality"
         or source.get("proxySettings")
@@ -38,9 +71,7 @@ def routed_template(original, source_tag, tunnel, owned_tag, inbound_tag, previo
         or source.get("sendThrough")
     ):
         raise ValueError()
-    outbound = copy.deepcopy(source)
-    outbound["tag"] = owned_tag
-    outbound["settings"]["vnext"][0].update(address="127.0.0.1", port=tunnel["local_port"])
+    outbound = loopback_outbound(source, owned_tag, tunnel["local_port"])
     existing = [o for o in config["outbounds"] if o.get("tag") == owned_tag]
     if existing and (not previous or existing != [previous["outbound"]]):
         raise ValueError()
