@@ -15,7 +15,7 @@ from .tunnel_manager import TunnelManager, loopback_outbound, private_write, rou
 
 
 def pool_template(
-    original, source_tag, node_id, pool_name, tunnels, inbound_tag, previous=None, single=None
+    original, source_tag, node_id, pool_name, tunnels, inbound_tag, previous=None, singles=None
 ):
     """Return a copy, private ownership record. Never mutate shared Xray objects."""
     config = copy.deepcopy(original)
@@ -36,7 +36,8 @@ def pool_template(
         loopback_outbound(source, tag, tunnel["local_port"])
         for tag, tunnel in zip(pool_tags, tunnels)
     ]
-    if previous and single:
+    singles = singles or []
+    if previous and singles:
         raise TunnelPreflightError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
     if previous:
         if previous.get("source_tag") != source_tag or previous.get("inbound_tag") != inbound_tag:
@@ -60,18 +61,57 @@ def pool_template(
         routing = config.setdefault("routing", {})
         old_balancer_index = len(routing.setdefault("balancers", []))
         rule_index = 0
-        if single:
-            if (
-                single.get("rule", {}).get("inboundTag") != [inbound_tag]
-                or config["outbounds"].count(single["outbound"]) != 1
-                or routing.setdefault("rules", []).count(single["rule"]) != 1
+        if singles:
+            # A node can already have several individually installed, owned SSH
+            # outbounds for the same inbound. Replace all of them atomically,
+            # never just the first route or the first systemd service.
+            rules = routing.setdefault("rules", [])
+            source_by_name = {t["name"]: t for t in tunnels}
+            old_indices = []
+            old_tags = set()
+            if len({row["name"] for row in singles}) != len(singles):
+                raise TunnelPreflightError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
+            for saved in singles:
+                name = saved["name"]
+                tunnel = source_by_name.get(name)
+                tag = f"ssh-{node_id}-{name}"
+                if tunnel is None or tag in old_tags:
+                    raise TunnelPreflightError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
+                # Ensure existing credentials, transport, local TCP port and
+                # owner tag all match the selected original VLESS outbound.
+                expected = loopback_outbound(source, tag, tunnel["local_port"])
+                if (
+                    saved.get("outbound") != expected
+                    or saved.get("rule") != {
+                        "type": "field",
+                        "inboundTag": [inbound_tag],
+                        "outboundTag": tag,
+                    }
+                    or config["outbounds"].count(expected) != 1
+                    or rules.count(saved["rule"]) != 1
+                ):
+                    raise TunnelPreflightError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
+                old_indices.append(rules.index(saved["rule"]))
+                old_tags.add(tag)
+            # Another rule or balancer referencing an old single tag may not
+            # be owned by this pool; replacing it could break a third-party route.
+            owned_rules = [row["rule"] for row in singles]
+            if any(
+                r.get("outboundTag") in old_tags
+                for r in rules
+                if r not in owned_rules
+            ) or any(
+                any(t == selector or t.startswith(selector) for selector in b.get("selector", [])
+                    for t in old_tags)
+                for b in routing.get("balancers", [])
             ):
                 raise TunnelPreflightError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
-            rule_index = routing["rules"].index(single["rule"])
-            config["outbounds"].remove(single["outbound"])
-            routing["rules"].remove(single["rule"])
-            if any(r.get("outboundTag") == single["outbound"]["tag"] for r in routing["rules"]):
-                raise TunnelPreflightError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
+            rule_index = min(old_indices)
+            for saved in singles:
+                config["outbounds"].remove(saved["outbound"])
+                rules.remove(saved["rule"])
+            # Removing earlier owned rules shifts the insertion index.
+            rule_index -= sum(i < rule_index for i in old_indices)
         else:
             protected = {"blocked"}
             if (config.get("api") or {}).get("tag"):
@@ -152,36 +192,43 @@ class TunnelPoolManager:
         pool_name = request["pool_name"]
         pool_path = base / f"pool-{pool_name}.json"
         manifest_path = base / "manifest.json"
-        primary_path = base / f"tunnel-{names[0]}.json"
-        if any(p.is_symlink() for p in (pool_path, manifest_path, primary_path)):
+        if any(p.is_symlink() for p in (pool_path, manifest_path)):
             raise RuntimeError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
-        originals = {
-            p: p.read_bytes() if p.is_file() else None
-            for p in (pool_path, manifest_path, primary_path)
-        }
+        originals = {p: p.read_bytes() if p.is_file() else None for p in (pool_path, manifest_path)}
         previous = json.loads(originals[pool_path]) if originals[pool_path] else None
-        single = json.loads(originals[primary_path]) if originals[primary_path] else None
-        if previous:
-            if (
-                previous.get("inbound_id") != request["id"]
-                or previous.get("source_tag") != request["outbound_tag"]
-                or (single and single.get("pooled_into") != pool_name)
-            ):
-                raise RuntimeError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
-            single_to_migrate = None
-        else:
-            if single and (single.get("inbound_id") != request["id"] or single.get("pooled_into")):
-                raise RuntimeError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
-            single_to_migrate = single
-        # Refuse parallel ownership for one ingress, including earlier single links.
+        if previous and (
+            previous.get("inbound_id") != request["id"]
+            or previous.get("source_tag") != request["outbound_tag"]
+            or previous.get("members") != names
+        ):
+            # Changing pool membership would also need an explicit operation
+            # to retire unused systemd units. Do not leak orphan SSH sessions.
+            raise RuntimeError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
+
+        # Discover all owned single routes for this inbound. Previously only
+        # tunnel-<first-member>.json was considered, even when another selected
+        # member already had a valid Nodekit-managed route.
+        single_records = []
         for path in base.glob("tunnel-*.json"):
-            if path == primary_path:
-                continue
-            if path.is_symlink():
+            if path.is_symlink() or not path.is_file():
                 raise RuntimeError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
-            state = json.loads(path.read_text(encoding="utf-8"))
-            if state.get("inbound_id") == request["id"] and state.get("pooled_into") != pool_name:
-                raise RuntimeError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
+            name = path.name[len("tunnel-") : -len(".json")]
+            state_bytes = path.read_bytes()
+            state = json.loads(state_bytes)
+            if name in names or state.get("inbound_id") == request["id"]:
+                originals[path] = state_bytes
+                if state.get("pooled_into") == pool_name and previous:
+                    if state.get("inbound_id") != request["id"] or name not in names:
+                        raise RuntimeError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
+                    continue
+                if (
+                    name not in names
+                    or state.get("inbound_id") != request["id"]
+                    or state.get("pooled_into")
+                    or previous
+                ):
+                    raise RuntimeError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
+                single_records.append({"name": name, **state})
         for path in base.glob("pool-*.json"):
             if path == pool_path:
                 continue
@@ -189,6 +236,15 @@ class TunnelPoolManager:
                 raise RuntimeError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
             state = json.loads(path.read_text(encoding="utf-8"))
             if state.get("inbound_id") == request["id"]:
+                raise RuntimeError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
+        if previous:
+            migrated = previous.get("migrated_names", [])
+            if any(
+                (base / f"tunnel-{name}.json") not in originals
+                or json.loads(originals[base / f"tunnel-{name}.json"]).get("pooled_into")
+                != pool_name
+                for name in migrated
+            ):
                 raise RuntimeError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
         forwards, attempted = [], False
         original = proposed = None
@@ -213,7 +269,7 @@ class TunnelPoolManager:
                 tunnels,
                 inbound["tag"],
                 previous,
-                single_to_migrate,
+                single_records,
             )
             if previous and previous.get("members") == names and proposed == original:
                 # Idempotent, but still verify live transport before reporting success.
@@ -275,13 +331,15 @@ class TunnelPoolManager:
                 applied[tunnel["name"]] = tunnel
             manifest["node"]["tunnels"] = list(applied.values())
             record.update(inbound_id=request["id"], pool_name=pool_name)
-            if single_to_migrate:
-                record["migrated_single"] = single_to_migrate
-            elif previous and previous.get("migrated_single"):
-                record["migrated_single"] = previous["migrated_single"]
+            record["migrated_names"] = (
+                previous.get("migrated_names", []) if previous
+                else [row["name"] for row in single_records]
+            )
             changes = {pool_path: record, manifest_path: manifest}
-            if single_to_migrate:
-                changes[primary_path] = {**single_to_migrate, "pooled_into": pool_name}
+            for row in single_records:
+                path = base / f"tunnel-{row['name']}.json"
+                state = {k: v for k, v in row.items() if k != "name"}
+                changes[path] = {**state, "pooled_into": pool_name}
             for path, value in changes.items():
                 if (
                     path.is_symlink()
