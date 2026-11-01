@@ -51,17 +51,18 @@ def conflict_if_existing(selected, existing, target, target_id):
 
     pending, skipped = [], 0
     for item in selected:
-        email, uid, sub = (
-            item["email"].lower(), item["id"].lower(), item["subId"]
-        )
+        email, uid, sub = (item["email"].lower(), item["id"].lower(), item["subId"])
         current = by_email.get(email)
         if current:
             current_id = str(current.get("uuid") or current.get("id") or "").lower()
             if current_id != uid or current.get("subId") != sub:
                 raise RuntimeError(message_text(MessageKey.CLIENT_IMPORT_CONFLICT))
             target_entry = by_target.get(email)
-            if (not target_entry or str(target_entry.get("id", "")).lower() != uid
-                    or target_entry.get("subId") != sub):
+            if (
+                not target_entry
+                or str(target_entry.get("id", "")).lower() != uid
+                or target_entry.get("subId") != sub
+            ):
                 # An account on a different inbound requires a separate
                 # attachment workflow; don't silently change its memberships.
                 raise RuntimeError(message_text(MessageKey.CLIENT_IMPORT_CONFLICT))
@@ -81,18 +82,28 @@ def new_payload(client, inbound, inbound_id):
     """Keep immutable identifiers and policy, adapt unsupported Vision flow."""
     data = dict(client)
     stream = object_value(inbound.get("streamSettings"))
-    flow_supported = (
-        stream.get("security") == "reality"
-        and stream.get("network", "tcp") in {"tcp", "raw"}
-    )
+    flow_supported = stream.get("security") == "reality" and stream.get("network", "tcp") in {
+        "tcp",
+        "raw",
+    }
     if not flow_supported:
         data["flow"] = ""
     # These numeric/boolean values are account settings, not old traffic counters.
-    for key in ("totalGB", "expiryTime", "limitIp", "reset", "resetDay",
-                "resetWeekday", "resetMax", "tgId", "trafficResetDay"):
+    for key in (
+        "totalGB",
+        "expiryTime",
+        "limitIp",
+        "reset",
+        "resetDay",
+        "resetWeekday",
+        "resetMax",
+        "tgId",
+        "trafficResetDay",
+    ):
         value = data.get(key)
-        if value is not None and (isinstance(value, bool)
-                                  or not isinstance(value, int) or value < 0):
+        if value is not None and (
+            isinstance(value, bool) or not isinstance(value, int) or value < 0
+        ):
             raise RuntimeError(message_text(MessageKey.BACKUP_CLIENTS_INVALID))
     data["enable"] = bool(data.get("enable", True))
     # Source host rule IDs/traffic/counter IDs must not be copied across panels.
@@ -136,13 +147,16 @@ class BackupClientImporter:
         api = managed_api(context, self.inspector, base)
         before = api.request(f"inbounds/get/{change['target_inbound_id']}")
         if (
-            not isinstance(before, dict) or before.get("protocol") != "vless"
+            not isinstance(before, dict)
+            or before.get("protocol") != "vless"
             or public_inbound(before)["fingerprint"] != change["expected_fingerprint"]
         ):
             raise RuntimeError(message_text(MessageKey.INBOUND_STALE))
         records = api.request("clients/list")
-        if not isinstance(records, list) or len(records) > 5000 or any(
-            not isinstance(v, dict) for v in records
+        if (
+            not isinstance(records, list)
+            or len(records) > 5000
+            or any(not isinstance(v, dict) for v in records)
         ):
             raise RuntimeError(message_text(MessageKey.BACKUP_CLIENTS_INVALID))
         pending, skipped = conflict_if_existing(
@@ -178,8 +192,7 @@ class BackupClientImporter:
             if not isinstance(after, list):
                 raise RuntimeError(message_text(MessageKey.DEPLOYMENT_API_FAILED))
             by_email = {
-                str(row.get("email", "")).lower(): row
-                for row in after if isinstance(row, dict)
+                str(row.get("email", "")).lower(): row for row in after if isinstance(row, dict)
             }
             actual = api.request(f"inbounds/get/{change['target_inbound_id']}")
             attached = {
@@ -190,9 +203,8 @@ class BackupClientImporter:
                 global_row = by_email.get(item["email"].lower(), {})
                 inbound_row = attached.get(item["email"].lower(), {})
                 if (
-                    identity(global_row) != (
-                        item["email"].lower(), item["id"].lower(), item["subId"]
-                    )
+                    identity(global_row)
+                    != (item["email"].lower(), item["id"].lower(), item["subId"])
                     or str(inbound_row.get("id", "")).lower() != item["id"].lower()
                     or inbound_row.get("subId") != item["subId"]
                 ):
@@ -201,7 +213,8 @@ class BackupClientImporter:
             context.emit(
                 message_text(
                     MessageKey.CLIENT_IMPORT_SUCCEEDED,
-                    count=len(pending), skipped=skipped,
+                    count=len(pending),
+                    skipped=skipped,
                 )
             )
         except Exception:
@@ -214,21 +227,14 @@ class BackupClientImporter:
                     if not isinstance(result, dict):
                         continue
                     saved = result.get("client", {})
-                    if (
-                        result.get("inboundIds") == [change["target_inbound_id"]]
-                        and identity(saved) == (
-                            item["email"].lower(), item["id"].lower(), item["subId"]
-                        )
-                    ):
+                    if result.get("inboundIds") == [change["target_inbound_id"]] and identity(
+                        saved
+                    ) == (item["email"].lower(), item["id"].lower(), item["subId"]):
                         api.request("clients/del/" + quote(item["email"], safe=""), {})
                     else:
-                        context.emit(
-                            message_text(MessageKey.DEPLOYMENT_ROLLBACK_FAILED), "error"
-                        )
+                        context.emit(message_text(MessageKey.DEPLOYMENT_ROLLBACK_FAILED), "error")
                 except Exception:
-                    context.emit(
-                        message_text(MessageKey.DEPLOYMENT_ROLLBACK_FAILED), "error"
-                    )
+                    context.emit(message_text(MessageKey.DEPLOYMENT_ROLLBACK_FAILED), "error")
             try:
                 api.request("server/restartXrayService", {})
             except Exception:

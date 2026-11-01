@@ -27,12 +27,27 @@ def backup(path, normalized=True):
             db.execute(f"ALTER TABLE inbounds ADD COLUMN {col} {typ}")
         db.execute(
             "UPDATE inbounds SET remark='legacy',protocol='vless',settings=?",
-            (json.dumps({"clients": [
-                {"email": "alpha", "id": "11111111-1111-4111-8111-111111111111",
-                 "subId": "keepSubIdAlpha", "flow": "xtls-rprx-vision", "enable": True},
-                {"email": "beta", "id": "22222222-2222-4222-8222-222222222222",
-                 "subId": "keepSubIdBeta", "enable": False},
-            ]}),),
+            (
+                json.dumps(
+                    {
+                        "clients": [
+                            {
+                                "email": "alpha",
+                                "id": "11111111-1111-4111-8111-111111111111",
+                                "subId": "keepSubIdAlpha",
+                                "flow": "xtls-rprx-vision",
+                                "enable": True,
+                            },
+                            {
+                                "email": "beta",
+                                "id": "22222222-2222-4222-8222-222222222222",
+                                "subId": "keepSubIdBeta",
+                                "enable": False,
+                            },
+                        ]
+                    }
+                ),
+            ),
         )
         if normalized:
             db.executescript("""
@@ -48,15 +63,29 @@ def backup(path, normalized=True):
             db.execute(
                 "INSERT INTO clients VALUES (3,?,?,?,?,?,?,?,?,?)",
                 (
-                    "alpha", "keepSubIdAlpha", "33333333-3333-4333-8333-333333333333",
-                    "xtls-rprx-vision", 1, 1770000000000, 1048576, 1, "from-backup",
+                    "alpha",
+                    "keepSubIdAlpha",
+                    "33333333-3333-4333-8333-333333333333",
+                    "xtls-rprx-vision",
+                    1,
+                    1770000000000,
+                    1048576,
+                    1,
+                    "from-backup",
                 ),
             )
             db.execute(
                 "INSERT INTO clients VALUES (4,?,?,?,?,?,?,?,?,?)",
                 (
-                    "beta", "keepSubIdBeta", "44444444-4444-4444-8444-444444444444",
-                    "", 0, 0, 0, 0, "inactive",
+                    "beta",
+                    "keepSubIdBeta",
+                    "44444444-4444-4444-8444-444444444444",
+                    "",
+                    0,
+                    0,
+                    0,
+                    0,
+                    "inactive",
                 ),
             )
             db.execute("INSERT INTO client_inbounds VALUES (3,1,'')")
@@ -70,8 +99,11 @@ def test_normalized_client_tables_are_authoritative_and_private(tmp_path):
     safe = public_catalog(catalog)
     assert len(catalog) == 1 and len(catalog[0]["clients"]) == 2
     assert safe["inbounds"][0]["clients"][0] == {
-        "ref": "n:3", "email": "alpha", "enabled": True,
-        "has_subscription": True, "restorable": True,
+        "ref": "n:3",
+        "email": "alpha",
+        "enabled": True,
+        "has_subscription": True,
+        "restorable": True,
     }
     assert "keepSubIdAlpha" not in json.dumps(safe)
     assert "33333333-3333-4333-8333-333333333333" not in json.dumps(safe)
@@ -130,7 +162,9 @@ def test_catalog_endpoint_never_returns_secrets(settings, container, tmp_path):
 
 def test_client_import_job_requires_real_backup_and_valid_refs():
     source = {
-        "action": "client_import", "revision": "a" * 64, "backup_id": "b" * 32,
+        "action": "client_import",
+        "revision": "a" * 64,
+        "backup_id": "b" * 32,
         "client_import": {
             "source_inbound_id": 1,
             "target_inbound_id": 2,
@@ -163,13 +197,15 @@ def importer(owned, monkeypatch, tmp_path):
         "protocol": "vless",
         "settings": {"clients": [], "decryption": "none"},
         "streamSettings": {
-            "network": "xhttp", "security": "none",
+            "network": "xhttp",
+            "security": "none",
             "xhttpSettings": {"path": "/xhttp/"},
         },
     }
     context.payload["options"] = {
         "client_import": {
-            "source_inbound_id": 1, "target_inbound_id": 2,
+            "source_inbound_id": 1,
+            "target_inbound_id": 2,
             "expected_fingerprint": public_inbound(remote)["fingerprint"],
             "client_refs": ["n:3", "n:4"],
         }
@@ -185,10 +221,13 @@ def importer(owned, monkeypatch, tmp_path):
             if state.fail_on_second and payload["client"]["email"] == "beta":
                 raise RuntimeError("simulated api failure")
             client = payload["client"]
-            state.clients.append({
-                "email": client["email"], "uuid": client["id"],
-                "subId": client["subId"],
-            })
+            state.clients.append(
+                {
+                    "email": client["email"],
+                    "uuid": client["id"],
+                    "subId": client["subId"],
+                }
+            )
             state.inbound["settings"]["clients"].append(copy.deepcopy(client))
             return None
         if route.startswith("clients/get/"):
@@ -201,8 +240,7 @@ def importer(owned, monkeypatch, tmp_path):
             email = route.rsplit("/", 1)[-1]
             state.clients[:] = [row for row in state.clients if row["email"] != email]
             state.inbound["settings"]["clients"][:] = [
-                row for row in state.inbound["settings"]["clients"]
-                if row["email"] != email
+                row for row in state.inbound["settings"]["clients"] if row["email"] != email
             ]
             return None
         if route == "server/restartXrayService":
@@ -237,10 +275,13 @@ def test_import_keeps_uuid_subid_limits_and_adapts_flow(importer, capsys):
 
 def test_conflicting_subid_rejects_without_modifying_existing(importer):
     state = importer.state
-    state.clients.append({
-        "email": "someone-else", "uuid": str(uuid.uuid4()),
-        "subId": "keepSubIdAlpha",
-    })
+    state.clients.append(
+        {
+            "email": "someone-else",
+            "uuid": str(uuid.uuid4()),
+            "subId": "keepSubIdAlpha",
+        }
+    )
     before = copy.deepcopy(state.clients)
     with pytest.raises(RuntimeError, match="conflicts"):
         importer.manager.apply(importer.owned.base)

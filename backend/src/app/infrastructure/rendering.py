@@ -226,7 +226,15 @@ WantedBy=multi-user.target
             and node.deployment.caddy_mode == "existing"
         ):
             steps.append(message_text(MessageKey.NETWORK_COMPOSE_PLAN))
-        if action not in {"fresh", "restore", "configure", "inbound", "tunnel", "xhttp", "client_import"}:
+        if action not in {
+            "fresh",
+            "restore",
+            "configure",
+            "inbound",
+            "tunnel",
+            "xhttp",
+            "client_import",
+        }:
             steps.append(message_text(MessageKey.PLAN_READ_ONLY))
         return {
             "action": action,

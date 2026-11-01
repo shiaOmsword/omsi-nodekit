@@ -71,10 +71,14 @@ def _append(items, source_id, remark, protocol, reference, client):
         raise ValueError("Client catalog limit reached")
     client = dict(client)
     target["clients"].append(
-        {"ref": reference, "email": str(client.get("email") or "")[:160],
-         "enabled": bool(client.get("enable", True)),
-         "has_subscription": bool(client.get("subId")),
-         "restorable": _ready(client), "data": client}
+        {
+            "ref": reference,
+            "email": str(client.get("email") or "")[:160],
+            "enabled": bool(client.get("enable", True)),
+            "has_subscription": bool(client.get("subId")),
+            "restorable": _ready(client),
+            "data": client,
+        }
     )
 
 
@@ -96,8 +100,10 @@ def read_catalog(path):
         for row in sources:
             if row["protocol"] == "vless":
                 found[row["id"]] = {
-                    "id": row["id"], "remark": str(row["remark"] or "")[:160],
-                    "protocol": "vless", "clients": [],
+                    "id": row["id"],
+                    "remark": str(row["remark"] or "")[:160],
+                    "protocol": "vless",
+                    "clients": [],
                 }
         if {"clients", "client_inbounds"} <= tables:
             # IMPORTANT: in 3x-ui 3.11 the embedded inbounds.settings JSON
@@ -123,16 +129,16 @@ def read_catalog(path):
                 source = found.get(row["source_inbound_id"])
                 if source is None:
                     continue
-                client = {
-                    field: row[name]
-                    for name, field in FIELDS.items()
-                    if name in actual
-                }
+                client = {field: row[name] for name, field in FIELDS.items() if name in actual}
                 if isinstance(row["selected_flow"], str) and row["selected_flow"]:
                     client["flow"] = row["selected_flow"]
                 _append(
-                    found, source["id"], source["remark"], "vless",
-                    "n:" + str(row["id"]), client,
+                    found,
+                    source["id"],
+                    source["remark"],
+                    "vless",
+                    "n:" + str(row["id"]),
+                    client,
                 )
         else:
             count = 0
@@ -151,8 +157,14 @@ def read_catalog(path):
                         raise ValueError("Too many source clients")
                     # Use only attributes supported by the 3x-ui client API.
                     safe = {name: client[name] for name in FIELDS.values() if name in client}
-                    _append(found, row["id"], str(row["remark"] or "")[:160],
-                            "vless", "l:" + str(index), safe)
+                    _append(
+                        found,
+                        row["id"],
+                        str(row["remark"] or "")[:160],
+                        "vless",
+                        "l:" + str(index),
+                        safe,
+                    )
     return list(found.values())
 
 
@@ -166,8 +178,10 @@ def public_catalog(private_catalog):
                 "protocol": source["protocol"],
                 "client_count": len(source["clients"]),
                 "clients": [
-                    {key: item[key] for key in
-                     ("ref", "email", "enabled", "has_subscription", "restorable")}
+                    {
+                        key: item[key]
+                        for key in ("ref", "email", "enabled", "has_subscription", "restorable")
+                    }
                     for item in source["clients"]
                 ],
             }
@@ -191,8 +205,10 @@ def select_clients(private_catalog, inbound_id, refs):
     emails = [c["email"].lower() for c in selected]
     sub_ids = [c["subId"] for c in selected]
     uuids = [c["id"].lower() for c in selected]
-    if (len(set(emails)) != len(emails)
+    if (
+        len(set(emails)) != len(emails)
         or len(set(sub_ids)) != len(sub_ids)
-        or len(set(uuids)) != len(uuids)):
+        or len(set(uuids)) != len(uuids)
+    ):
         raise ValueError("Duplicate client identity in selected source")
     return selected

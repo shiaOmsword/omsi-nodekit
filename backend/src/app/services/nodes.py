@@ -55,7 +55,13 @@ class NodeService:
         return self.nodes.list()
 
     def preview(self, node_id: str, action: JobAction):
-        if action in {JobAction.INBOUND, JobAction.TRAFFIC, JobAction.TUNNEL, JobAction.XHTTP, JobAction.CLIENT_IMPORT}:
+        if action in {
+            JobAction.INBOUND,
+            JobAction.TRAFFIC,
+            JobAction.TUNNEL,
+            JobAction.XHTTP,
+            JobAction.CLIENT_IMPORT,
+        }:
             raise ValidationError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
         stored = self.nodes.get(node_id)
         return {
