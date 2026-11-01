@@ -53,6 +53,10 @@ class BackupService:
         self.validator.validate(content)
         return content
 
+    def clients(self, backup_id: str):
+        """Catalog only public client metadata after checksum and SQLite validation."""
+        return self.validator.clients(self.content(backup_id))
+
     def download(self, backup_id: str, *, manifest=False):
         metadata = self.backups.get(backup_id)
         path = self.files.path(backup_id, manifest=manifest)

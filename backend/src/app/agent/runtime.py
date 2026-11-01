@@ -9,6 +9,7 @@ from framework.messages import MessageKey
 from framework.messages import text as message_text
 
 from .adaptive_deployment import AdaptiveDeployment
+from .backup_client_import import BackupClientImporter
 from .configure import ConfigureSubscriptions
 from .context import AgentContext
 from .database import PanelDatabase
@@ -83,6 +84,13 @@ class RemoteAgent:
                 inspector.inspect()
                 try:
                     InboundManager(context, self.host, self.database, inspector).apply(base)
+                finally:
+                    inspector = InstallationInspector(context)
+                    inspector.inspect()
+            elif action == "client_import":
+                inspector.inspect()
+                try:
+                    BackupClientImporter(context, self.database, inspector).apply(base)
                 finally:
                     inspector = InstallationInspector(context)
                     inspector.inspect()

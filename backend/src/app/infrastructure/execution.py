@@ -28,6 +28,7 @@ class RemoteAgentBuilder:
         root = Path(__file__).resolve().parents[2]
         files = [
             "app/defaults.py",
+            "app/backup_clients.py",
             "framework/database/__init__.py",
             "framework/database/sqlite.py",
             "framework/database/snapshots.py",

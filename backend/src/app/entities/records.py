@@ -21,6 +21,7 @@ class JobAction(StrEnum):
     TRAFFIC = "traffic"
     TUNNEL = "tunnel"
     XHTTP = "xhttp"
+    CLIENT_IMPORT = "client_import"
 
 
 class JobStatus(StrEnum):

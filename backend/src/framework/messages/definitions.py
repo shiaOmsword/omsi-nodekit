@@ -7,6 +7,10 @@ from .codes import MessageKey
 MESSAGES = MappingProxyType(
     {
         MessageKey.XHTTP_APPLY_PLAN: "Проверить выбранную managed-панель, уникальность домена и порта, приватную сеть Caddy и неизменность конфигурации; создать/обновить VLESS XHTTP inbound без перегенерации существующих клиентов, сохранить SQLite-снимок, добавить только свой Caddy site и scoped UFW rule, проверить результаты и откатить при ошибке. Xray/Caddy могут перезагрузиться",
+        MessageKey.BACKUP_CLIENTS_INVALID: "SQLite backup has missing, inconsistent or unsupported VLESS clients; no identities were imported",
+        MessageKey.CLIENT_IMPORT_PLAN: "Read the selected verified SQLite backup; compare source client identities against every client on the destination 3x-ui; reject email/UUID/subId conflicts; snapshot the destination SQLite; create only missing clients through the 3x-ui Clients API; verify unchanged subscription IDs; attempt scoped rollback of newly created identities if an error occurs. Caddy, Docker, existing inbounds, routes and SSH tunnels are not changed",
+        MessageKey.CLIENT_IMPORT_CONFLICT: "The backup client conflicts with an existing destination email, UUID or subscription ID; no existing clients were modified",
+        MessageKey.CLIENT_IMPORT_SUCCEEDED: "Imported {count} VLESS clients while preserving UUID and subscription ID; already-present exact matches: {skipped}. Compare the public subscriptions in 3x-ui",
         MessageKey.XHTTP_APPLIED: "VLESS XHTTP inbound {name} настроен с приватным backend и Caddy site. Проверь внешний клиент, TLS и Hosts override подписки",
         MessageKey.TUNNEL_SOURCE_FORMAT: "Outbound {tag}: provide either flat VLESS settings.address/port/id or exactly one vnext endpoint with users; mixed or incomplete endpoint schemas are not supported",
         MessageKey.TUNNEL_SOURCE_MISSING: "Outbound {tag} is missing, duplicated or is the managed SSH copy itself; select the original exit outbound and refresh discovery",
