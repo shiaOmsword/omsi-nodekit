@@ -106,6 +106,7 @@ class XHTTPChange(StrictModel):
 
 
 class BackupClientImport(StrictModel):
+    include_external_links: bool = True
     source_inbound_id: int = Field(gt=0)
     target_inbound_id: int = Field(gt=0)
     expected_fingerprint: str = Field(pattern=r"^[a-f0-9]{64}$")
@@ -118,4 +119,20 @@ class BackupClientImport(StrictModel):
             for item in self.client_refs
         ):
             raise ValueError(message_text(MessageKey.BACKUP_CLIENTS_INVALID))
+        return self
+
+
+class SubscriptionMaintenance(StrictModel):
+    """Server-side checks or an explicitly acknowledged managed panel restart."""
+
+    id: int = Field(gt=0)
+    expected_fingerprint: str = Field(pattern=r"^[a-f0-9]{64}$")
+    mode: Literal["audit", "clear_server_cache"] = "audit"
+    client_email: str | None = Field(default=None, pattern=r"^[a-zA-Z0-9][a-zA-Z0-9_.@-]{0,79}$")
+    acknowledge_restart: bool = False
+
+    @model_validator(mode="after")
+    def valid_maintenance(self):
+        if (self.mode == "clear_server_cache") != self.acknowledge_restart:
+            raise ValueError(message_text(MessageKey.SUB_CACHE_REQUEST_INVALID))
         return self

@@ -104,6 +104,9 @@ def test_normalized_client_tables_are_authoritative_and_private(tmp_path):
         "enabled": True,
         "has_subscription": True,
         "restorable": True,
+        "external_link_count": 0,
+        "external_links_compatible": True,
+        "depends_on": [],
     }
     assert "keepSubIdAlpha" not in json.dumps(safe)
     assert "33333333-3333-4333-8333-333333333333" not in json.dumps(safe)
@@ -210,7 +213,14 @@ def importer(owned, monkeypatch, tmp_path):
             "client_refs": ["n:3", "n:4"],
         }
     }
-    state = SimpleNamespace(clients=[], inbound=remote, calls=[], fail_on_second=False)
+    state = SimpleNamespace(
+        clients=[],
+        inbound=remote,
+        calls=[],
+        links={},
+        fail_on_second=False,
+        fail_link_after_write=False,
+    )
 
     def request(route, payload=None):
         state.calls.append(route)
@@ -236,9 +246,21 @@ def importer(owned, monkeypatch, tmp_path):
             row = next((row for row in state.clients if row["email"] == email), None)
             if row is None:
                 raise RuntimeError("not found")
-            return {"client": row, "inboundIds": [2]}
+            return {
+                "client": row,
+                "inboundIds": [2],
+                "externalLinks": copy.deepcopy(state.links.get(email, [])),
+            }
+        if route.startswith("clients/") and route.endswith("/externalLinks"):
+            email = route.split("/")[1]
+            state.links[email] = copy.deepcopy(payload["externalLinks"])
+            if state.fail_link_after_write:
+                state.fail_link_after_write = False
+                raise RuntimeError("simulated link API timeout")
+            return None
         if route.startswith("clients/del/"):
             email = route.rsplit("/", 1)[-1]
+            state.links.pop(email, None)
             state.clients[:] = [row for row in state.clients if row["email"] != email]
             state.inbound["settings"]["clients"][:] = [
                 row for row in state.inbound["settings"]["clients"] if row["email"] != email
@@ -317,3 +339,137 @@ def test_signed_relative_expiry_and_telegram_id_are_preserved():
     assert payload["client"]["tgId"] == -100100
     assert payload["client"]["subId"] == "preservedToken"
     assert payload["client"]["id"] == source["id"]
+
+
+def link_backup(path, cross_client=False):
+    """A 3x-ui 3.11 DB where one client aggregates another client subscription."""
+    backup(path)
+    with sqlite3.connect(path) as db:
+        db.execute(
+            "INSERT INTO settings(key,value) VALUES (?,?)",
+            ("subURI", "https://new.example.com:2096/sub/"),
+        )
+        db.execute(
+            "CREATE TABLE client_external_links ("
+            "id INTEGER PRIMARY KEY,client_id INTEGER,kind TEXT,value TEXT,"
+            "remark TEXT,enable INTEGER,expiry_time INTEGER,name_prefix TEXT,"
+            "sort_index INTEGER)"
+        )
+        db.execute(
+            "INSERT INTO client_external_links VALUES (1,3,?,?,?,?,?,?,?)",
+            ("subscription", "https://new.example.com:2096/sub/keepSubIdBeta", "", 1, 0, "", 0),
+        )
+        if cross_client:
+            db.execute(
+                "INSERT INTO client_external_links VALUES (2,4,?,?,?,?,?,?,?)",
+                (
+                    "subscription",
+                    "https://new.example.com:2096/sub/keepSubIdAlpha",
+                    "",
+                    1,
+                    0,
+                    "",
+                    0,
+                ),
+            )
+    return path
+
+
+def test_backup_external_links_are_private_and_dependencies_public(tmp_path):
+    catalog = read_catalog(link_backup(tmp_path / "linked.db"))
+    first = catalog[0]["clients"][0]
+    assert first["data"]["_external_links"][0]["kind"] == "subscription"
+    assert first["data"]["_external_links"][0]["_compatible"]
+    public = public_catalog(catalog)
+    assert public["inbounds"][0]["clients"][0]["external_link_count"] == 1
+    assert public["inbounds"][0]["clients"][0]["depends_on"] == ["n:4"]
+    assert "keepSubIdBeta" not in json.dumps(public)
+    assert "https://new.example.com:2096/sub/" not in json.dumps(public)
+
+
+def test_linked_import_preserves_refs_and_original_sub_ids(importer, tmp_path):
+    source = link_backup(tmp_path / "with-links.db")
+    importer.owned.context.payload["backup"] = base64.b64encode(source.read_bytes()).decode()
+    importer.manager.apply(importer.owned.base)
+    links = importer.state.links["alpha"]
+    assert len(links) == 1
+    assert links[0] == {
+        "kind": "subscription",
+        "value": "https://new.example.com:2096/sub/keepSubIdBeta",
+        "remark": "",
+        "enable": True,
+        "expiryTime": 0,
+        "namePrefix": "",
+    }
+    assert importer.state.clients[0]["subId"] == "keepSubIdAlpha"
+    assert importer.state.clients[1]["subId"] == "keepSubIdBeta"
+    assert "clients/alpha/externalLinks" in importer.state.calls
+    importer.manager.apply(importer.owned.base)
+    assert len(importer.state.links["alpha"]) == 1
+    assert importer.state.calls.count("clients/alpha/externalLinks") == 1
+
+
+def test_linked_import_rejects_absent_referenced_client(importer, tmp_path):
+    source = link_backup(tmp_path / "with-links.db")
+    context = importer.owned.context
+    context.payload["backup"] = base64.b64encode(source.read_bytes()).decode()
+    context.payload["options"]["client_import"]["client_refs"] = ["n:3"]
+    with pytest.raises(RuntimeError, match="neither selected"):
+        importer.manager.apply(importer.owned.base)
+    assert importer.state.clients == []
+    assert not list(importer.owned.base.glob("before-client-import-*.db"))
+
+
+def test_linked_import_can_be_disabled_to_keep_only_own_uuid(importer, tmp_path):
+    source = link_backup(tmp_path / "with-links.db")
+    context = importer.owned.context
+    context.payload["backup"] = base64.b64encode(source.read_bytes()).decode()
+    context.payload["options"]["client_import"].update(
+        client_refs=["n:3"], include_external_links=False
+    )
+    importer.manager.apply(importer.owned.base)
+    assert [row["email"] for row in importer.state.clients] == ["alpha"]
+    assert importer.state.links == {}
+
+
+def test_circular_aggregate_subscriptions_fail_before_mutation(importer, tmp_path):
+    source = link_backup(tmp_path / "cycle.db", cross_client=True)
+    importer.owned.context.payload["backup"] = base64.b64encode(source.read_bytes()).decode()
+    with pytest.raises(RuntimeError, match="Circular subscription"):
+        importer.manager.apply(importer.owned.base)
+    assert importer.state.clients == []
+
+
+def test_restoring_links_to_existing_client_preserves_other_links(importer, tmp_path):
+    source = link_backup(tmp_path / "linked.db")
+    context = importer.owned.context
+    context.payload["backup"] = base64.b64encode(source.read_bytes()).decode()
+    importer.manager.apply(importer.owned.base)
+    unrelated = {
+        "kind": "subscription",
+        "value": "https://public.example.org/sub/external",
+        "remark": "existing",
+        "enable": True,
+        "expiryTime": 0,
+        "namePrefix": "",
+    }
+    importer.state.links["alpha"] = [unrelated]
+    importer.manager.apply(importer.owned.base)
+    assert importer.state.links["alpha"][0] == unrelated
+    assert len(importer.state.links["alpha"]) == 2
+    assert importer.state.calls.count("clients/add") == 2
+
+
+def test_partial_link_failure_restores_exact_old_links(importer, tmp_path):
+    source = link_backup(tmp_path / "linked.db")
+    importer.owned.context.payload["backup"] = base64.b64encode(source.read_bytes()).decode()
+    # First import identities without linked subscriptions.
+    importer.owned.context.payload["options"]["client_import"]["include_external_links"] = False
+    importer.manager.apply(importer.owned.base)
+    importer.owned.context.payload["options"]["client_import"]["include_external_links"] = True
+    previous = copy.deepcopy(importer.state.links)
+    importer.state.fail_link_after_write = True
+    with pytest.raises(RuntimeError, match="simulated link API timeout"):
+        importer.manager.apply(importer.owned.base)
+    assert importer.state.links.get("alpha", []) == previous.get("alpha", [])
+    assert len(importer.state.clients) == 2

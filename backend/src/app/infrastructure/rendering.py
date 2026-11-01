@@ -193,6 +193,9 @@ WantedBy=multi-user.target
             steps.append(message_text(MessageKey.INBOUND_PLAN))
         elif action == "client_import":
             steps.append(message_text(MessageKey.CLIENT_IMPORT_PLAN))
+            steps.append(message_text(MessageKey.CLIENT_EXTERNAL_PLAN))
+        elif action == "subscription_maintenance":
+            steps.append(message_text(MessageKey.SUB_CACHE_AUDIT_PLAN))
         elif action == "xhttp":
             steps.append(message_text(MessageKey.XHTTP_APPLY_PLAN))
         elif action == "tunnel":
@@ -234,6 +237,7 @@ WantedBy=multi-user.target
             "tunnel",
             "xhttp",
             "client_import",
+            "subscription_maintenance",
         }:
             steps.append(message_text(MessageKey.PLAN_READ_ONLY))
         return {

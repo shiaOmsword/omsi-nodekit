@@ -1,6 +1,7 @@
 import type { Action, Job, JobDetail } from '../types';
 
 export const actionLabels: Record<Action, { title: string; description: string }> = {
+  subscription_maintenance: { title: 'Обслуживание подписок', description: 'Проверить публичный HTTPS/DNS или вручную перезапустить только управляемую 3x-ui для очистки серверного кэша.' },
   client_import: { title: 'Клиенты из бэкапа', description: 'Выборочно восстановить VLESS-клиентов, не меняя их UUID и ID подписки.' },
   xhttp: { title: 'VLESS / XHTTP', description: 'Приватный XHTTP inbound, публичный HTTPS в Caddy и scoped UFW.' },
   tunnel: { title: 'SSH-выход', description: 'Создать SSH-туннель и направить выбранный inbound через выходную ноду.' },

@@ -49,7 +49,7 @@ export function PlanModal({
             loading={busy}
             icon={<Play size={16} />}
           >
-            {plan?.options?.inbound?.operation === 'delete' ? 'Удалить inbound' : 'Запустить операцию'}
+            {plan?.options?.inbound?.operation === 'delete' ? 'Удалить inbound' : plan?.options?.subscription_maintenance?.mode === 'clear_server_cache' ? 'Перезапустить 3x-ui' : 'Запустить операцию'}
           </Button>
         </>
       }
@@ -62,9 +62,9 @@ export function PlanModal({
           <>
             <div className="plan-context">
               <span
-                className={'tag ' + (['fresh', 'restore', 'configure', 'inbound', 'tunnel', 'xhttp', 'client_import'].includes(action) ? 'tag-warning' : '')}
+                className={'tag ' + (['fresh', 'restore', 'configure', 'inbound', 'tunnel', 'xhttp', 'client_import', 'subscription_maintenance'].includes(action) ? 'tag-warning' : '')}
               >
-                {['fresh', 'restore', 'configure', 'inbound', 'tunnel', 'xhttp'].includes(action)
+                {['fresh', 'restore', 'configure', 'inbound', 'tunnel', 'xhttp'].includes(action) || (action === 'subscription_maintenance' && plan.options?.subscription_maintenance?.mode === 'clear_server_cache')
                   ? 'Изменяет сервер'
                   : 'Сервисы на VPS не изменяются'}
               </span>
@@ -115,6 +115,10 @@ export function PlanModal({
                 установкой.
               </p>
             )}
+            {action === 'subscription_maintenance' && <p className="feature-hint">
+              Аудит читает настройки, DNS и один публичный URL подписки без изменения сервисов.
+              Ручной сброс серверного кэша реализован только через перезапуск принадлежащего Nodekit контейнера 3x-ui и может прервать VPN-соединения. Кэш V2BOX, Hiddify, DNS ОС и shared Caddy не затрагиваются.
+            </p>}
             {action === 'configure' && <p className="feature-hint">
               Панель и Xray кратковременно перезапустятся; активные VPN-соединения могут прерваться. Будет заменён только сохранённый сайт этой ноды в Caddy.
               Существующие inbound и клиенты не редактируются. Разрешённые изменения UFW и публикаций Caddy перечислены в плане.
@@ -122,7 +126,7 @@ export function PlanModal({
             {action === 'xhttp' && <p className="feature-hint">Изменяется только управляемый XHTTP inbound и принадлежащие Nodekit маршруты Caddy. Backend остаётся приватным, UFW ограничивается сетью Caddy. У других сайтов Caddy и контейнеров Docker ничего не меняется. Для корректной подписки отдельно проверь Hosts override.</p>}
             {action === 'tunnel' && plan.options?.tunnel?.members?.length && <p className="feature-hint">Пул поднимет несколько независимых systemd SSH-процессов и создаст roundRobin с observatory и fallback=blocked. Один общий выходной сервер не заменяет независимое резервирование. Xray будет перезапущен.</p>}
             {action === 'tunnel' && !plan.options?.tunnel?.members?.length && <p className="feature-hint">Будет включена systemd-служба SSH и добавлен маршрут для всех клиентов выбранного inbound. Xray перезапустится. UUID и ключи сохраняются; при ошибке выполняется откат. Ключ и known_hosts должны быть подготовлены на московской VPS.</p>}
-            {action === 'client_import' && <p className="feature-hint">Будут добавлены только выбранные VLESS-клиенты из проверенной SQLite-копии. Их UUID и subId сохранятся; исходный дамп не изменяется. Перед записью создаётся новый снимок текущей панели. При конфликте данных существующие учётные записи не перезаписываются.</p>}
+            {action === 'client_import' && <p className="feature-hint">Из проверенного SQLite импортируются выбранные UUID и subId. Если включено восстановление связанных подписок, дополнительный шаг добавит недостающие HTTPS-ссылки на других клиентов из этой же базы через Clients API (без замены существующих чужих связей). Перед записью создаётся снимок целевой базы; Caddy и SSH не меняются.</p>}
             {action === 'traffic' && <p className="feature-hint">Будет запущен временный Xray-клиент на loopback VPS. Его конфигурация с секретами удалится после проверки. Маршруты сервера не меняются; пробный трафик учитывается у выбранного клиента.</p>}
             {action === 'inbound' && <p className="feature-hint">Перед изменением проверяется актуальность inbound и сохраняется SQLite snapshot на VPS. Удаление удаляет также его клиентов; при редактировании их идентификаторы и ключи сохраняются.</p>}
           </>

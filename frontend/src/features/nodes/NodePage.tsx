@@ -37,6 +37,7 @@ const actionIcons = {
   tunnel: Activity,
   xhttp: Activity,
   client_import: Database,
+  subscription_maintenance: Activity,
 };
 type NodeRoute = Extract<Route, { page: 'node' }>;
 
