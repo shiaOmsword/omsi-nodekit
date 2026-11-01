@@ -93,7 +93,7 @@ class JobService:
     ):
         stored = self.nodes.get(node_id)
         node = self.factory.from_yaml(stored.yaml)
-        if action in {JobAction.INBOUND, JobAction.TRAFFIC, JobAction.TUNNEL}:
+        if action in {JobAction.INBOUND, JobAction.TRAFFIC, JobAction.TUNNEL, JobAction.XHTTP}:
             expected = str(action)
             if node.panel.installation != "managed" or not options or set(options) != {expected}:
                 raise ValidationError(message_text(MessageKey.INBOUND_MANAGED_REQUIRED))

@@ -12,6 +12,7 @@ from .native_release import NativeRelease
 from .node_network import NodeNetwork
 from .panel_api import InboundProvisioner, PanelAPI
 from .subscriptions import public_base, verify_caddy_upstream
+from .xhttp_manager import render_managed_site, load_routes
 
 
 class ConfigureSubscriptions:
@@ -109,7 +110,8 @@ class ConfigureSubscriptions:
                 )
                 provisioner = InboundProvisioner(context, api, self.host)
                 provisioner.apply(base, allow_existing=True)
-            caddy.apply(base, context.payload["files"]["Caddyfile.site"])
+            combined_site = render_managed_site(context.payload["files"]["Caddyfile.site"], load_routes(base))
+            caddy.apply(base, combined_site)
             links_file = base / "subscriptions.json"
             if links_file.exists():
                 links = json.loads(links_file.read_text())
@@ -120,7 +122,7 @@ class ConfigureSubscriptions:
                 links_file.write_text(json.dumps(links, indent=2))
                 links_file.chmod(0o600)
             for name, value in {
-                "Caddyfile.site": context.payload["files"]["Caddyfile.site"],
+                "Caddyfile.site": combined_site,
                 "deployment.json": json.dumps(target, indent=2),
                 "manifest.json": json.dumps({"node": node, "action": "configure"}, indent=2),
             }.items():

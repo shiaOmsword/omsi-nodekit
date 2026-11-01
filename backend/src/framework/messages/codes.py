@@ -41,6 +41,8 @@ class MessageKey(StrEnum):
     NETWORK_COMPOSE_PLAN = "network_compose_plan"
     NETWORK_COMPOSE_APPLIED = "network_compose_applied"
     INBOUND_REQUEST_INVALID = "inbound_request_invalid"
+    XHTTP_APPLY_PLAN = "xhttp_apply_plan"
+    XHTTP_APPLIED = "xhttp_applied"
     INBOUND_STALE = "inbound_stale"
     INBOUND_MANAGED_REQUIRED = "inbound_managed_required"
     INBOUND_UPDATED = "inbound_updated"

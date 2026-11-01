@@ -89,6 +89,8 @@ def inbound_inventory(database, maximum):
                 "security": str(stream.get("security", ""))[:32],
                 "client_count": len(clients),
                 "clients": safe_clients,
+                "xhttp_path": (stream.get("xhttpSettings") or {}).get("path", "")[:80] if isinstance(stream.get("xhttpSettings"), dict) else "",
+                "xhttp_mode": (stream.get("xhttpSettings") or {}).get("mode", "")[:30] if isinstance(stream.get("xhttpSettings"), dict) else "",
             }
         )
     return summaries, probe_id, truncated

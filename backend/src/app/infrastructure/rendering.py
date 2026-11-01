@@ -190,6 +190,8 @@ WantedBy=multi-user.target
             steps.append(message_text(MessageKey.SUBSCRIPTION_CONFIGURE_PLAN))
         elif action == "inbound":
             steps.append(message_text(MessageKey.INBOUND_PLAN))
+        elif action == "xhttp":
+            steps.append(message_text(MessageKey.XHTTP_APPLY_PLAN))
         elif action == "tunnel":
             steps.append(message_text(MessageKey.TUNNEL_APPLY_PLAN))
         elif action == "traffic":
@@ -210,7 +212,7 @@ WantedBy=multi-user.target
                 if node.probe
                 else message_text(MessageKey.PLAN_PROXY_NOT_CONFIGURED)
             ]
-        if action in {"fresh", "restore", "configure", "inbound"} and (
+        if action in {"fresh", "restore", "configure", "inbound", "xhttp"} and (
             not node.deployment or node.deployment.manage_ufw
         ):
             steps.append(message_text(MessageKey.NETWORK_UFW_PLAN))
@@ -221,7 +223,7 @@ WantedBy=multi-user.target
             and node.deployment.caddy_mode == "existing"
         ):
             steps.append(message_text(MessageKey.NETWORK_COMPOSE_PLAN))
-        if action not in {"fresh", "restore", "configure", "inbound", "tunnel"}:
+        if action not in {"fresh", "restore", "configure", "inbound", "tunnel", "xhttp"}:
             steps.append(message_text(MessageKey.PLAN_READ_ONLY))
         return {
             "action": action,

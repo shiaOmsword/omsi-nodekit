@@ -22,6 +22,7 @@ from .inspection import InstallationInspector
 from .subscriptions import SubscriptionDiagnostics
 from .traffic_probe import TrafficProbe
 from .tunnel_manager import TunnelManager
+from .xhttp_manager import XHTTPManager
 
 
 class RemoteAgent:
@@ -82,6 +83,13 @@ class RemoteAgent:
                 inspector.inspect()
                 try:
                     InboundManager(context, self.host, self.database, inspector).apply(base)
+                finally:
+                    inspector = InstallationInspector(context)
+                    inspector.inspect()
+            elif action == "xhttp":
+                inspector.inspect()
+                try:
+                    XHTTPManager(context, self.host, self.database, inspector).apply(base)
                 finally:
                     inspector = InstallationInspector(context)
                     inspector.inspect()

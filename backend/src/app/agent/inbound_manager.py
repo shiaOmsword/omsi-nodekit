@@ -113,6 +113,21 @@ class InboundManager:
             or public_inbound(original)["fingerprint"] != change["expected_fingerprint"]
         ):
             raise RuntimeError(message_text(MessageKey.INBOUND_STALE))
+        if change["operation"] == "update" and change.get("port") is not None:
+            stream = object_value(original.get("streamSettings"))
+            if stream.get("network") == "xhttp":
+                # Port is also a Caddy upstream; update it transactionally through
+                # the dedicated XHTTP workflow, never with this generic editor.
+                raise RuntimeError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
+        if change["operation"] == "delete":
+            route_file = base / "xhttp-routes.json"
+            if route_file.is_file():
+                try:
+                    routes = json.loads(route_file.read_text(encoding="utf-8"))
+                    if any(r["id"] == change["id"] for r in routes):
+                        raise RuntimeError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
+                except (OSError, ValueError, KeyError, TypeError) as exc:
+                    raise RuntimeError(message_text(MessageKey.INBOUND_REQUEST_INVALID)) from exc
         if change["operation"] in {"add_client", "delete_client"}:
             self.apply_client(base, api, original, change)
             return

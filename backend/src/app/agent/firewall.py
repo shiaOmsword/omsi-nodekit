@@ -197,7 +197,8 @@ def desired_rules(context, report, *, extra=()):
         if panel["id"] != report.get("selected_panel"):
             continue
         for inbound in panel.get("inbounds", []):
-            if inbound["enabled"] and inbound["listen"] not in {"127.0.0.1", "::1", "localhost"}:
+            if (inbound["enabled"] and inbound["network"] != "xhttp"
+                    and inbound["listen"] not in {"127.0.0.1", "::1", "localhost"}):
                 desired += [rule_spec(inbound["port"], p) for p in protocols(inbound)]
     target = context.node.get("deployment") or {}
     mapping = context.directory() / "inbound-identities.json"
@@ -210,6 +211,25 @@ def desired_rules(context, report, *, extra=()):
             continue
         if inbound["listen"] == "0.0.0.0":
             desired.append(rule_spec(inbound["port"]))
+    # XHTTP backends receive scoped bridge rules only. They must never become
+    # public UFW allows merely because they bind a private non-loopback IP.
+    path = context.directory() / "xhttp-routes.json"
+    if path.is_file():
+        try:
+            routes = json.loads(path.read_text(encoding="utf-8"))
+        except (ValueError, OSError):
+            routes = []
+        for route in routes:
+            if route.get("listen") == "127.0.0.1":
+                continue
+            target = context.node.get("deployment") or {}
+            proxies = [p for p in report.get("caddy", []) if caddy_matches(p, target.get("caddy_id"))]
+            bridges = [n for p in proxies for n in p.get("bridge_networks", [])
+                       if n.get("gateway") == route.get("listen")]
+            if len(bridges) == 1:
+                bridge = bridges[0]
+                desired.append(rule_spec(route["port"], source=bridge["subnet"],
+                    destination=route["listen"], interface=bridge["interface"], scope="xhttp"))
     if context.node["caddy"]["enabled"]:
         desired += [rule_spec(p, scope="caddy") for p in {80, context.node["caddy"]["https_port"]}]
         bind = target.get("subscription_bind", "127.0.0.1")
@@ -392,7 +412,7 @@ class FirewallTransaction:
             return
         for entry in self.owned + self.added:
             if (
-                entry["scope"] != "inbound"
+                entry["scope"] not in {"inbound", "xhttp"}
                 or entry["port"] in used_ports
                 or host.port_open(entry["port"])
             ):

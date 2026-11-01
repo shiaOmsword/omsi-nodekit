@@ -54,3 +54,29 @@ class TrafficRequest(StrictModel):
 class TunnelRequest(TrafficRequest):
     name: Slug
     outbound_tag: str = Field(min_length=1, max_length=120, pattern=r"^[a-zA-Z0-9_.-]+$")
+
+class XHTTPChange(StrictModel):
+    """Managed XHTTP ingress. Private backend binds only to the Caddy host gateway."""
+    operation: Literal["create", "update"] = "create"
+    id: int | None = Field(default=None, gt=0)
+    expected_fingerprint: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    remark: str = Field(min_length=1, max_length=120)
+    domain: Host
+    port: Port
+    path: str = Field(pattern=r"^/[a-zA-Z0-9_-]{1,64}/$")
+    mode: Literal["auto", "packet-up", "stream-up"] = "auto"
+    client_email: str | None = Field(default=None, pattern=r"^[a-zA-Z0-9][a-zA-Z0-9_.@-]{0,79}$")
+
+    @model_validator(mode="after")
+    def validate_change(self):
+        if (
+            self.operation == "create" and (self.id is not None or self.expected_fingerprint)
+        ) or (
+            self.operation == "update" and (not self.id or not self.expected_fingerprint or self.client_email)
+        ) or (
+            "." not in self.domain or ".." in self.domain
+        ):
+            raise ValueError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
+        if any(ord(c) < 32 for c in self.remark):
+            raise ValueError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
+        return self

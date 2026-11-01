@@ -6,6 +6,8 @@ from .codes import MessageKey
 
 MESSAGES = MappingProxyType(
     {
+        MessageKey.XHTTP_APPLY_PLAN: "Проверить выбранную managed-панель, уникальность домена и порта, приватную сеть Caddy и неизменность конфигурации; создать/обновить VLESS XHTTP inbound без перегенерации существующих клиентов, сохранить SQLite-снимок, добавить только свой Caddy site и scoped UFW rule, проверить результаты и откатить при ошибке. Xray/Caddy могут перезагрузиться",
+        MessageKey.XHTTP_APPLIED: "VLESS XHTTP inbound {name} настроен с приватным backend и Caddy site. Проверь внешний клиент, TLS и Hosts override подписки",
         MessageKey.TUNNEL_SOURCE_FORMAT: "Outbound {tag}: provide either flat VLESS settings.address/port/id or exactly one vnext endpoint with users; mixed or incomplete endpoint schemas are not supported",
         MessageKey.TUNNEL_SOURCE_MISSING: "Outbound {tag} is missing, duplicated or is the managed SSH copy itself; select the original exit outbound and refresh discovery",
         MessageKey.TUNNEL_SOURCE_UNSUPPORTED: "Outbound {tag}: SSH exit requires VLESS RAW/TCP with REALITY and no proxySettings, dialerProxy or sendThrough",
