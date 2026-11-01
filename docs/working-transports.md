@@ -1,8 +1,10 @@
-# Проверенные подключения Москвы
+# Пример: VLESS / XHTTP / TLS с Caddy
 
-31.10.2026 пользователь подтвердил подключение с телефона по VLESS + XHTTP + TLS.
-Использовать как проверенный альтернативный вход, когда прямой RAW/REALITY нестабилен.
-Nodekit теперь содержит guarded мастер создания XHTTP inbound на управляемой панели с shared Caddy. Это новый код: на живой VPS его ещё не проверяли. Вручную созданные XHTTP/Caddy маршруты не присваиваются автоматически.
+Ниже — схема построения VLESS/XHTTP/TLS ingress для собственной VPS, когда
+прямой VLESS/RAW/REALITY нестабилен. Параметры заменены учебными значениями
+для публичного репозитория; они **не являются готовой конфигурацией чужой ноды**.
+Мастер Nodekit работает с подтверждённо управляемыми inbound и Caddy-маршрутами,
+не присваивая вручную созданные чужие ресурсы.
 
 ## Два независимых участка
 
@@ -13,9 +15,10 @@ Nodekit теперь содержит guarded мастер создания XHTT
 
 ## Рабочий рецепт XHTTP + TLS
 
-Для ultra: Caddy в Docker, bridge shared-proxy, gateway 172.30.50.1,
-подсеть 172.30.50.0/24. В рецепте домен vpn.brainoms.ru, A → 5.253.62.214.
-Перед повторной установкой сверять текущие DNS, IP и интерфейс bridge.
+Пример: Caddy в Docker, bridge `shared-proxy`, gateway `172.30.50.1`,
+подсеть `172.30.50.0/24`; домен `vpn.example.com`, A → `203.0.113.10`.
+Адреса `example.com` и диапазон `203.0.113.0/24` зарезервированы для документации.
+Замените их своими и проверьте интерфейс/gateway Docker перед применением.
 
 3x-ui inbound:
 
@@ -34,7 +37,7 @@ Nodekit теперь содержит guarded мастер создания XHTT
 Добавочный сайт общего Caddy, с сохранением остальных сайтов:
 
 ```caddyfile
-vpn.brainoms.ru {
+vpn.example.com {
     @xhttp path /xhttp-ultra/*
     handle @xhttp {
         reverse_proxy h2c://172.30.50.1:10080 {
@@ -52,8 +55,8 @@ Caddy публикует 80/TCP и 443/TCP; публичные firewall разр
 10080 разрешён только от Caddy bridge к 172.30.50.1, без публичного открытия.
 TLS завершает Caddy. Сертификат не нужно копировать внутрь Xray.
 
-Клиент: vpn.brainoms.ru:443, UUID нового клиента, transport xhttp,
-path /xhttp-ultra/, mode auto, TLS включён, SNI vpn.brainoms.ru,
+Клиент: vpn.example.com:443, UUID нового клиента, transport xhttp,
+path /xhttp-ultra/, mode auto, TLS включён, SNI vpn.example.com,
 ALPN h2, проверка сертификата включена, flow пустой, обычный Mux выключен.
 Для сравнения можно отдельно попробовать packet-up на клиенте.
 REALITY public key/short ID в этом внешнем профиле не используются.
@@ -64,7 +67,7 @@ REALITY public key/short ID в этом внешнем профиле не ис�
 
 ## Подписки — отдельная цепочка
 
-https://brainoms.ru:2096/sub/<client-id> → shared-caddy →
+https://sub.example.com:2096/sub/<client-id> → shared-caddy →
 http://172.30.50.1:2097/sub/<client-id>. Не смешивать порты подписки с VPN inbound.
 UUID, приватные ключи и реальные ID подписок не сохраняются в документации.
 
@@ -105,15 +108,15 @@ XHTTP в подписке»**. Операция использует `/panel/api
 `xhttp-hosts.json`; чужие Hosts не удаляются. Перед операцией создаётся
 SQLite snapshot.
 
-Публичная запись имеет address `vpn.brainoms.ru`, port `443`,
-security `tls`, SNI `vpn.brainoms.ru`, ALPN `h2`, path
+Публичная запись имеет address `vpn.example.com`, port `443`,
+security `tls`, SNI `vpn.example.com`, ALPN `h2`, path
 `/xhttp-ultra/`, fingerprint `chrome`; Xray остаётся на
 `172.30.50.1:10080` с `security=none`.
 После публикации запроси **именно URL подписки клиента**
-`https://brainoms.ru:2096/sub/<subId>`, а не кнопку копирования
+`https://sub.example.com:2096/sub/<subId>`, а не кнопку копирования
 локального backend inbound из 3x-ui. Формат сырого `vless://`
-в ответе подписки должен указывать на `vpn.brainoms.ru:443`
-с `security=tls`, `sni=vpn.brainoms.ru`, `type=xhttp`.
+в ответе подписки должен указывать на `vpn.example.com:443`
+с `security=tls`, `sni=vpn.example.com`, `type=xhttp`.
 
 Не перепутай подписку (subId) с UUID VLESS клиента. При ручной настройке
 других Hosts для этого inbound Nodekit не присваивает их и откажется

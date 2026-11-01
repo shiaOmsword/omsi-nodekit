@@ -165,7 +165,7 @@ tunnels:
     ssh_port: 2222
     local_port: 15443
     target_port: 11474
-    identity_file: /home/omsi/.ssh/ultra_gb_tunnel
+    identity_file: /home/omsi/.ssh/exit_gb_tunnel
     known_hosts_file: /home/omsi/.ssh/known_hosts
   - name: nd-2
     host: 203.0.113.20
@@ -173,7 +173,7 @@ tunnels:
     ssh_port: 2222
     local_port: 15444
     target_port: 11474
-    identity_file: /home/omsi/.ssh/ultra_gb_tunnel
+    identity_file: /home/omsi/.ssh/exit_gb_tunnel
     known_hosts_file: /home/omsi/.ssh/known_hosts
   - name: nd-3
     host: 203.0.113.20
@@ -181,7 +181,7 @@ tunnels:
     ssh_port: 2222
     local_port: 15445
     target_port: 11474
-    identity_file: /home/omsi/.ssh/ultra_gb_tunnel
+    identity_file: /home/omsi/.ssh/exit_gb_tunnel
     known_hosts_file: /home/omsi/.ssh/known_hosts
 ```
 
@@ -214,11 +214,14 @@ fallback на московский direct.
 
 ## Первый SSH host key: строгая проверка и опциональный TOFU
 
+В примерах используется `198.51.100.20` из документального диапазона
+TEST-NET-2; все IP, имена и ключи нужно заменить перед применением.
+
 Подключение с рабочего ПК не заполняет
 `/home/omsi/.ssh/known_hosts` на **московской VPS**.
-Сервер `78.17.45.177` на портах `22` и `2222` обычно имеет
-разные записи в `known_hosts`: для стандартного порта `78.17.45.177`,
-для нестандартного `[78.17.45.177]:2222`.
+Сервер `198.51.100.20` на портах `22` и `2222` обычно имеет
+разные записи в `known_hosts`: для стандартного порта `198.51.100.20`,
+для нестандартного `[198.51.100.20]:2222`.
 Из-за `StrictHostKeyChecking=yes` и `BatchMode=yes` первый
 неизвестный host key блокирует systemd SSH forward без приглашения.
 
@@ -228,12 +231,12 @@ SSH endpoint мог принять ключ сервера при первом �
 
 ```yaml
   - name: nd-3
-    host: 78.17.45.177
+    host: 198.51.100.20
     user: omsi
     ssh_port: 22
     local_port: 15445
     target_port: 11474
-    identity_file: /home/omsi/.ssh/ultra_gb_tunnel
+    identity_file: /home/omsi/.ssh/exit_gb_tunnel
     known_hosts_file: /home/omsi/.ssh/known_hosts
     host_key_policy: accept-new
 ```
@@ -251,21 +254,21 @@ SSH-службы должен иметь право записи в свой `kn
 Проверить с московской VPS без изменения Nodekit:
 
 ```bash
-ssh-keygen -F 78.17.45.177 -f /home/omsi/.ssh/known_hosts
-ssh-keygen -F '[78.17.45.177]:2222' -f /home/omsi/.ssh/known_hosts
+ssh-keygen -F 198.51.100.20 -f /home/omsi/.ssh/known_hosts
+ssh-keygen -F '[198.51.100.20]:2222' -f /home/omsi/.ssh/known_hosts
 
-ssh -F none -p 22 -i /home/omsi/.ssh/ultra_gb_tunnel \
+ssh -F none -p 22 -i /home/omsi/.ssh/exit_gb_tunnel \
   -o UserKnownHostsFile=/home/omsi/.ssh/known_hosts \
   -o StrictHostKeyChecking=yes \
   -o IdentitiesOnly=yes -o BatchMode=yes -v \
-  omsi@78.17.45.177 true
+  omsi@198.51.100.20 true
 ```
 
 Если неизвестный host key — будет `Host key verification failed`.
 Если отклонён ключ пользователя — `Permission denied (publickey)`.
 Если TCP forwarding запрещён на выходной VPS — проверить настройки
 `AllowTcpForwarding`, `PermitOpen`, ограничения в `authorized_keys`
-и `journalctl -u omsi-ultra-nd-3.service`.
+и `journalctl -u omsi-example-nd-3.service`.
 
 Важное ограничение: на уже существующем systemd unit изменение
 `host_key_policy` меняет `ExecStart`. Nodekit намеренно не
