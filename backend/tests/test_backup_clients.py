@@ -11,7 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
-from app.agent.backup_client_import import BackupClientImporter
+from app.agent.backup_client_import import BackupClientImporter, new_payload
 from app.agent.inbound_meta import public_inbound
 from app.backup_clients import public_catalog, read_catalog, select_clients
 from app.create_app import create_app
@@ -298,3 +298,22 @@ def test_partial_failure_rolls_back_only_new_identities(importer):
     assert importer.state.clients == []
     assert importer.state.inbound["settings"]["clients"] == []
     assert "clients/del/alpha" in importer.state.calls
+
+
+def test_signed_relative_expiry_and_telegram_id_are_preserved():
+    source = {
+        "id": "11111111-1111-4111-8111-111111111111",
+        "subId": "preservedToken",
+        "email": "valid-user",
+        "expiryTime": -86400000,
+        "tgId": -100100,
+        "enable": True,
+    }
+    target = {
+        "streamSettings": {"network": "xhttp", "security": "none"},
+    }
+    payload = new_payload(source, target, 9)
+    assert payload["client"]["expiryTime"] == -86400000
+    assert payload["client"]["tgId"] == -100100
+    assert payload["client"]["subId"] == "preservedToken"
+    assert payload["client"]["id"] == source["id"]

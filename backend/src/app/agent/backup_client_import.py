@@ -103,7 +103,9 @@ def new_payload(client, inbound, inbound_id):
     ):
         value = data.get(key)
         if value is not None and (
-            isinstance(value, bool) or not isinstance(value, int) or value < 0
+            isinstance(value, bool)
+            or not isinstance(value, int)
+            or (value < 0 and key not in {"expiryTime", "tgId"})
         ):
             raise RuntimeError(message_text(MessageKey.BACKUP_CLIENTS_INVALID))
     data["enable"] = bool(data.get("enable", True))
