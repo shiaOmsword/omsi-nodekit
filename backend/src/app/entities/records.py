@@ -19,6 +19,7 @@ class JobAction(StrEnum):
     CONFIGURE = "configure"
     INBOUND = "inbound"
     TRAFFIC = "traffic"
+    TCP_TUNING = "tcp_tuning"
     TUNNEL = "tunnel"
     XHTTP = "xhttp"
     CLIENT_IMPORT = "client_import"
