@@ -196,7 +196,6 @@ WantedBy=multi-user.target
             steps.append(message_text(MessageKey.CLIENT_EXTERNAL_PLAN))
         elif action == "subscription_maintenance":
             steps.append(message_text(MessageKey.SUB_CACHE_AUDIT_PLAN))
-            steps.append(message_text(MessageKey.SUB_CACHE_RESTART_PLAN))
         elif action == "xhttp":
             steps.append(message_text(MessageKey.XHTTP_APPLY_PLAN))
         elif action == "tunnel":

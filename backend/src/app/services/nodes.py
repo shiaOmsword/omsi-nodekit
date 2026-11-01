@@ -94,6 +94,11 @@ class NodeService:
             if request.tunnel.name not in available or not set(request.tunnel.members) <= available:
                 raise ValidationError(message_text(MessageKey.TUNNEL_CONFIG_INVALID))
         plan = self.renderer.plan(node, request.action)
+        if (
+            request.action == JobAction.SUBSCRIPTION_MAINTENANCE
+            and request.subscription_maintenance.mode == "clear_server_cache"
+        ):
+            plan["steps"].append(message_text(MessageKey.SUB_CACHE_RESTART_PLAN))
         return {
             **plan,
             "revision": stored.revision,
