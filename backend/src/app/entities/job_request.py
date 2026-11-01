@@ -38,7 +38,9 @@ class JobRequest(StrictModel):
             raise ValueError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
         if (self.action == JobAction.CLIENT_IMPORT) != (self.client_import is not None):
             raise ValueError(message_text(MessageKey.BACKUP_CLIENTS_INVALID))
-        if (self.action == JobAction.SUBSCRIPTION_MAINTENANCE) != (self.subscription_maintenance is not None):
+        if (self.action == JobAction.SUBSCRIPTION_MAINTENANCE) != (
+            self.subscription_maintenance is not None
+        ):
             raise ValueError(message_text(MessageKey.SUB_CACHE_REQUEST_INVALID))
         if self.action == JobAction.CLIENT_IMPORT and not self.backup_id:
             raise ValueError(message_text(MessageKey.RESTORE_BACKUP_REQUIRED))

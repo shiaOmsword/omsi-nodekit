@@ -90,7 +90,9 @@ class RemoteAgent:
                     inspector.inspect()
             elif action == "subscription_maintenance":
                 inspector.inspect()
-                SubscriptionMaintenanceAgent(context, self.host, self.database, inspector).apply(base)
+                SubscriptionMaintenanceAgent(context, self.host, self.database, inspector).apply(
+                    base
+                )
                 inspector = InstallationInspector(context)
                 inspector.inspect()
             elif action == "client_import":

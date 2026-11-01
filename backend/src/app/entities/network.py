@@ -128,9 +128,7 @@ class SubscriptionMaintenance(StrictModel):
     id: int = Field(gt=0)
     expected_fingerprint: str = Field(pattern=r"^[a-f0-9]{64}$")
     mode: Literal["audit", "clear_server_cache"] = "audit"
-    client_email: str | None = Field(
-        default=None, pattern=r"^[a-zA-Z0-9][a-zA-Z0-9_.@-]{0,79}$"
-    )
+    client_email: str | None = Field(default=None, pattern=r"^[a-zA-Z0-9][a-zA-Z0-9_.@-]{0,79}$")
     acknowledge_restart: bool = False
 
     @model_validator(mode="after")

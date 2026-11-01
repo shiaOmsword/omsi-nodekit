@@ -73,7 +73,9 @@ def public_subscription_probe(context, sub_id):
         url,
         headers={"User-Agent": "v2rayNG/1.0", "Accept": "text/plain"},
     )
-    with opener.open(request, timeout=min(MAX_AUDIT_SECONDS, context.policy["http_timeout"])) as response:
+    with opener.open(
+        request, timeout=min(MAX_AUDIT_SECONDS, context.policy["http_timeout"])
+    ) as response:
         length = response.headers.get("Content-Length")
         if length and int(length) > MAX_SUB_BODY:
             raise ValueError()
@@ -145,7 +147,7 @@ def owned_panel_container(context, inspector):
     try:
         result = json.loads(context.command(["docker", "inspect", container]))
         info = result[0] if isinstance(result, list) and len(result) == 1 else {}
-        labels = ((info.get("Config") or {}).get("Labels") or {})
+        labels = (info.get("Config") or {}).get("Labels") or {}
         identifier = str(info.get("Id") or "")
         if (
             not identifier
