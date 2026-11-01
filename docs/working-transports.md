@@ -94,3 +94,28 @@ Nodekit создаёт inbound через 3x-ui API, добавляет толь
 
 См. `docs/restore-rehearsal.md` для резервирования базы и sidecar,
 включая SSH units и shared Caddy.
+
+## Публикация существующего XHTTP в подписке 3x-ui 3.11.0
+
+После создания XHTTP вручную не требуется переделывать inbound и Caddy.
+Открой `Inbound → Изменить` для XHTTP: Nodekit предложит **«Опубликовать
+XHTTP в подписке»**. Операция использует `/panel/api/hosts/add` либо
+`hosts/update/:groupId` и помечает только свою запись `Hosts`:
+`nodekit:<node>:host:<inbound-id>`. Привязка inbound сохраняется в приватном
+`xhttp-hosts.json`; чужие Hosts не удаляются. Перед операцией создаётся
+SQLite snapshot.
+
+Публичная запись имеет address `vpn.brainoms.ru`, port `443`,
+security `tls`, SNI `vpn.brainoms.ru`, ALPN `h2`, path
+`/xhttp-ultra/`, fingerprint `chrome`; Xray остаётся на
+`172.30.50.1:10080` с `security=none`.
+После публикации запроси **именно URL подписки клиента**
+`https://brainoms.ru:2096/sub/<subId>`, а не кнопку копирования
+локального backend inbound из 3x-ui. Формат сырого `vless://`
+в ответе подписки должен указывать на `vpn.brainoms.ru:443`
+с `security=tls`, `sni=vpn.brainoms.ru`, `type=xhttp`.
+
+Не перепутай подписку (subId) с UUID VLESS клиента. При ручной настройке
+других Hosts для этого inbound Nodekit не присваивает их и откажется
+заменять запись с таким же доменом. Если клиентские индивидуальные
+Host bindings заданы вручную, их также необходимо проверить.

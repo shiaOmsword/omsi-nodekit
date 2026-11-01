@@ -41,7 +41,7 @@ export function TunnelPoolModal({ record, report, busy, error, onClose, onPrevie
   return <FormDialog title="SSH-пул" description={record.name + ' · отдельные OpenSSH TCP-сессии'}
     fields={fields} values={values} onChange={(name, value) => setValues((v) => ({ ...v, [name]: value }))}
     onSubmit={submit} onClose={onClose} busy={busy} error={error} submit="Посмотреть план">
-    <p className="feature-hint">Пул поддерживает один и тот же выходной VLESS endpoint, но несколько SSH-сессий. Перед маршрутами проверяются ключи, systemd и HTTPS через каждый путь. Существующий одиночный SSH-маршрут первого участника может быть перенесён в пул после проверки ownership.</p>
+    <p className="feature-hint">Пул поддерживает один и тот же выходной VLESS endpoint, но несколько SSH-сессий. Перед маршрутами проверяются ключи, systemd и HTTPS через каждый путь. Существующие одиночные SSH-маршруты участников могут быть перенесены в пул только при совпадении ownership, outbound, inbound и настроек.</p>
     <p className="feature-hint">Xray создаёт roundRobin + observatory. При отказе всех путей fallback указывает на blocked, а не direct. Никакие чужие systemd units не перезаписываются.</p>
   </FormDialog>;
 }
