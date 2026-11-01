@@ -8,8 +8,18 @@ export interface NodeSummary {
 export interface NodeRecord extends NodeSummary {
   yaml: string;
 }
-export type Action = 'check' | 'doctor' | 'fresh' | 'restore' | 'backup' | 'configure' | 'inbound' | 'traffic' | 'tunnel' | 'xhttp';
+export type Action = 'check' | 'doctor' | 'fresh' | 'restore' | 'backup' | 'configure' | 'inbound' | 'traffic' | 'tunnel' | 'xhttp' | 'client_import';
+export interface BackupClientCatalog {
+  inbounds: {
+    id: number;
+    remark: string;
+    protocol: string;
+    client_count: number;
+    clients: { ref: string; email: string; enabled: boolean; has_subscription: boolean; restorable: boolean }[];
+  }[];
+}
 export interface JobOptions {
+  client_import?: { source_inbound_id: number; target_inbound_id: number; expected_fingerprint: string; client_refs: string[] };
   tunnel?: { name: string; outbound_tag: string; id: number; expected_fingerprint: string; members?: string[]; pool_name?: string };
   inbound?: { id: number; expected_fingerprint: string; operation: 'update' | 'delete' | 'add_client' | 'delete_client'; client_email?: string; remark?: string; port?: number; server_name?: string; close_unmanaged_rule?: boolean };
   traffic?: { id: number; expected_fingerprint: string };

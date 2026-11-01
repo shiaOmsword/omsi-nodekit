@@ -8,10 +8,12 @@ export function BackupsPage({
   backups,
   onImport,
   onRestore,
+  onClients,
 }: {
   backups: Backup[];
   onImport: () => void;
   onRestore: (backup: Backup) => void;
+  onClients: (backup: Backup) => void;
 }) {
   const [search, setSearch] = useState('');
   const visible = backups.filter((b) =>
@@ -83,6 +85,7 @@ export function BackupsPage({
                           <Download size={16} />
                           Скачать
                         </a>
+                        <Button small onClick={() => onClients(backup)}>Клиенты</Button>
                         <button
                           className="icon-button"
                           aria-label={'Восстановить из ' + backup.filename}

@@ -31,6 +31,7 @@ import { NodeManagementModal } from './features/nodes/NodeManagementModal';
 import { OperationsPage, OperationDetail } from './features/operations/OperationsPage';
 import { PlanModal } from './features/operations/PlanModal';
 import { BackupsPage } from './features/backups/BackupsPage';
+import { BackupClientsModal } from './features/backups/BackupClientsModal';
 import { LogsPage } from './features/logs/LogsPage';
 import { SSHKeysPanel } from './features/keys/SSHKeysPanel';
 import { HelpPanel } from './features/help/HelpPanel';
@@ -70,7 +71,8 @@ type ModalState =
   | { kind: 'discovery'; record: NodeRecord; job: JobDetail }
   | { kind: 'plan'; record: NodeRecord; action: Action; backupId: string | null; plan: Plan | null; options?: JobOptions }
   | { kind: 'import'; done?: (backup: Backup) => void }
-  | { kind: 'restore'; backup: Backup };
+  | { kind: 'restore'; backup: Backup }
+  | { kind: 'backup-clients'; backup?: Backup; record?: NodeRecord; inbound?: InboundFinding; report?: InstallationReport };
 
 function SimpleForm({
   title,
@@ -299,7 +301,7 @@ export default function App() {
     if (!requireSaved()) return;
     showModal({ kind: 'plan', record, action, backupId, plan: null, options });
     const plan = await w.run(() => options ? api<Plan>('/nodes/' + record.id + '/plan', {
-      method: 'POST', body: JSON.stringify({ action, revision: record.revision, ...options }),
+      method: 'POST', body: JSON.stringify({ action, revision: record.revision, ...(backupId ? { backup_id: backupId } : {}), ...options }),
     }) : api<Plan>('/nodes/' + record.id + '/plan?action=' + action));
     if (plan) setModal({ kind: 'plan', record, action, backupId, plan, options });
   }
@@ -312,7 +314,7 @@ export default function App() {
         body: JSON.stringify({
           action: context.action,
           revision: context.plan!.revision,
-          backup_id: context.action === 'restore' ? context.backupId : null,
+          backup_id: ['restore', 'client_import'].includes(context.action) ? context.backupId : null,
           ...context.options,
         }),
       });
@@ -519,6 +521,20 @@ export default function App() {
             submit="Сохранить привязку"
           />
         );
+      case 'backup-clients':
+        return <BackupClientsModal
+          {...common}
+          backup={modal.backup}
+          record={modal.record}
+          inbound={modal.inbound}
+          report={modal.report}
+          nodes={w.nodes}
+          backups={w.backups}
+          jobs={w.jobs}
+          onPreview={(node, selectedBackup, options) =>
+            preview(node, 'client_import', selectedBackup.id, options)
+          }
+        />;
       case 'restore':
         return (
           <SimpleForm
@@ -644,6 +660,10 @@ export default function App() {
             onClient={(inbound, remove) => {
               if (w.selected && requireSaved()) showModal({ kind: 'client', record: w.selected, inbound, remove });
             }}
+            onRestoreClients={(inbound) => {
+              if (w.selected && reportJob?.report && requireSaved())
+                showModal({ kind: 'backup-clients', record: w.selected, inbound, report: reportJob.report });
+            }}
             onTunnel={() => {
               if (w.selected && reportJob?.report && requireSaved()) showModal({ kind: 'tunnel', record: w.selected, report: reportJob.report });
             }}
@@ -681,6 +701,7 @@ export default function App() {
             backups={w.backups}
             onImport={() => openImport()}
             onRestore={(backup) => showModal({ kind: 'restore', backup })}
+            onClients={(backup) => showModal({ kind: 'backup-clients', backup })}
           />
         );
         break;
