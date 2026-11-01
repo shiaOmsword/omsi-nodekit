@@ -17,6 +17,13 @@ class ErrorCode(StrEnum):
 
 
 class MessageKey(StrEnum):
+    TCP_TUNING_REQUEST_INVALID = "tcp_tuning_request_invalid"
+    TCP_TUNING_PLAN = "tcp_tuning_plan"
+    TCP_TUNING_STALE = "tcp_tuning_stale"
+    TCP_TUNING_UNAVAILABLE = "tcp_tuning_unavailable"
+    TCP_TUNING_CONFLICT = "tcp_tuning_conflict"
+    TCP_TUNING_FAILED = "tcp_tuning_failed"
+    TCP_TUNING_APPLIED = "tcp_tuning_applied"
     TUNNEL_SOURCE_FORMAT = "tunnel_source_format"
     TUNNEL_SOURCE_MISSING = "tunnel_source_missing"
     TUNNEL_SOURCE_UNSUPPORTED = "tunnel_source_unsupported"
