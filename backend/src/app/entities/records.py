@@ -22,6 +22,7 @@ class JobAction(StrEnum):
     TUNNEL = "tunnel"
     XHTTP = "xhttp"
     CLIENT_IMPORT = "client_import"
+    SUBSCRIPTION_MAINTENANCE = "subscription_maintenance"
 
 
 class JobStatus(StrEnum):

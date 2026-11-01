@@ -49,7 +49,7 @@ export function PlanModal({
             loading={busy}
             icon={<Play size={16} />}
           >
-            {plan?.options?.inbound?.operation === 'delete' ? 'Удалить inbound' : 'Запустить операцию'}
+            {plan?.options?.inbound?.operation === 'delete' ? 'Удалить inbound' : plan?.options?.subscription_maintenance?.mode === 'clear_server_cache' ? 'Перезапустить 3x-ui' : 'Запустить операцию'}
           </Button>
         </>
       }
@@ -62,9 +62,9 @@ export function PlanModal({
           <>
             <div className="plan-context">
               <span
-                className={'tag ' + (['fresh', 'restore', 'configure', 'inbound', 'tunnel', 'xhttp', 'client_import'].includes(action) ? 'tag-warning' : '')}
+                className={'tag ' + (['fresh', 'restore', 'configure', 'inbound', 'tunnel', 'xhttp', 'client_import', 'subscription_maintenance'].includes(action) ? 'tag-warning' : '')}
               >
-                {['fresh', 'restore', 'configure', 'inbound', 'tunnel', 'xhttp'].includes(action)
+                {['fresh', 'restore', 'configure', 'inbound', 'tunnel', 'xhttp'].includes(action) || (action === 'subscription_maintenance' && plan.options?.subscription_maintenance?.mode === 'clear_server_cache')
                   ? 'Изменяет сервер'
                   : 'Сервисы на VPS не изменяются'}
               </span>
@@ -115,6 +115,10 @@ export function PlanModal({
                 установкой.
               </p>
             )}
+            {action === 'subscription_maintenance' && <p className="feature-hint">
+              Аудит читает настройки, DNS и один публичный URL подписки без изменения сервисов.
+              Ручной сброс серверного кэша реализован только через перезапуск принадлежащего Nodekit контейнера 3x-ui и может прервать VPN-соединения. Кэш V2BOX, Hiddify, DNS ОС и shared Caddy не затрагиваются.
+            </p>}
             {action === 'configure' && <p className="feature-hint">
               Панель и Xray кратковременно перезапустятся; активные VPN-соединения могут прерваться. Будет заменён только сохранённый сайт этой ноды в Caddy.
               Существующие inbound и клиенты не редактируются. Разрешённые изменения UFW и публикаций Caddy перечислены в плане.
