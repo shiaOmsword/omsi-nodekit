@@ -66,7 +66,7 @@ def test_pool_can_migrate_exact_owned_single_without_changing_default():
         "nd-pool",
         sample_tunnels(),
         "in-xhttp",
-        single={"outbound": single_outbound, "rule": single_rule},
+        singles=[{"name": "nd", "outbound": single_outbound, "rule": single_rule}],
     )
     assert single_outbound not in new["outbounds"]
     assert single_rule not in new["routing"]["rules"]
@@ -284,3 +284,75 @@ def test_xhttp_manager_creates_owned_site_and_inbound_without_touching_other_sit
     assert (owned.base / "xhttp-routes.json").is_file()
     assert list(owned.base.glob("before-xhttp-*.db"))
     assert "subId" not in capsys.readouterr().out
+
+
+def test_pool_migrates_two_owned_single_routes():
+    original, first_out, first_rule = routed_template(
+        template(), "exit", sample_tunnels()[0], "ssh-ultra-nd", "in-xhttp"
+    )
+    staged, second_out, second_rule = routed_template(
+        original, "exit", sample_tunnels()[1], "ssh-ultra-nd-2", "in-xhttp"
+    )
+    updated, record = pool_template(
+        staged, "exit", "ultra", "nd-pool", sample_tunnels(), "in-xhttp",
+        singles=[
+            {"name": "nd", "outbound": first_out, "rule": first_rule},
+            {"name": "nd-2", "outbound": second_out, "rule": second_rule},
+        ],
+    )
+    assert first_out not in updated["outbounds"]
+    assert second_out not in updated["outbounds"]
+    assert first_rule not in updated["routing"]["rules"]
+    assert second_rule not in updated["routing"]["rules"]
+    assert record["rule"] in updated["routing"]["rules"]
+    assert updated["routing"]["rules"][:2] == staged["routing"]["rules"][:2]
+
+
+def test_pool_refuses_modified_existing_route():
+    staged, outbound, rule = routed_template(
+        template(), "exit", sample_tunnels()[0], "ssh-ultra-nd", "in-xhttp"
+    )
+    with pytest.raises(ValueError):
+        pool_template(
+            staged, "exit", "ultra", "nd-pool", sample_tunnels(), "in-xhttp",
+            singles=[{"name": "nd", "outbound": outbound, "rule": {**rule, "outboundTag": "direct"}}],
+        )
+
+
+def test_publish_existing_xhttp_host_preserves_caddy(owned, monkeypatch):
+    context = owned.context
+    base = owned.base
+    inbound = {
+        "id": 2, "port": 10080, "listen": "127.0.0.1",
+        "remark": "phone", "enable": True, "protocol": "vless",
+        "streamSettings": {"network": "xhttp", "security": "none",
+                           "xhttpSettings": {"path": "/xhttp-ultra/", "mode": "auto"}},
+    }
+    from app.agent.inbound_meta import public_inbound
+    request = {
+        "operation": "publish", "id": 2, "port": 10080,
+        "domain": "vpn.example.com", "path": "/xhttp-ultra/",
+        "mode": "auto", "remark": "phone",
+        "expected_fingerprint": public_inbound(inbound)["fingerprint"],
+    }
+    context.payload["options"] = {"xhttp": request}
+    hosts = []
+    def api_request(path, payload=None):
+        if path == "inbounds/get/2":
+            return copy.deepcopy(inbound)
+        if path == "hosts/list":
+            return copy.deepcopy(hosts)
+        if path == "hosts/add":
+            hosts.append({**payload, "groupId": "managed-host", "hosts": ["vpn.example.com:443"]})
+            return None
+        raise AssertionError(path)
+    api = SimpleNamespace(request=api_request)
+    before = owned.shared.read_bytes()
+    manager = XHTTPManager(context, None, owned.operation.database, owned.inspector)
+    manager.publish_host(base, api, request)
+    assert owned.shared.read_bytes() == before
+    assert hosts[0]["port"] == 443
+    assert hosts[0]["security"] == "tls"
+    assert hosts[0]["alpn"] == ["h2"]
+    assert (base / "xhttp-hosts.json").is_file()
+    assert list(base.glob("before-host-*.db"))
