@@ -5,6 +5,7 @@ private return value; only public_catalog() can cross the HTTP/UI boundary.
 In 3x-ui 3.11 the normalized clients/client_inbounds tables are authoritative.
 """
 
+import hashlib
 import json
 import re
 import sqlite3
@@ -176,7 +177,41 @@ def read_catalog(path):
                         "l:" + str(index),
                         safe,
                     )
-    return list(found.values())
+    catalog = list(found.values())
+    _adapt_shared_subscriptions(catalog)
+    return catalog
+
+
+def _adapt_shared_subscriptions(catalog):
+    """Keep one old public token per group; derive unique child tokens for 3.11.
+
+    Choose across the whole dump, not the selection or a single inbound. Repeated
+    memberships of one account must have identical identities on every import.
+    No tokens or UUIDs from this private metadata may cross public_catalog().
+    """
+    groups = {}
+    for source in catalog:
+        for item in source["clients"]:
+            if item["restorable"]:
+                data = item["data"]
+                key = (data["email"].lower(), data["id"].lower())
+                groups.setdefault(data["subId"], {}).setdefault(key, []).append(data)
+    used = set(groups)
+    for sub_id, accounts in groups.items():
+        if len(accounts) < 2:
+            continue
+        owner = min(accounts, key=lambda key: (not accounts[key][0].get("enable", True), key))
+        for key, records in sorted(accounts.items()):
+            token = sub_id
+            if key != owner:
+                material = json.dumps(["nodekit-shared-sub-v1", sub_id, *key])
+                token = "nk-" + hashlib.sha256(material.encode()).hexdigest()[:40]
+                if token in used:
+                    raise ValueError(message_text(MessageKey.BACKUP_CLIENTS_INVALID))
+                used.add(token)
+            for data in records:
+                data["subId"] = token
+                data["_shared_subscription"] = {"sub_id": sub_id, "owner": owner[0]}
 
 
 def public_catalog(private_catalog):
@@ -195,6 +230,18 @@ def public_catalog(private_catalog):
                             for key in ("ref", "email", "enabled", "has_subscription", "restorable")
                         },
                         "external_link_count": len(item["data"].get("_external_links", [])),
+                        "shared_subscription": bool(item["data"].get("_shared_subscription")),
+                        "subscription_owner_email": item["data"]
+                        .get("_shared_subscription", {})
+                        .get("owner"),
+                        "subscription_owner_refs": [
+                            other["ref"]
+                            for other in source["clients"]
+                            if item["data"].get("_shared_subscription")
+                            and other["data"].get("email", "").lower()
+                            == item["data"]["_shared_subscription"]["owner"]
+                            and other["ref"] != item["ref"]
+                        ],
                         "external_links_compatible": all(
                             link.get("_compatible", False)
                             for link in item["data"].get("_external_links", [])

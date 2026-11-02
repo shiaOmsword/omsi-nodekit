@@ -110,8 +110,11 @@ export function BackupClientsModal({
   const ready = source?.clients.filter((client) => client.restorable) || [];
   const visible = useMemo(() => source?.clients.filter((client) =>
     client.email.toLowerCase().includes(search.toLowerCase())) || [], [source, search]);
-  const dependentRefs = source?.clients.filter((item) => selected.includes(item.ref))
-    .flatMap((item) => item.depends_on) || [];
+  const selectedClients = source?.clients.filter((item) => selected.includes(item.ref)) || [];
+  const sharedCount = selectedClients.filter((item) => item.shared_subscription).length;
+  const dependentRefs = selectedClients.flatMap((item) => [
+    ...(item.subscription_owner_refs || []), ...(includeLinks ? item.depends_on : []),
+  ]);
   const missingRefs = Array.from(new Set(dependentRefs.filter((ref) => !selected.includes(ref))));
   const selectedLinkCount = source?.clients.filter((item) => selected.includes(item.ref))
     .reduce((count, item) => count + item.external_link_count, 0) || 0;
@@ -199,8 +202,15 @@ export function BackupClientsModal({
             onChange={(event) => setIncludeLinks(event.target.checked)} />
           Восстановить связанные подписки из бэкапа (найдено: {selectedLinkCount})
         </label>
-        {includeLinks && missingRefs.length > 0 && <div className="feature-hint">
-          Для восстановления связей нужно также перенести {missingRefs.length} связанных клиентов.
+        {sharedCount > 0 && <div className="feature-hint" role="note">
+          Выбрано {sharedCount} клиентов с общими ID подписок. UUID сохранятся.
+          Старый публичный ID останется у владельца группы, остальные получат отдельные ID
+          и войдут в старую подписку через связанные HTTPS-подписки.
+          Владелец должен быть выбран или уже перенесён; он может находиться в другом исходном inbound.
+          Эти связи создаются независимо от галочки восстановления внешних ссылок.
+        </div>}
+        {missingRefs.length > 0 && <div className="feature-hint">
+          Для восстановления подписок нужно также перенести {missingRefs.length} связанных клиентов или владельцев групп.
           <Button small onClick={() => setSelected((items) =>
             Array.from(new Set([...items, ...missingRefs])).slice(0, 100)
           )}>Добавить связанных</Button>
@@ -220,7 +230,10 @@ export function BackupClientsModal({
                   : items.filter((value) => value !== client.ref))} /></td>
               <td>{client.email || 'Без имени'}</td>
               <td>{client.enabled ? 'Включён' : 'Выключен'}</td>
-              <td>{client.restorable ? 'UUID и subId сохранены' : 'Нет корректного UUID / subId'}</td>
+              <td>{!client.restorable ? 'Нет корректного UUID / subId'
+                : client.shared_subscription
+                  ? 'Общая подписка · владелец: ' + client.subscription_owner_email
+                  : 'UUID и subId сохранены'}</td>
               <td>{client.external_link_count}</td>
             </tr>)}
           </tbody></table>
@@ -229,8 +242,9 @@ export function BackupClientsModal({
     </>}
     <p className="feature-hint">
       ID подписок и UUID не показываются в интерфейсе, но передаются внутри защищённой операции
-      без изменений. При дублировании email, UUID или subId с другой учётной записью импорт
-      остановится. Существующих клиентов и настройки Caddy/SSH эта операция не изменяет.
+      с сохранением UUID. Общие старые подписки адаптируются к новой панели с сохранением публичного ID группы.
+      При конфликте email, UUID или subId с другой учётной записью на целевой ноде импорт
+      остановится. Связи общих подписок дополняются у их владельца; при ошибке выполняется откат.
     </p>
     <p className="feature-hint">
       При переносе с REALITY на XHTTP режим Vision flow очищается; привязки к старым Hosts
