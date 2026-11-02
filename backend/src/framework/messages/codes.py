@@ -55,6 +55,7 @@ class MessageKey(StrEnum):
     INBOUND_REQUEST_INVALID = "inbound_request_invalid"
     XHTTP_APPLY_PLAN = "xhttp_apply_plan"
     XHTTP_APPLIED = "xhttp_applied"
+    XHTTP_HTTPS_REQUIRED = "xhttp_https_required"
     BACKUP_CLIENTS_INVALID = "backup_clients_invalid"
     CLIENT_IMPORT_PLAN = "client_import_plan"
     CLIENT_IMPORT_CONFLICT = "client_import_conflict"

@@ -23,7 +23,8 @@ def attaching(owned, monkeypatch):
     old = json.loads((owned.base / "manifest.json").read_text())["node"]
     old["deployment"].update(caddy_mode="docker", caddy_id=None)
     (owned.base / "manifest.json").write_text(json.dumps({"node": old}))
-    (owned.base / "Caddyfile").write_text(standalone_config(old))
+    # This fixture represents a remote Linux-generated file, including on Windows.
+    (owned.base / "Caddyfile").write_bytes(standalone_config(old).encode())
     (owned.base / "Caddyfile.site").unlink()
     owned.shared.write_text("other.example.com { respond existing }\n")
     owned.inspector.report["caddy"][0]["routes"] = [{"hosts": ["other.example.com"]}]

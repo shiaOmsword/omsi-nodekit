@@ -10,6 +10,7 @@ MESSAGES = MappingProxyType(
         MessageKey.CADDY_ATTACH_CONFLICT: "Caddy attachment requires an active owned panel with the original manifest, unchanged runtime/image/admin endpoint/subscription path/tunnels, no existing saved shared site or XHTTP routes, and a verified selected Caddy. An owned standalone Caddy must still have its exact generated configuration and original Docker ownership",
         MessageKey.CADDY_ATTACH_APPLIED: "Caddy attached; saved site and manifest updated, existing inbounds and clients preserved. Refresh discovery before creating XHTTP",
         MessageKey.CADDY_ATTACH_REQUIRED: "This panel was installed without shared Caddy. Select the Caddy instance in deployment settings, then run Attach Caddy before creating XHTTP or configuring subscriptions",
+        MessageKey.XHTTP_HTTPS_REQUIRED: "XHTTP requires public Caddy HTTPS on 443/TCP, independently of the subscription port. Publish 443:443/tcp in the selected Caddy Compose project, then refresh discovery; no inbound was created",
         MessageKey.TCP_TUNING_REQUEST_INVALID: "Choose BBR or CUBIC with the latest TCP settings fingerprint",
         MessageKey.TCP_TUNING_PLAN: "Verify TCP congestion algorithm and owned configuration; set BBR/CUBIC for new sockets and persist across reboot; preserve existing SSH/Xray/Caddy processes; roll back on failure",
         MessageKey.TCP_TUNING_STALE: "TCP settings changed after discovery; refresh before applying",

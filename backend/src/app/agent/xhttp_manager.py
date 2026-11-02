@@ -103,6 +103,22 @@ class XHTTPManager:
 
         caddy = ExistingCaddy(self.context, self.inspector)
         caddy.preflight(previous_site, manifest["caddy"]["domain"])
+        # XHTTP uses public HTTPS/443 independently of the subscription port.
+        # Do not create a working private inbound behind an unpublished listener.
+        if (
+            caddy.finding["installation"] == "docker"
+            and caddy.finding.get("network_mode") != "host"
+        ):
+            if not any(
+                p.endswith(":443->443/tcp") for p in caddy.finding.get("published_ports", [])
+            ):
+                raise RuntimeError(message_text(MessageKey.XHTTP_HTTPS_REQUIRED))
+        elif not any(
+            address.endswith(":443")
+            for route in caddy.finding.get("routes", [])
+            for address in route.get("listen", [])
+        ):
+            self.host.require_endpoint(443, "0.0.0.0")
         existing = next((r for r in routes if r["id"] == request.get("id")), None)
         if request["operation"] == "update" and not existing:
             raise RuntimeError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
@@ -209,10 +225,10 @@ class XHTTPManager:
             self.inspector.database(), base / f"before-xhttp-{time.time_ns()}.db"
         )
         fw = FirewallTransaction(self.context, base, enabled=target.get("manage_ufw", True))
-        extra = []
+        extra = [rule_spec(443, scope="caddy")]
         if bridges:
             b = bridges[0]
-            extra = [
+            extra += [
                 rule_spec(
                     request["port"],
                     source=b["subnet"],
