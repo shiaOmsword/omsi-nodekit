@@ -15,7 +15,7 @@ export interface BackupClientCatalog {
     remark: string;
     protocol: string;
     client_count: number;
-    clients: { ref: string; email: string; enabled: boolean; has_subscription: boolean; restorable: boolean; external_link_count: number; external_links_compatible: boolean; depends_on: string[] }[];
+    clients: { ref: string; email: string; enabled: boolean; has_subscription: boolean; restorable: boolean; shared_subscription: boolean; subscription_owner_email: string | null; subscription_owner_refs: string[]; external_link_count: number; external_links_compatible: boolean; depends_on: string[] }[];
   }[];
 }
 export interface JobOptions {
