@@ -116,7 +116,7 @@ class JobService:
                 raise ValidationError(message_text(MessageKey.TUNNEL_CONFIG_INVALID))
         if action in {JobAction.FRESH, JobAction.RESTORE} and node.panel.installation != "managed":
             raise ValidationError(message_text(MessageKey.EXISTING_READ_ONLY))
-        if action == JobAction.CONFIGURE and (
+        if action in {JobAction.CONFIGURE, JobAction.ATTACH_CADDY} and (
             node.panel.installation != "managed"
             or not node.deployment
             or node.deployment.caddy_mode != "existing"

@@ -129,7 +129,7 @@ class RemoteAgent:
                         )
                 finally:
                     inspector.publish()
-            elif action == "configure":
+            elif action in {"configure", "attach_caddy"}:
                 inspector.inspect()
                 ConfigureSubscriptions(
                     context, self.host, self.database, self.diagnostics, inspector

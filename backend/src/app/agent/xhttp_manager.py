@@ -85,7 +85,7 @@ class XHTTPManager:
             manifest["id"] != node["id"]
             or manifest.get("deployment", {}).get("caddy_mode") != "existing"
         ):
-            raise RuntimeError(message_text(MessageKey.SUBSCRIPTION_CONFIGURE_GUARD))
+            raise RuntimeError(message_text(MessageKey.CADDY_ATTACH_REQUIRED))
         site_path = base / "Caddyfile.site"
         routes_path = base / "xhttp-routes.json"
         if site_path.is_symlink():

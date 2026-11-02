@@ -1,5 +1,6 @@
 import json
 
+from app.agent.caddy_config import standalone_config, subscription_site
 from app.config import DeploymentSettings, SSHSettings
 from app.entities import Node
 from app.ports import ArtifactRenderer
@@ -53,30 +54,10 @@ class NodeArtifacts(ArtifactRenderer):
         )
 
     def caddyfile(self, node: Node) -> str:
-        bind = node.deployment.subscription_bind if node.deployment else "127.0.0.1"
-        site = f"""https://{node.caddy.domain}:{node.caddy.https_port} {{
-    tls {{
-        issuer acme {{
-            disable_tlsalpn_challenge
-        }}
-    }}
-    @subscriptions path {node.panel.subscription_path}*
-    handle @subscriptions {{
-        reverse_proxy {bind}:{node.panel.subscription_port}
-    }}
-    handle {{
-        respond 404
-    }}
-}}
-"""
+        data = node.export_config()
         if node.deployment and node.deployment.caddy_mode == "existing":
-            return site
-        return f"""{{
-    admin off
-}}
-
-{site}
-"""
+            return subscription_site(data)
+        return standalone_config(data)
 
     def panel_unit(self, node: Node) -> str:
         base = self.remote_dir(node)
@@ -144,7 +125,7 @@ WantedBy=multi-user.target
     def plan(self, node: Node, action: str) -> dict:
         if action in {"fresh", "restore"} and node.panel.installation != "managed":
             raise ValidationError(message_text(MessageKey.EXISTING_READ_ONLY))
-        if action == "configure" and (
+        if action in {"configure", "attach_caddy"} and (
             node.panel.installation != "managed"
             or not node.deployment
             or node.deployment.caddy_mode != "existing"
@@ -187,6 +168,8 @@ WantedBy=multi-user.target
                     steps.append(message_text(MessageKey.DEPLOYMENT_INBOUNDS_PLAN))
                 if target.panel_runtime == "native" and target.caddy_mode != "docker":
                     steps.remove(message_text(MessageKey.PLAN_IMAGES_PULL))
+        elif action == "attach_caddy":
+            steps.append(message_text(MessageKey.CADDY_ATTACH_PLAN))
         elif action == "configure":
             steps.append(message_text(MessageKey.SUBSCRIPTION_CONFIGURE_PLAN))
         elif action == "inbound":
@@ -220,12 +203,12 @@ WantedBy=multi-user.target
                 if node.probe
                 else message_text(MessageKey.PLAN_PROXY_NOT_CONFIGURED)
             ]
-        if action in {"fresh", "restore", "configure", "inbound", "xhttp"} and (
+        if action in {"fresh", "restore", "configure", "attach_caddy", "inbound", "xhttp"} and (
             not node.deployment or node.deployment.manage_ufw
         ):
             steps.append(message_text(MessageKey.NETWORK_UFW_PLAN))
         if (
-            action in {"fresh", "restore", "configure"}
+            action in {"fresh", "restore", "configure", "attach_caddy"}
             and node.deployment
             and node.deployment.manage_caddy_ports
             and node.deployment.caddy_mode == "existing"
@@ -235,6 +218,7 @@ WantedBy=multi-user.target
             "fresh",
             "restore",
             "configure",
+            "attach_caddy",
             "inbound",
             "tunnel",
             "xhttp",
@@ -251,9 +235,10 @@ WantedBy=multi-user.target
                 {
                     k: v
                     for k, v in self.artifacts(node).items()
-                    if action != "configure" or k in {"Caddyfile.site", "deployment.json"}
+                    if action not in {"configure", "attach_caddy"}
+                    or k in {"Caddyfile.site", "deployment.json"}
                 }
-                if action in {"fresh", "restore", "configure"}
+                if action in {"fresh", "restore", "configure", "attach_caddy"}
                 else {}
             ),
         }
