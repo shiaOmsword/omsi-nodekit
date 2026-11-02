@@ -105,6 +105,9 @@ def test_normalized_client_tables_are_authoritative_and_private(tmp_path):
         "has_subscription": True,
         "restorable": True,
         "external_link_count": 0,
+        "shared_subscription": False,
+        "subscription_owner_email": None,
+        "subscription_owner_refs": [],
         "external_links_compatible": True,
         "depends_on": [],
     }
@@ -232,6 +235,9 @@ def importer(owned, monkeypatch, tmp_path):
             if state.fail_on_second and payload["client"]["email"] == "beta":
                 raise RuntimeError("simulated api failure")
             client = payload["client"]
+            assert not any(key.startswith("_") for key in client)
+            if any(row["subId"] == client["subId"] for row in state.clients):
+                raise RuntimeError("subId already in use")
             state.clients.append(
                 {
                     "email": client["email"],

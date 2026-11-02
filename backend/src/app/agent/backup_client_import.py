@@ -17,9 +17,10 @@ from app.backup_clients import read_catalog, select_clients
 from framework.messages import MessageKey
 from framework.messages import text as message_text
 
-from .client_external_sync import build_sync_plan, rollback_links, synchronize_links
+from .client_external_sync import rollback_links, synchronize_links
 from .inbound_manager import configuration, managed_api
 from .inbound_meta import object_value, public_inbound
+from .legacy_subscriptions import build_import_link_plans
 
 
 def identity(record):
@@ -82,7 +83,7 @@ def conflict_if_existing(selected, existing, target, target_id):
 
 def new_payload(client, inbound, inbound_id):
     """Keep immutable identifiers and policy, adapt unsupported Vision flow."""
-    data = dict(client)
+    data = {key: value for key, value in client.items() if not key.startswith("_")}
     # Backup-only metadata must never enter the 3x-ui Clients API.
     data.pop("_external_links", None)
     data.pop("_source_sub_uri", None)
@@ -171,11 +172,10 @@ class BackupClientImporter:
             clients, records, before, change["target_inbound_id"]
         )
         include_links = change.get("include_external_links", True)
-        link_plans, link_count = (
-            build_sync_plan(context, api, catalog, clients, records, pending)
-            if include_links
-            else ([], 0)
+        link_plans, link_count = build_import_link_plans(
+            context, api, catalog, clients, records, pending, include_links
         )
+        payloads = [new_payload(c, before, change["target_inbound_id"]) for c in pending]
         if not pending and not link_plans:
             context.emit(message_text(MessageKey.CLIENT_IMPORT_SUCCEEDED, count=0, skipped=skipped))
             return
@@ -191,7 +191,9 @@ class BackupClientImporter:
             or api.request("clients/list") != records
             or (
                 link_plans
-                and build_sync_plan(context, api, catalog, clients, records, pending)[0]
+                and build_import_link_plans(
+                    context, api, catalog, clients, records, pending, include_links
+                )[0]
                 != link_plans
             )
         ):
@@ -200,13 +202,13 @@ class BackupClientImporter:
         created = []
         attempted_links = []
         try:
-            for client in pending:
+            for client, payload in zip(pending, payloads):
                 # Record the attempted identity before making the API request:
                 # upstream may create the client and then fail during restart.
                 created.append(client)
                 api.request(
                     "clients/add",
-                    new_payload(client, before, change["target_inbound_id"]),
+                    payload,
                 )
             after = api.request("clients/list")
             if not isinstance(after, list):

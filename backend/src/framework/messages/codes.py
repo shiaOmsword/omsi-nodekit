@@ -54,6 +54,7 @@ class MessageKey(StrEnum):
     BACKUP_CLIENTS_INVALID = "backup_clients_invalid"
     CLIENT_IMPORT_PLAN = "client_import_plan"
     CLIENT_IMPORT_CONFLICT = "client_import_conflict"
+    CLIENT_SHARED_DEPENDENCY = "client_shared_dependency"
     CLIENT_IMPORT_SUCCEEDED = "client_import_succeeded"
     CLIENT_EXTERNAL_DEPENDENCY = "client_external_dependency"
     CLIENT_EXTERNAL_CYCLE = "client_external_cycle"
