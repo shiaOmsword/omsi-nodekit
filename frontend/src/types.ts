@@ -8,7 +8,7 @@ export interface NodeSummary {
 export interface NodeRecord extends NodeSummary {
   yaml: string;
 }
-export type Action = 'check' | 'doctor' | 'fresh' | 'restore' | 'backup' | 'configure' | 'inbound' | 'traffic' | 'tunnel' | 'xhttp' | 'client_import' | 'subscription_maintenance' | 'tcp_tuning';
+export type Action = 'check' | 'doctor' | 'fresh' | 'restore' | 'backup' | 'configure' | 'attach_caddy' | 'inbound' | 'traffic' | 'tunnel' | 'xhttp' | 'client_import' | 'subscription_maintenance' | 'tcp_tuning';
 export interface BackupClientCatalog {
   inbounds: {
     id: number;
@@ -184,6 +184,7 @@ export interface DeploymentProfileFinding {
   ready: boolean;
 }
 export interface InstallationReport {
+  caddy_attachment?: 'ready' | 'required' | 'unknown';
   tcp_tuning?: { current: string; available: string[]; managed_algorithm?: string | null; conflict: boolean; fingerprint: string } | null;
   observed_at: string;
   panels: PanelFinding[];
