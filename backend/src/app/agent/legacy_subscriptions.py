@@ -37,6 +37,7 @@ def build_import_link_plans(context, api, catalog, selected, existing, pending, 
     chosen = {c["email"].lower() for c in selected}
     creating = {c["email"].lower() for c in pending}
     target = {str(c.get("email", "")).lower(): c for c in existing}
+    member_links = {}
     for sub_id in sorted(affected):
         members = [c for c in accounts.values() if c["_shared_subscription"]["sub_id"] == sub_id]
         owner_email = members[0]["_shared_subscription"]["owner"]
@@ -63,6 +64,8 @@ def build_import_link_plans(context, api, catalog, selected, existing, pending, 
                     or current.get("subId") != member["subId"]
                 ):
                     raise RuntimeError(message_text(MessageKey.CLIENT_IMPORT_CONFLICT))
+            if email not in creating:
+                member_links[member["subId"]] = _current_details(api, member["email"], member)
             links.append(
                 {
                     "kind": "subscription",
@@ -98,13 +101,14 @@ def build_import_link_plans(context, api, catalog, selected, existing, pending, 
             )
 
     # Generated owner -> child edges must not close a source/existing link cycle.
+    planned_links = {**member_links, **{p["client"]["subId"]: p["desired"] for p in plans}}
     edges = {
-        p["client"]["subId"]: [
+        token: [
             link["value"][len(root) :]
-            for link in p["desired"]
+            for link in links
             if link["kind"] == "subscription" and link["value"].startswith(root)
         ]
-        for p in plans
+        for token, links in planned_links.items()
     }
     visiting, visited = set(), set()
 

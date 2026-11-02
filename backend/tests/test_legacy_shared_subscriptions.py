@@ -182,3 +182,24 @@ def test_reality_keeps_vision_and_private_recovery_metadata_never_enters_api(tmp
     payload = new_payload(client, {"streamSettings": {"network": "tcp", "security": "reality"}}, 2)
     assert payload["client"]["flow"] == "xtls-rprx-vision"
     assert not any(k.startswith("_") for k in payload["client"])
+
+
+def test_existing_child_link_back_to_owner_cannot_create_a_cycle(importer, tmp_path):
+    use_shared(importer, tmp_path)
+    importer.manager.apply(importer.owned.base)
+    importer.state.links["alpha"] = []
+    importer.state.links["beta"] = [
+        {
+            "kind": "subscription",
+            "value": "https://new.example.com:2096/sub/keepSubIdAlpha",
+            "remark": "",
+            "enable": True,
+            "expiryTime": 0,
+            "namePrefix": "",
+        }
+    ]
+    before = copy.deepcopy(importer.state.links)
+    with pytest.raises(RuntimeError, match="Circular subscription"):
+        importer.manager.apply(importer.owned.base)
+    assert importer.state.links == before
+    assert importer.state.calls.count("clients/alpha/externalLinks") == 1
