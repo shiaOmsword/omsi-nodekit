@@ -17,6 +17,29 @@ from framework.tasks import TaskScheduler
 from tests.test_subscriptions import owned as owned
 from tests.test_subscriptions import rows
 
+# Golden bytes produced before PR #31, independent of the current renderer.
+# The interpolation of the site (already ending in LF) added a second final LF.
+LEGACY_STANDALONE = b"""{
+    admin off
+}
+
+https://old.example.com:443 {
+    tls {
+        issuer acme {
+            disable_tlsalpn_challenge
+        }
+    }
+    @subscriptions path /sub/*
+    handle @subscriptions {
+        reverse_proxy 127.0.0.1:2097
+    }
+    handle {
+        respond 404
+    }
+}
+
+"""
+
 
 @pytest.fixture
 def attaching(owned, monkeypatch):
@@ -195,6 +218,22 @@ def test_promotes_pristine_owned_docker_caddy_then_supports_shared_reload(attach
     assert source.read_text().count("https://new.example.com:2096") == 1
 
 
+@pytest.mark.parametrize("original", [LEGACY_STANDALONE, LEGACY_STANDALONE[:-1]])
+def test_promotes_both_original_and_transitional_generated_caddyfiles(attaching, original):
+    source, _ = owned_caddy(attaching)
+    source.write_bytes(original)
+    attaching.operation.apply(attaching.base)
+    assert "admin 127.0.0.1:2019" in source.read_text()
+    assert attachment_status(attaching.context) == "ready"
+    backup = next(attaching.base.glob("Caddyfile.before-attach-*"))
+    assert backup.read_bytes() == original
+
+
+def test_renderer_preserves_the_original_standalone_bytes(attaching):
+    saved = json.loads((attaching.base / "manifest.json").read_text())["node"]
+    assert standalone_config(saved).encode() == LEGACY_STANDALONE
+
+
 @pytest.mark.parametrize("stage", ["validate", "restart", "commit"])
 def test_owned_caddy_failure_restores_original_config_and_manifest(attaching, monkeypatch, stage):
     source, _ = owned_caddy(attaching)
@@ -231,11 +270,18 @@ def test_owned_caddy_failure_restores_original_config_and_manifest(attaching, mo
     assert len(restarts) == (0 if stage == "validate" else 2)
 
 
-@pytest.mark.parametrize("conflict", ["edited-file", "foreign-label", "bridge", "command"])
+@pytest.mark.parametrize(
+    "conflict",
+    ["edited-file", "extra-newline", "changed-backend", "foreign-label", "bridge", "command"],
+)
 def test_never_promotes_modified_or_foreign_standalone_caddy(attaching, conflict):
     source, container = owned_caddy(attaching)
     if conflict == "edited-file":
         source.write_text(source.read_text() + "\nother.example.com { respond custom }\n")
+    elif conflict == "extra-newline":
+        source.write_bytes(source.read_bytes() + b"\n")
+    elif conflict == "changed-backend":
+        source.write_bytes(source.read_bytes().replace(b"127.0.0.1:2097", b"127.0.0.1:2098"))
     elif conflict == "foreign-label":
         container["Config"]["Labels"]["com.docker.compose.project"] = "foreign"
     elif conflict == "bridge":

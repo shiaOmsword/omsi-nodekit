@@ -41,7 +41,11 @@ class AttachmentCaddy(ExistingCaddy):
                 config = container.get("Config", {})
                 command = (config.get("Entrypoint") or []) + (config.get("Cmd") or [])
                 invocation = ["caddy", "run", "--config", "/etc/caddy/Caddyfile"]
-                expected = standalone_config(self.previous).encode()
+                canonical = standalone_config(self.previous).encode()
+                # PR #31 initially rendered one final LF instead of the original
+                # two. Accept only these two exact generated versions, without
+                # normalizing operator edits or arbitrary whitespace changes.
+                expected = source.read_bytes() if not source.is_symlink() else None
                 if (
                     self.previous["deployment"]["caddy_mode"] != "docker"
                     or labels.get("com.docker.compose.project") != self.context.project()
@@ -51,7 +55,7 @@ class AttachmentCaddy(ExistingCaddy):
                     or finding["config_path"] != "/etc/caddy/Caddyfile"
                     or command not in [invocation, invocation + ["--adapter", "caddyfile"]]
                     or source.is_symlink()
-                    or source.read_bytes() != expected
+                    or expected not in {canonical, canonical[:-1]}
                 ):
                     raise RuntimeError(message_text(MessageKey.CADDY_ATTACH_CONFLICT))
                 # The generated standalone configuration disables the admin API.

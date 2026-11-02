@@ -22,4 +22,6 @@ def subscription_site(node):
 
 
 def standalone_config(node):
-    return "{\n    admin off\n}\n\n" + subscription_site(node)
+    # Preserve the original renderer's two final LFs. These bytes are also
+    # used to verify ownership of installations created before Caddy attachment.
+    return "{\n    admin off\n}\n\n" + subscription_site(node) + "\n"
