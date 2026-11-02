@@ -38,7 +38,9 @@ class AttachmentCaddy(ExistingCaddy):
             )
             if source and source.resolve() == (self.base / "Caddyfile").resolve():
                 labels = container.get("Config", {}).get("Labels") or {}
-                command = container.get("Config", {}).get("Cmd") or []
+                config = container.get("Config", {})
+                command = (config.get("Entrypoint") or []) + (config.get("Cmd") or [])
+                invocation = ["caddy", "run", "--config", "/etc/caddy/Caddyfile"]
                 expected = standalone_config(self.previous).encode()
                 if (
                     self.previous["deployment"]["caddy_mode"] != "docker"
@@ -47,15 +49,7 @@ class AttachmentCaddy(ExistingCaddy):
                     or container.get("HostConfig", {}).get("NetworkMode") != "host"
                     or container.get("Config", {}).get("Image") != self.previous["caddy"]["image"]
                     or finding["config_path"] != "/etc/caddy/Caddyfile"
-                    or command
-                    != [
-                        "caddy",
-                        "run",
-                        "--config",
-                        "/etc/caddy/Caddyfile",
-                        "--adapter",
-                        "caddyfile",
-                    ]
+                    or command not in [invocation, invocation + ["--adapter", "caddyfile"]]
                     or source.is_symlink()
                     or source.read_bytes() != expected
                 ):

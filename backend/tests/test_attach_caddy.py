@@ -303,3 +303,67 @@ def test_attachment_rejects_symlink_metadata(attaching, tmp_path):
     with pytest.raises(RuntimeError):
         attaching.operation.apply(attaching.base)
     assert attaching.calls == []
+
+
+@pytest.mark.parametrize("variant", ["entrypoint", "implicit-adapter"])
+def test_owned_docker_command_variants(attaching, variant):
+    source, container = owned_caddy(attaching)
+    if variant == "entrypoint":
+        container["Config"]["Entrypoint"] = ["caddy"]
+        container["Config"]["Cmd"] = container["Config"]["Cmd"][1:]
+    else:
+        container["Config"]["Cmd"] = container["Config"]["Cmd"][:-2]
+    attaching.operation.apply(attaching.base)
+    assert "admin 127.0.0.1:2019" in source.read_text()
+
+
+def test_attach_then_create_xhttp_preserves_old_clients_and_shared_site(
+    attaching, monkeypatch, capsys
+):
+    import copy
+
+    from app.agent.xhttp_manager import XHTTPManager
+
+    attaching.operation.apply(attaching.base)
+    clients = rows(attaching.database, "inbounds")
+    context = attaching.context
+    context.payload["action"] = "xhttp"
+    context.payload["options"] = {
+        "xhttp": {
+            "operation": "create",
+            "remark": "phone",
+            "domain": "vpn.example.com",
+            "port": 10080,
+            "path": "/xhttp-phone/",
+            "mode": "auto",
+            "client_email": "first",
+        }
+    }
+    items = {}
+
+    def request(path, data=None):
+        if path == "inbounds/list":
+            return copy.deepcopy(list(items.values()))
+        if path == "inbounds/add":
+            items[2] = {**copy.deepcopy(data), "id": 2, "tag": "in-10080-tcp"}
+            return {"id": 2}
+        if path == "inbounds/get/2":
+            return copy.deepcopy(items[2])
+        if path == "server/restartXrayService":
+            return None
+        raise AssertionError(path)
+
+    monkeypatch.setattr(
+        "app.agent.xhttp_manager.managed_api", lambda *args: SimpleNamespace(request=request)
+    )
+    XHTTPManager(
+        context, attaching.operation.host, attaching.operation.database, attaching.inspector
+    ).apply(attaching.base)
+    assert items[2]["listen"] == "127.0.0.1"
+    assert json.loads(items[2]["streamSettings"])["network"] == "xhttp"
+    assert "reverse_proxy h2c://127.0.0.1:10080" in attaching.shared.read_text()
+    assert "other.example.com { respond existing }" in attaching.shared.read_text()
+    assert "https://new.example.com:2096" in attaching.shared.read_text()
+    assert rows(attaching.database, "inbounds") == clients
+    assert (attaching.base / "xhttp-routes.json").is_file()
+    assert "private-" not in capsys.readouterr().out
