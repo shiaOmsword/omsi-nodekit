@@ -232,6 +232,12 @@ def test_xhttp_manager_creates_owned_site_and_inbound_without_touching_other_sit
     owned, monkeypatch, capsys
 ):
     context = owned.context
+    observed_rules = []
+    from app.agent.firewall import FirewallTransaction
+
+    monkeypatch.setattr(
+        FirewallTransaction, "ensure", lambda self, rules: observed_rules.extend(rules)
+    )
     context.payload["options"] = {
         "xhttp": {
             "operation": "create",
@@ -283,6 +289,8 @@ def test_xhttp_manager_creates_owned_site_and_inbound_without_touching_other_sit
     assert "vpn.example.com" in owned.shared.read_text()
     assert (owned.base / "xhttp-routes.json").is_file()
     assert list(owned.base.glob("before-xhttp-*.db"))
+    assert rule_spec(443, scope="caddy") in observed_rules
+    assert rule_spec(10080) not in observed_rules
     assert "subId" not in capsys.readouterr().out
 
 
@@ -382,3 +390,52 @@ def test_publish_existing_xhttp_host_preserves_caddy(owned, monkeypatch):
     assert hosts[0]["alpn"] == ["h2"]
     assert (base / "xhttp-hosts.json").is_file()
     assert list(base.glob("before-host-*.db"))
+
+
+@pytest.mark.parametrize("failure", ["unpublished", "occupied"])
+def test_xhttp_rejects_unavailable_public_https_before_mutations(owned, monkeypatch, failure):
+    from app.agent.caddy_reuse import ExistingCaddy
+
+    context = owned.context
+    context.payload["options"] = {
+        "xhttp": {
+            "operation": "create",
+            "remark": "phone",
+            "domain": "vpn.example.com",
+            "port": 10080,
+            "path": "/xhttp-phone/",
+            "mode": "auto",
+        }
+    }
+    calls = []
+    monkeypatch.setattr(
+        "app.agent.xhttp_manager.managed_api",
+        lambda *args: SimpleNamespace(request=lambda *args: calls.append(args)),
+    )
+
+    def preflight(self, *args):
+        self.finding = {
+            "installation": "docker" if failure == "unpublished" else "native",
+            "network_mode": "bridge",
+            "published_ports": ["0.0.0.0:2096->2096/tcp"],
+            "routes": [],
+        }
+
+    monkeypatch.setattr(ExistingCaddy, "preflight", preflight)
+
+    def require(port, bind):
+        if port == 443:
+            raise RuntimeError("fixture 443 occupied")
+
+    manager = XHTTPManager(
+        context,
+        SimpleNamespace(require_endpoint=require),
+        owned.operation.database,
+        owned.inspector,
+    )
+    before = owned.shared.read_bytes()
+    with pytest.raises(RuntimeError, match="443"):
+        manager.apply(owned.base)
+    assert calls == []
+    assert owned.shared.read_bytes() == before
+    assert not list(owned.base.glob("before-xhttp-*.db"))

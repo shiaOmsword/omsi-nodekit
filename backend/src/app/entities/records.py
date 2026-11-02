@@ -17,6 +17,7 @@ class JobAction(StrEnum):
     RESTORE = "restore"
     BACKUP = "backup"
     CONFIGURE = "configure"
+    ATTACH_CADDY = "attach_caddy"
     INBOUND = "inbound"
     TRAFFIC = "traffic"
     TCP_TUNING = "tcp_tuning"

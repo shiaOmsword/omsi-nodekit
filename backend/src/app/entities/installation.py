@@ -175,6 +175,7 @@ class InstallationReport(Entity):
     warnings: list[str] = Field(default_factory=list)
     subscription_checks: list[EndpointCheck] = Field(default_factory=list)
     subscription_url_template: str | None = None
+    caddy_attachment: Literal["ready", "required", "unknown"] = "unknown"
     firewall: FirewallFinding | None = None
     network_checks: list[EndpointCheck] = Field(default_factory=list)
     egress: dict | None = None

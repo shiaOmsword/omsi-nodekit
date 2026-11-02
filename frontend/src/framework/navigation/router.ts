@@ -27,7 +27,7 @@ export function parseRoute(hash: string): Route {
       parts.length > 4 ||
       (action &&
         (tab !== 'operations' ||
-          !['check', 'doctor', 'fresh', 'restore', 'backup', 'configure', 'tcp_tuning'].includes(action)))
+          !['check', 'doctor', 'fresh', 'restore', 'backup', 'configure', 'attach_caddy', 'tcp_tuning'].includes(action)))
     )
       return { page: 'not-found' };
     return { page: 'node', id, tab: tab as 'overview', action: action as Action | undefined };

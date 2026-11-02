@@ -33,6 +33,7 @@ const actionIcons = {
   restore: Database,
   backup: Save,
   configure: Settings2,
+  attach_caddy: Settings2,
   inbound: Settings2,
   traffic: Activity,
   tcp_tuning: Gauge,
@@ -118,6 +119,8 @@ export function NodePage({
   const installation = config?.panel?.installation || 'managed';
   const action = route.action;
   const canDeploy = installation === 'managed';
+  const attachmentNeeded = report?.caddy_attachment === 'required';
+  const caddyReady = report?.caddy_attachment === 'ready';
   async function save() {
     await w.run(() => w.saveNode(w.yaml, node.id));
   }
@@ -322,11 +325,11 @@ export function NodePage({
               </Button>
             </div>
             <div className="card-content">
-              {['fresh', 'restore', 'configure'].includes(action) && (
+              {['fresh', 'restore', 'configure', 'attach_caddy'].includes(action) && (
                 <>
                   <div className="operation-setting">
                     <div>
-                      <strong>{action === 'configure' ? 'Параметры подписок и inbound' : 'Параметры установки'}</strong>
+                      <strong>{['configure', 'attach_caddy'].includes(action) ? 'Параметры подписок и inbound' : 'Параметры установки'}</strong>
                       <p>
                         {config?.deployment
                           ? (config.deployment.panel_runtime === 'native'
@@ -381,6 +384,8 @@ export function NodePage({
               <p className="feature-hint">
                 {action === 'backup'
                   ? 'Согласованный снимок SQLite будет сохранён в разделе «Бэкапы».'
+                  : action === 'attach_caddy'
+                    ? 'Подключение Caddy к установленной панели. Существующие inbound и клиенты сохраняются. Панель перезапустится. Если выбран исходный контейнер Caddy этой ноды, он также кратковременно перезапустится для включения локального API.'
                   : action === 'configure'
                     ? 'Только установленная Nodekit панель с общим Caddy. Панель и Xray перезапустятся; активные VPN-соединения могут прерваться. Существующие inbound и клиенты сохраняются. Перед применением проверь параметры и план.'
                   : action === 'restore'
@@ -397,7 +402,7 @@ export function NodePage({
                   disabled={
                     locked ||
                     (['fresh', 'restore'].includes(action) && !canDeploy) ||
-                    (action === 'configure' && (!canDeploy || config?.deployment?.caddy_mode !== 'existing')) ||
+                    (['configure', 'attach_caddy'].includes(action) && (!canDeploy || config?.deployment?.caddy_mode !== 'existing')) ||
                     (action === 'restore' && !backupId)
                   }
                   onClick={() => onPlan(action, backupId)}
@@ -473,7 +478,14 @@ export function NodePage({
         </>
       )}
       {route.tab === 'inbounds' && <section className="card"><div className="section-heading"><div><h2>Inbound ноды</h2><p>Изменение порта, SNI и названия; проверка трафика и управление UFW.</p></div>
-        <div className="row-actions"><Button disabled={locked} onClick={() => onPlan('check')}>Обновить</Button><Button disabled={locked || !canDeploy || !report || config?.deployment?.caddy_mode !== 'existing'} onClick={() => onXHTTP()}>+ VLESS / XHTTP</Button><Button variant="primary" disabled={locked || !canDeploy} onClick={onDeployment}>+ VLESS / REALITY</Button></div></div>
+        <div className="row-actions"><Button disabled={locked} onClick={() => onPlan('check')}>Обновить</Button><Button disabled={locked || !canDeploy || !report || !caddyReady || config?.deployment?.caddy_mode !== 'existing'} onClick={() => onXHTTP()}>+ VLESS / XHTTP</Button><Button variant="primary" disabled={locked || !canDeploy} onClick={onDeployment}>+ VLESS / REALITY</Button></div></div>
+        {config?.deployment?.caddy_mode !== 'existing' ? <div className="info-banner">
+          <span>Для XHTTP выбери существующий Caddy в параметрах развёртывания.</span>
+          <Button disabled={locked} onClick={onDeployment}>Настроить Caddy</Button>
+        </div> : attachmentNeeded ? <div className="info-banner">
+          <span>Caddy выбран в настройках, но ещё не подключён к установленной панели. Сначала подключи его, затем создай XHTTP.</span>
+          <Button disabled={locked || !canDeploy} onClick={() => onPlan('attach_caddy')}>Подключить Caddy</Button>
+        </div> : !caddyReady ? <p className="page-note">Обнови обнаружение, чтобы проверить подключение Caddy перед созданием XHTTP.</p> : null}
         <div className="card-content">{report?.selected_panel ? report.panels.filter((p) => p.id === report.selected_panel).map((panel) => <InboundReport key={panel.id} panel={panel} busy={locked}
           onEdit={panel.installation === 'managed' ? (item) => item.network === 'xhttp' ? onXHTTP(item) : onInbound(item, false) : undefined}
           onDelete={(item) => onInbound(item, true)} onTest={onTraffic} onClient={onClient} onPublish={onPublishXHTTP} onRestoreClients={onRestoreClients} />) :

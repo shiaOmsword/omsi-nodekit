@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from framework.messages import MessageKey
 from framework.messages import text as message_text
 
+from .attach_caddy import attachment_status
 from .caddy import CaddyInspector
 from .discovery import SystemInventory
 from .egress import routing_inventory
@@ -39,6 +40,8 @@ class InstallationInspector:
             "profiles": prerequisites.profiles(capabilities),
             "warnings": list(dict.fromkeys(inventory.warnings)),
         }
+        if self.selected and self.selected["installation"] == "managed":
+            self.report["caddy_attachment"] = attachment_status(self.context)
         if not self.selected and len(findings) > 1:
             self.report["warnings"].append(message_text(MessageKey.INSPECTION_MULTIPLE))
         self.report["firewall"] = public_firewall(inspect_firewall(self.context))

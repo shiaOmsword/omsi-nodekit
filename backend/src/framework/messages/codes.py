@@ -17,6 +17,10 @@ class ErrorCode(StrEnum):
 
 
 class MessageKey(StrEnum):
+    CADDY_ATTACH_PLAN = "caddy_attach_plan"
+    CADDY_ATTACH_CONFLICT = "caddy_attach_conflict"
+    CADDY_ATTACH_APPLIED = "caddy_attach_applied"
+    CADDY_ATTACH_REQUIRED = "caddy_attach_required"
     TCP_TUNING_REQUEST_INVALID = "tcp_tuning_request_invalid"
     TCP_TUNING_PLAN = "tcp_tuning_plan"
     TCP_TUNING_STALE = "tcp_tuning_stale"
@@ -51,6 +55,7 @@ class MessageKey(StrEnum):
     INBOUND_REQUEST_INVALID = "inbound_request_invalid"
     XHTTP_APPLY_PLAN = "xhttp_apply_plan"
     XHTTP_APPLIED = "xhttp_applied"
+    XHTTP_HTTPS_REQUIRED = "xhttp_https_required"
     BACKUP_CLIENTS_INVALID = "backup_clients_invalid"
     CLIENT_IMPORT_PLAN = "client_import_plan"
     CLIENT_IMPORT_CONFLICT = "client_import_conflict"

@@ -98,3 +98,48 @@ test('inbound inventory escapes names and does not render private identities fro
   assert.ok(html.includes('&lt;script&gt;bad&lt;/script&gt;'));
   assert.ok(!html.includes('do-not-render'));
 });
+
+test('Caddy attachment has an explicit mutation preview and a dedicated route', () => {
+  assert.equal(parseRoute('#/nodes/ultra/operations/attach_caddy').action, 'attach_caddy');
+  const html = renderToStaticMarkup(React.createElement(PlanModal, {
+    record, action: 'attach_caddy', plan: { remote_dir: '/opt/omsi-nodekit/ultra', steps: ['Attach Caddy'], files: {} },
+    busy: false, error: '', onClose: noop, onReload: noop, onLaunch: noop,
+  }));
+  assert.ok(html.includes('Подключить Caddy: план'));
+  assert.ok(html.includes('Изменяет сервер'));
+  assert.ok(html.includes('127.0.0.1:2019'));
+  assert.ok(html.includes('активные VPN-соединения могут прерваться'));
+  assert.ok(!html.includes('Сервисы на VPS не изменяются'));
+});
+
+const { NodePage } = compiled('features/nodes/NodePage.js');
+
+function inboundPage(attachment, caddyMode = 'existing', reportHost = '203.0.113.10') {
+  return renderToStaticMarkup(React.createElement(NodePage, {
+    route: { page: 'node', id: 'ultra', tab: 'inbounds' },
+    workspace: { selected: record, nodes: [{ ...record, state: 'active' }], jobs: [], keys: [],
+      config: { ssh: { host: '203.0.113.10', port: 22 }, panel: { installation: 'managed' }, deployment: { caddy_mode: caddyMode } },
+    },
+    reportJob: { report: { ssh_host: reportHost, ssh_port: 22, caddy_attachment: attachment,
+      selected_panel: 'docker:panel', panels: [{ id: 'docker:panel', installation: 'managed', inbounds_readable: true, inbounds: [] }] } },
+    navigate: noop, onPlan: noop, onDeployment: noop,
+  }));
+}
+
+test('XHTTP waits for persisted Caddy attachment and offers the next operation', () => {
+  const unattached = inboundPage('required');
+  assert.ok(unattached.includes('Сначала подключи его, затем создай XHTTP'));
+  assert.match(unattached, /<button[^>]*disabled[^>]*>[^<]*\+ VLESS \/ XHTTP/);
+  assert.ok(unattached.includes('Подключить Caddy'));
+  const ready = inboundPage('ready');
+  assert.doesNotMatch(ready, /<button[^>]*disabled[^>]*>[^<]*\+ VLESS \/ XHTTP/);
+  assert.ok(ready.includes('+ VLESS / XHTTP'));
+});
+
+test('an old report or another SSH host cannot unlock XHTTP', () => {
+  for (const html of [inboundPage(undefined), inboundPage('ready', 'existing', '203.0.113.99')]) {
+    assert.match(html, /<button[^>]*disabled[^>]*>[^<]*\+ VLESS \/ XHTTP/);
+    assert.ok(html.includes('Обнови обнаружение'));
+  }
+  assert.ok(inboundPage('required', 'docker').includes('Настроить Caddy'));
+});

@@ -427,7 +427,7 @@ export default function App() {
               const saved = await w.run(() => w.saveNode(text, modal.record.id));
               if (saved) {
                 setModal(null);
-                if (route.page === 'node' && route.tab === 'inbounds') await preview(saved, 'configure');
+                if (route.page === 'node' && route.tab === 'inbounds') await preview(saved, modal.report?.caddy_attachment === 'required' ? 'attach_caddy' : 'configure');
               }
             }}
           />

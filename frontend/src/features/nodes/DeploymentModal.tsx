@@ -230,7 +230,7 @@ export function DeploymentModal({
         {unpublished && <p className="report-warning">Порт {String(values.https_port)} не опубликован в общем Caddy.
           {' '}Требуется {String(values.https_port)}:{String(values.https_port)}/tcp.
           {values.manage_caddy_ports ? ' Nodekit проверит Compose-проект и добавит публикацию через свой override; потребуется короткое пересоздание Caddy.' : ' Добавь публикацию в Compose или включи автоматическое согласование портов.'}</p>}
-        {installed && <p className="feature-hint">Сохранение меняет локальные параметры. Затем открой операцию «Подписки и inbound», проверь план и примени настройки.</p>}
+        {installed && <p className="feature-hint">Сохранение меняет локальные параметры. Если Caddy ещё не подключён к панели, сначала выполни операцию «Подключить Caddy». Для дальнейших изменений открой «Подписки и inbound».</p>}
       </div>}
       <div className="form-section">
         <div className="section-heading compact">

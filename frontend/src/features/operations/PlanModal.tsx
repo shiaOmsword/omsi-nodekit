@@ -62,9 +62,9 @@ export function PlanModal({
           <>
             <div className="plan-context">
               <span
-                className={'tag ' + (['fresh', 'restore', 'configure', 'inbound', 'tunnel', 'xhttp', 'client_import', 'subscription_maintenance', 'tcp_tuning'].includes(action) ? 'tag-warning' : '')}
+                className={'tag ' + (['fresh', 'restore', 'configure', 'attach_caddy', 'inbound', 'tunnel', 'xhttp', 'client_import', 'subscription_maintenance', 'tcp_tuning'].includes(action) ? 'tag-warning' : '')}
               >
-                {['fresh', 'restore', 'configure', 'inbound', 'tunnel', 'xhttp', 'tcp_tuning'].includes(action) || (action === 'subscription_maintenance' && plan.options?.subscription_maintenance?.mode === 'clear_server_cache')
+                {['fresh', 'restore', 'configure', 'attach_caddy', 'inbound', 'tunnel', 'xhttp', 'tcp_tuning'].includes(action) || (action === 'subscription_maintenance' && plan.options?.subscription_maintenance?.mode === 'clear_server_cache')
                   ? 'Изменяет сервер'
                   : 'Сервисы на VPS не изменяются'}
               </span>
@@ -119,6 +119,12 @@ export function PlanModal({
             {action === 'subscription_maintenance' && <p className="feature-hint">
               Аудит читает настройки, DNS и один публичный URL подписки без изменения сервисов.
               Ручной сброс серверного кэша реализован только через перезапуск принадлежащего Nodekit контейнера 3x-ui и может прервать VPN-соединения. Кэш V2BOX, Hiddify, DNS ОС и shared Caddy не затрагиваются.
+            </p>}
+            {action === 'attach_caddy' && <p className="feature-hint">
+              Панель и Xray кратковременно перезапустятся; активные VPN-соединения могут прерваться.
+              У исходного Caddy этой ноды будет включён API только на 127.0.0.1:2019 и перезапущен только его контейнер.
+              Для общего Caddy добавляется только сайт этой ноды. Существующие inbound, клиенты и чужие сайты сохраняются.
+              После успеха обнови обнаружение и создай XHTTP.
             </p>}
             {action === 'configure' && <p className="feature-hint">
               Панель и Xray кратковременно перезапустятся; активные VPN-соединения могут прерваться. Будет заменён только сохранённый сайт этой ноды в Caddy.
