@@ -49,7 +49,7 @@ export function PlanModal({
             loading={busy}
             icon={<Play size={16} />}
           >
-            {plan?.options?.inbound?.operation === 'delete' ? 'Удалить inbound' : plan?.options?.subscription_maintenance?.mode === 'clear_server_cache' ? 'Перезапустить 3x-ui' : 'Запустить операцию'}
+            {plan?.options?.inbound?.operation === 'delete' ? 'Удалить inbound' : plan?.options?.subscription_maintenance?.mode === 'clear_server_cache' ? 'Перезапустить 3x-ui' : action === 'tunnel_restart' ? 'Перезапустить туннели' : 'Запустить операцию'}
           </Button>
         </>
       }
@@ -62,9 +62,9 @@ export function PlanModal({
           <>
             <div className="plan-context">
               <span
-                className={'tag ' + (['fresh', 'restore', 'configure', 'attach_caddy', 'inbound', 'tunnel', 'xhttp', 'client_import', 'subscription_maintenance', 'tcp_tuning', 'system_restore'].includes(action) ? 'tag-warning' : '')}
+                className={'tag ' + (['fresh', 'restore', 'configure', 'attach_caddy', 'inbound', 'tunnel', 'tunnel_restart', 'xhttp', 'client_import', 'subscription_maintenance', 'tcp_tuning', 'system_restore'].includes(action) ? 'tag-warning' : '')}
               >
-                {['fresh', 'restore', 'configure', 'attach_caddy', 'inbound', 'tunnel', 'xhttp', 'tcp_tuning', 'system_restore'].includes(action) || (action === 'subscription_maintenance' && plan.options?.subscription_maintenance?.mode === 'clear_server_cache')
+                {['fresh', 'restore', 'configure', 'attach_caddy', 'inbound', 'tunnel', 'tunnel_restart', 'xhttp', 'tcp_tuning', 'system_restore'].includes(action) || (action === 'subscription_maintenance' && plan.options?.subscription_maintenance?.mode === 'clear_server_cache')
                   ? 'Изменяет сервер'
                   : 'Сервисы на VPS не изменяются'}
               </span>
@@ -131,6 +131,7 @@ export function PlanModal({
               Существующие inbound и клиенты не редактируются. Разрешённые изменения UFW и публикаций Caddy перечислены в плане.
             </p>}
             {action === 'xhttp' && <p className="feature-hint">Изменяется только управляемый XHTTP inbound и принадлежащие Nodekit маршруты Caddy. Backend остаётся приватным, UFW ограничивается сетью Caddy. У других сайтов Caddy и контейнеров Docker ничего не меняется. Для корректной подписки отдельно проверь Hosts override.</p>}
+            {action === 'tunnel_restart' && <p className="feature-hint">Будут последовательно перезапущены SSH-туннели: {plan.options?.tunnel_restart?.names.join(', ')}. VPN-трафик через них кратковременно прервётся. Xray, Caddy, маршруты, ключи и автозапуск сохраняются. При ошибке операция остановится; уже перезапущенные соединения не откатываются.</p>}
             {action === 'tunnel' && plan.options?.tunnel?.members?.length && <p className="feature-hint">Пул поднимет несколько независимых systemd SSH-процессов и создаст roundRobin с observatory и fallback=blocked. Один общий выходной сервер не заменяет независимое резервирование. Xray будет перезапущен.</p>}
             {action === 'tunnel' && !plan.options?.tunnel?.members?.length && <p className="feature-hint">Будет включена systemd-служба SSH и добавлен маршрут для всех клиентов выбранного inbound. Xray перезапустится. UUID и ключи сохраняются; при ошибке выполняется откат. Ключ и known_hosts должны быть подготовлены на московской VPS.</p>}
             {action === 'client_import' && <p className="feature-hint">Из проверенного SQLite импортируются выбранные UUID и subId. Если включено восстановление связанных подписок, дополнительный шаг добавит недостающие HTTPS-ссылки на других клиентов из этой же базы через Clients API (без замены существующих чужих связей). Перед записью создаётся снимок целевой базы; Caddy и SSH не меняются.</p>}

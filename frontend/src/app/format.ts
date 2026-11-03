@@ -9,6 +9,7 @@ export const actionLabels: Record<Action, { title: string; description: string }
   subscription_maintenance: { title: 'Обслуживание подписок', description: 'Проверить публичный HTTPS/DNS или вручную перезапустить только управляемую 3x-ui для очистки серверного кэша.' },
   client_import: { title: 'Клиенты из бэкапа', description: 'Выборочно восстановить VLESS-клиентов, не меняя их UUID и ID подписки.' },
   xhttp: { title: 'VLESS / XHTTP', description: 'Приватный XHTTP inbound, публичный HTTPS в Caddy и scoped UFW.' },
+  tunnel_restart: { title: 'Перезапуск SSH-туннелей', description: 'Перезапустить выбранные службы SSH из YAML и проверить их процессы и локальные порты.' },
   tunnel: { title: 'SSH-выход', description: 'Создать SSH-туннель и направить выбранный inbound через выходную ноду.' },
   inbound: { title: 'Изменение inbound', description: 'Порт, SNI, название и правила UFW выбранного inbound.' },
   traffic: { title: 'Проверка трафика', description: 'Сравнить прямой HTTPS с реальным VLESS/REALITY-подключением через inbound.' },

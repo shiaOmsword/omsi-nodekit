@@ -43,6 +43,7 @@ const actionIcons = {
   system_restore: Database,
   network_benchmark: Gauge,
   tunnel: Activity,
+  tunnel_restart: Activity,
   xhttp: Activity,
   client_import: Database,
   subscription_maintenance: Activity,
@@ -70,6 +71,7 @@ export function NodePage({
   onRestoreClients,
   onTraffic,
   onTunnel,
+  onRestartTunnels,
   onTCPTuning,
   onBenchmark,
 }: {
@@ -93,6 +95,7 @@ export function NodePage({
   onRestoreClients: (item: InboundFinding) => void;
   onTraffic: (item: InboundFinding) => void;
   onTunnel: () => void;
+  onRestartTunnels: (names: string[]) => void;
   onBenchmark: (profile: BenchmarkProfile) => void;
   onTCPTuning: (algorithm: 'bbr' | 'cubic', fingerprint: string) => void;
 }) {
@@ -300,7 +303,7 @@ export function NodePage({
       {route.tab === 'operations' &&
         (!action ? (
           <div className="operation-grid">
-            {(Object.keys(actionLabels) as Action[]).filter((id) => !['inbound', 'traffic', 'tunnel', 'xhttp', 'client_import', 'tcp_tuning', 'network_benchmark'].includes(id)).map((id) => {
+            {(Object.keys(actionLabels) as Action[]).filter((id) => !['inbound', 'traffic', 'tunnel', 'tunnel_restart', 'xhttp', 'client_import', 'tcp_tuning', 'network_benchmark'].includes(id)).map((id) => {
               const Icon = actionIcons[id];
               return (
                 <button
@@ -506,19 +509,22 @@ export function NodePage({
           <div className="row-actions">
             {sshTunnels.length === 1 && <Button disabled={locked} onClick={onPreparePool}>Подготовить 3 в YAML</Button>}
             <Button disabled={locked} onClick={() => onPlan('check')}>Обновить</Button>
+            <Button disabled={locked || !canDeploy || !sshTunnels.length} onClick={() => onRestartTunnels(sshTunnels.map(t => t.name))}>Перезапустить все</Button>
             <Button disabled={locked || !report} onClick={onTunnel}>Один туннель</Button>
             <Button variant="primary" disabled={locked || !report || sshTunnels.length < 2} onClick={onTunnelPool}>Поднять пул</Button>
           </div>
         </div>
         <div className="card-content">
           {!sshTunnels.length ? <EmptyState title="Нет туннелей в YAML" description="Добавь tunnels в конфигурации ноды: host, ssh_port, local_port, target_port, identity_file, known_hosts_file." /> :
-            <div className="table-scroll"><table className="data-table"><thead><tr><th>Туннель</th><th>SSH</th><th>Локальный порт → выход</th><th>Ключ сервера</th><th>Systemd</th></tr></thead><tbody>
+            <div className="table-scroll"><table className="data-table"><thead><tr><th>Туннель</th><th>SSH</th><th>Локальный порт → выход</th><th>Ключ сервера</th><th>Systemd</th><th>Действия</th></tr></thead><tbody>
               {sshTunnels.map((t) => { const live = report?.tunnels?.find((item) => item.name === t.name);
                 return <tr key={t.name}><td><strong>{t.name}</strong></td><td><code>{t.host}:{t.ssh_port || 22}</code></td>
                   <td><code>127.0.0.1:{t.local_port} → 127.0.0.1:{t.target_port}</code></td>
                   <td>{t.host_key_policy === 'accept-new' ? 'Автодоверие при первом подключении' : 'Только известный ключ'}</td>
-                  <td>{live ? live.active ? 'Работает' : 'Не запущен' : 'Нет свежей проверки'}</td></tr>; })}
+                  <td>{live ? live.active ? 'Работает' : 'Не запущен' : 'Нет свежей проверки'}</td>
+                  <td><Button small disabled={locked || !canDeploy} onClick={() => onRestartTunnels([t.name])}>Перезапустить</Button></td></tr>; })}
             </tbody></table></div>}
+          <p className="feature-hint">Перезапуск кратковременно прервёт трафик через выбранные SSH-туннели. Сначала откроется план; после запуска проверятся службы и локальные порты. Новые SSH-соединения используют текущие настройки TCP.</p>
           <p className="feature-hint">Пул распределяет новые соединения по отдельным SSH-сессиям. При потере всех выходов fallback блокирует соединения, не подменяя зарубежный IP на российский. Существующие TCP-сессии не мигрируют автоматически.</p>
           <p className="feature-hint">Для независимого резервирования провайдеров/локаций одного пула недостаточно; здесь проверяется один общий выходной VLESS endpoint.</p>
           <p className="feature-hint">Неизвестный SSH fingerprint может автоматически приниматься только при явном host_key_policy: accept-new в YAML. Изменённый ключ известной ноды всегда отклоняется.</p>
