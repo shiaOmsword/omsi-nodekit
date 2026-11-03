@@ -8,7 +8,7 @@ export interface NodeSummary {
 export interface NodeRecord extends NodeSummary {
   yaml: string;
 }
-export type Action = 'check' | 'doctor' | 'fresh' | 'restore' | 'backup' | 'configure' | 'attach_caddy' | 'inbound' | 'traffic' | 'tunnel' | 'xhttp' | 'client_import' | 'subscription_maintenance' | 'tcp_tuning';
+export type Action = 'check' | 'doctor' | 'fresh' | 'restore' | 'backup' | 'configure' | 'attach_caddy' | 'inbound' | 'traffic' | 'tunnel' | 'xhttp' | 'client_import' | 'subscription_maintenance' | 'tcp_tuning' | 'system_backup' | 'system_restore';
 export interface BackupClientCatalog {
   inbounds: {
     id: number;
@@ -19,6 +19,7 @@ export interface BackupClientCatalog {
   }[];
 }
 export interface JobOptions {
+  system_restore?: { expected_fingerprint: string };
   tcp_tuning?: { algorithm: "cubic" | "bbr"; expected_fingerprint: string };
   subscription_maintenance?: { id: number; expected_fingerprint: string; mode: 'audit' | 'clear_server_cache'; client_email?: string; acknowledge_restart?: boolean };
   client_import?: { source_inbound_id: number; target_inbound_id: number; expected_fingerprint: string; client_refs: string[]; include_external_links: boolean };
