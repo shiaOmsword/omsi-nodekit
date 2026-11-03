@@ -40,10 +40,10 @@ def ping_metrics(output):
 def download_sample(url, byte_limit, timeout=20):
     target = urlsplit(url)
     connection = http.client.HTTPSConnection(target.hostname, target.port or 443, timeout=timeout)
-    started = time.monotonic()
+    started = time.perf_counter()
     try:
         connection.connect()
-        connected = time.monotonic()
+        connected = time.perf_counter()
         connection.request(
             "GET",
             (target.path or "/") + ("?" + target.query if target.query else ""),
@@ -55,7 +55,7 @@ def download_sample(url, byte_limit, timeout=20):
             },
         )
         response = connection.getresponse()
-        headers_at = time.monotonic()
+        headers_at = time.perf_counter()
         if (
             response.status != 200
             or response.getheader("Content-Encoding", "identity") != "identity"
@@ -63,7 +63,7 @@ def download_sample(url, byte_limit, timeout=20):
             raise ValueError()
         received = 0
         while received < byte_limit:
-            remaining = timeout - (time.monotonic() - started)
+            remaining = timeout - (time.perf_counter() - started)
             if remaining <= 0:
                 raise TimeoutError()
             if connection.sock:
@@ -72,11 +72,13 @@ def download_sample(url, byte_limit, timeout=20):
             if not chunk:
                 break
             received += len(chunk)
-        finished = time.monotonic()
+        finished = time.perf_counter()
         # A small HTML error page must never be presented as a speed benchmark.
         if received < 1024 * 1024:
             raise ValueError()
         elapsed = finished - started
+        if elapsed <= 0:
+            raise ValueError()
         return {
             "bytes": received,
             "elapsed_ms": round(elapsed * 1000, 2),
@@ -117,7 +119,7 @@ class NetworkBenchmark:
         before = tcp_counters()
         metrics = {"rtt_ms": None, "jitter_ms": None, "loss_percent": None, "mbps": None}
         warnings, samples = [], []
-        dns_started = time.monotonic()
+        dns_started = time.perf_counter()
         try:
             addresses = sorted(
                 {
@@ -127,7 +129,7 @@ class NetworkBenchmark:
                     )
                 }
             )
-            dns_ms = round((time.monotonic() - dns_started) * 1000, 2)
+            dns_ms = round((time.perf_counter() - dns_started) * 1000, 2)
         except OSError:
             addresses, dns_ms = [], None
         # LC_ALL is explicit: parsers must not depend on the VPS locale.
