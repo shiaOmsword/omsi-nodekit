@@ -20,6 +20,7 @@ from .existing_diagnostics import ExistingDiagnostics
 from .host import HostEnvironment
 from .inbound_manager import InboundManager
 from .inspection import InstallationInspector
+from .network_benchmark import NetworkBenchmark
 from .subscription_maintenance import SubscriptionMaintenanceAgent
 from .subscriptions import SubscriptionDiagnostics
 from .tcp_tuning import TCPConfigurator
@@ -117,6 +118,9 @@ class RemoteAgent:
                 finally:
                     inspector = InstallationInspector(context)
                     inspector.inspect()
+            elif action == "network_benchmark":
+                inspector.inspect()
+                NetworkBenchmark(context, inspector).run()
             elif action == "tcp_tuning":
                 TCPConfigurator(context).apply()
             elif action == "traffic":

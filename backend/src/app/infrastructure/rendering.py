@@ -183,6 +183,8 @@ WantedBy=multi-user.target
             steps.append(message_text(MessageKey.XHTTP_APPLY_PLAN))
         elif action == "tunnel":
             steps.append(message_text(MessageKey.TUNNEL_APPLY_PLAN))
+        elif action == "network_benchmark":
+            steps.append(message_text(MessageKey.NETWORK_BENCHMARK_PLAN))
         elif action == "tcp_tuning":
             steps.append(message_text(MessageKey.TCP_TUNING_PLAN))
         elif action == "traffic":
