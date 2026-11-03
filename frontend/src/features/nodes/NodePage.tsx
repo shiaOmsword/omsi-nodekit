@@ -24,6 +24,8 @@ import { messages } from '../../framework/messages';
 import { InstallationReportView } from './InstallationReportView';
 import { JobTable } from '../operations/JobTable';
 import { InboundReport, SubscriptionReport } from './SubscriptionReport';
+import { NetworkBenchmarkPanel } from './NetworkBenchmarkPanel';
+import type { BenchmarkProfile } from '../../types';
 import { NetworkReport } from './NetworkReport';
 
 const actionIcons = {
@@ -37,6 +39,7 @@ const actionIcons = {
   inbound: Settings2,
   traffic: Activity,
   tcp_tuning: Gauge,
+  network_benchmark: Gauge,
   tunnel: Activity,
   xhttp: Activity,
   client_import: Database,
@@ -66,6 +69,7 @@ export function NodePage({
   onTraffic,
   onTunnel,
   onTCPTuning,
+  onBenchmark,
 }: {
   route: NodeRoute;
   workspace: Workspace;
@@ -87,6 +91,7 @@ export function NodePage({
   onRestoreClients: (item: InboundFinding) => void;
   onTraffic: (item: InboundFinding) => void;
   onTunnel: () => void;
+  onBenchmark: (profile: BenchmarkProfile) => void;
   onTCPTuning: (algorithm: 'bbr' | 'cubic', fingerprint: string) => void;
 }) {
   const [backupId, setBackupId] = useState(preferredBackup || '');
@@ -293,7 +298,7 @@ export function NodePage({
       {route.tab === 'operations' &&
         (!action ? (
           <div className="operation-grid">
-            {(Object.keys(actionLabels) as Action[]).filter((id) => !['inbound', 'traffic', 'tunnel', 'xhttp', 'client_import', 'tcp_tuning'].includes(id)).map((id) => {
+            {(Object.keys(actionLabels) as Action[]).filter((id) => !['inbound', 'traffic', 'tunnel', 'xhttp', 'client_import', 'tcp_tuning', 'network_benchmark'].includes(id)).map((id) => {
               const Icon = actionIcons[id];
               return (
                 <button
@@ -514,6 +519,7 @@ export function NodePage({
           <p className="feature-hint">Неизвестный SSH fingerprint может автоматически приниматься только при явном host_key_policy: accept-new в YAML. Изменённый ключ известной ноды всегда отклоняется.</p>
         </div>
       </section>}
+      {route.tab === 'network' && <NetworkBenchmarkPanel key={node.id} nodeId={node.id} jobs={nodeJobs} locked={locked} onPreview={onBenchmark} />}
       {route.tab === 'network' && <section className="card">
         <div className="section-heading">
           <div><h2>TCP congestion control</h2><p>Алгоритм новых TCP-соединений VPS. Не меняет текущие SSH-сессии.</p></div>
