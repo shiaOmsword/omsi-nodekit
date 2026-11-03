@@ -97,7 +97,7 @@ export function SubscriptionsPage({
 
   const panel = report?.panels.find((item) => item.id === report.selected_panel);
   const inbounds = panel?.installation === 'managed' && panel.inbounds_readable
-    ? (panel.inbounds || []).filter((item) => item.protocol === 'vless')
+    ? (panel.inbounds || []).filter((item) => ['vless', 'wireguard'].includes(item.protocol))
     : [];
   const inbound = inbounds.find((item) => item.id === inboundId) || inbounds[0];
   const clients = inbound?.clients || [];
@@ -126,7 +126,7 @@ export function SubscriptionsPage({
 
   return <>
     <PageHeading title="Подписки и клиенты"
-      description="Управление VLESS-ключами, проверка публичной выдачи и безопасное обслуживание кэшей 3x-ui."
+      description="Управление VLESS и WG-ключами, проверка публичной выдачи и безопасное обслуживание кэшей 3x-ui."
       actions={<Button disabled={!record || busy} onClick={() => record && onDiscover(record)}
         icon={<RefreshCw size={17} />}>Обновить обнаружение</Button>} />
     <section className="card">
@@ -138,8 +138,8 @@ export function SubscriptionsPage({
             {activeNodes.map((node) => <option key={node.id} value={node.id}>{node.name}</option>)}
           </select>
         </label>
-        <label>Входящий VLESS (inbound)
-          <select aria-label="Выбрать VLESS inbound" value={inbound?.id || ''}
+        <label>Входящий протокол (inbound)
+          <select aria-label="Выбрать inbound" value={inbound?.id || ''}
             disabled={!inbounds.length} onChange={(e) => {
               setInboundId(Number(e.target.value) || null);
               setClientEmail('__first__');
@@ -175,7 +175,7 @@ export function SubscriptionsPage({
             </Button>
             <Button disabled={!canAudit || !clients.length}
               onClick={() => record && onClient(record, inbound, true)}>− Клиент</Button>
-            <Button disabled={!canAudit || !report}
+            <Button disabled={!canAudit || !report || inbound.protocol !== 'vless'}
               onClick={() => record && report && onRestoreClients(record, inbound, report)}>Из бэкапа</Button>
           </div>
         </div>
