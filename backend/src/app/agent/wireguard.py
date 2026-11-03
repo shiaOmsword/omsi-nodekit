@@ -3,7 +3,6 @@ import copy
 import ipaddress
 import json
 import secrets
-import socket
 import tempfile
 import time
 import uuid
@@ -71,8 +70,8 @@ class WireGuardManager:
             for i in existing
         ):
             raise RuntimeError(message_text(MessageKey.DEPLOYMENT_INBOUND_COLLISION))
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as listener:
-            listener.bind(("0.0.0.0", request["port"]))
+        if self.host.udp_port_bound(request["port"]):
+            raise RuntimeError(message_text(MessageKey.PORT_OCCUPIED, port=request["port"]))
         if request["operation"] == "restore":
             raw = base64.b64decode(context.payload["backup"], validate=True)
             if len(raw) > context.limits["backup_bytes"]:
