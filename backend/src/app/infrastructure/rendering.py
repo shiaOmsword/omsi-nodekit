@@ -181,6 +181,8 @@ WantedBy=multi-user.target
             steps.append(message_text(MessageKey.SUB_CACHE_AUDIT_PLAN))
         elif action == "xhttp":
             steps.append(message_text(MessageKey.XHTTP_APPLY_PLAN))
+        elif action == "tunnel_restart":
+            steps.append(message_text(MessageKey.TUNNEL_RESTART_PLAN))
         elif action == "tunnel":
             steps.append(message_text(MessageKey.TUNNEL_APPLY_PLAN))
         elif action == "network_benchmark":
@@ -227,6 +229,7 @@ WantedBy=multi-user.target
             "attach_caddy",
             "inbound",
             "tunnel",
+            "tunnel_restart",
             "xhttp",
             "client_import",
             "subscription_maintenance",

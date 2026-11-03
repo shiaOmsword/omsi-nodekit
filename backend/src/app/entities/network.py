@@ -175,3 +175,14 @@ class NetworkBenchmarkRequest(StrictModel):
         except ValueError as exc:
             raise ValueError(message_text(MessageKey.NETWORK_BENCHMARK_INVALID)) from exc
         return value
+
+
+class TunnelRestartRequest(StrictModel):
+    names: list[Slug] = Field(min_length=1)
+
+    @field_validator("names")
+    @classmethod
+    def unique_names(cls, value):
+        if len(value) != len(set(value)):
+            raise ValueError(message_text(MessageKey.TUNNEL_RESTART_REQUEST_INVALID))
+        return value

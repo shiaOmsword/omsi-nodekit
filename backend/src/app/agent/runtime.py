@@ -27,6 +27,7 @@ from .system_backup import SystemRestorer, create_bundle
 from .tcp_tuning import TCPConfigurator
 from .traffic_probe import TrafficProbe
 from .tunnel_manager import TunnelManager
+from .tunnel_restart import TunnelRestarter
 from .xhttp_manager import XHTTPManager
 
 
@@ -109,6 +110,13 @@ class RemoteAgent:
                 inspector.inspect()
                 try:
                     XHTTPManager(context, self.host, self.database, inspector).apply(base)
+                finally:
+                    inspector = InstallationInspector(context)
+                    inspector.inspect()
+            elif action == "tunnel_restart":
+                inspector.inspect()
+                try:
+                    TunnelRestarter(context, self.host).apply()
                 finally:
                     inspector = InstallationInspector(context)
                     inspector.inspect()

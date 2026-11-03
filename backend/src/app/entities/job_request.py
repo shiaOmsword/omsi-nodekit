@@ -13,6 +13,7 @@ from .network import (
     TCPTuningRequest,
     TrafficRequest,
     TunnelRequest,
+    TunnelRestartRequest,
     XHTTPChange,
 )
 from .records import JobAction
@@ -28,6 +29,7 @@ class JobRequest(StrictModel):
     system_restore: SystemRestoreRequest | None = None
     network_benchmark: NetworkBenchmarkRequest | None = None
     tunnel: TunnelRequest | None = None
+    tunnel_restart: TunnelRestartRequest | None = None
     xhttp: XHTTPChange | None = None
     client_import: BackupClientImport | None = None
     subscription_maintenance: SubscriptionMaintenance | None = None
@@ -44,6 +46,8 @@ class JobRequest(StrictModel):
             raise ValueError(message_text(MessageKey.NETWORK_BENCHMARK_INVALID))
         if (self.action == JobAction.TRAFFIC) != (self.traffic is not None):
             raise ValueError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
+        if (self.action == JobAction.TUNNEL_RESTART) != (self.tunnel_restart is not None):
+            raise ValueError(message_text(MessageKey.TUNNEL_RESTART_REQUEST_INVALID))
         if (self.action == JobAction.TUNNEL) != (self.tunnel is not None):
             raise ValueError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
         if (self.action == JobAction.XHTTP) != (self.xhttp is not None):

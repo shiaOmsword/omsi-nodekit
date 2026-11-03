@@ -65,6 +65,7 @@ class NodeService:
             JobAction.NETWORK_BENCHMARK,
             JobAction.TCP_TUNING,
             JobAction.TUNNEL,
+            JobAction.TUNNEL_RESTART,
             JobAction.XHTTP,
             JobAction.CLIENT_IMPORT,
             JobAction.SUBSCRIPTION_MAINTENANCE,
@@ -86,6 +87,7 @@ class NodeService:
             JobAction.SYSTEM_RESTORE,
             JobAction.NETWORK_BENCHMARK,
             JobAction.TUNNEL,
+            JobAction.TUNNEL_RESTART,
             JobAction.XHTTP,
             JobAction.CLIENT_IMPORT,
             JobAction.SUBSCRIPTION_MAINTENANCE,
@@ -101,12 +103,29 @@ class NodeService:
             JobAction.SYSTEM_RESTORE,
             JobAction.NETWORK_BENCHMARK,
         }:
-            raise ValidationError(message_text(MessageKey.INBOUND_MANAGED_REQUIRED))
+            raise ValidationError(
+                message_text(
+                    MessageKey.TUNNEL_RESTART_REQUEST_INVALID
+                    if request.action == JobAction.TUNNEL_RESTART
+                    else MessageKey.INBOUND_MANAGED_REQUIRED
+                )
+            )
+        if request.action == JobAction.TUNNEL_RESTART:
+            available = {t.name for t in node.tunnels}
+            if not set(request.tunnel_restart.names) <= available:
+                raise ValidationError(message_text(MessageKey.TUNNEL_RESTART_REQUEST_INVALID))
         if request.action == JobAction.TUNNEL:
             available = {t.name for t in node.tunnels}
             if request.tunnel.name not in available or not set(request.tunnel.members) <= available:
                 raise ValidationError(message_text(MessageKey.TUNNEL_CONFIG_INVALID))
         plan = self.renderer.plan(node, request.action)
+        if request.action == JobAction.TUNNEL_RESTART:
+            plan["steps"].append(
+                message_text(
+                    MessageKey.TUNNEL_RESTART_SELECTION,
+                    names=", ".join(request.tunnel_restart.names),
+                )
+            )
         if request.action == JobAction.SYSTEM_RESTORE:
             summary = self.backups.system_summary(request.backup_id)
             if summary["node_id"] != node.id:

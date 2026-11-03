@@ -25,6 +25,7 @@ class JobAction(StrEnum):
     TCP_TUNING = "tcp_tuning"
     NETWORK_BENCHMARK = "network_benchmark"
     TUNNEL = "tunnel"
+    TUNNEL_RESTART = "tunnel_restart"
     XHTTP = "xhttp"
     CLIENT_IMPORT = "client_import"
     SUBSCRIPTION_MAINTENANCE = "subscription_maintenance"
