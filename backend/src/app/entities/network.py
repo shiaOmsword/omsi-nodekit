@@ -144,6 +144,10 @@ class TCPTuningRequest(StrictModel):
     expected_fingerprint: str = Field(pattern=r"^[a-f0-9]{64}$")
 
 
+class SystemRestoreRequest(StrictModel):
+    expected_fingerprint: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+
 class NetworkBenchmarkRequest(StrictModel):
     url: str = Field(min_length=10, max_length=400)
     attempts: int = Field(default=3, ge=1, le=3)

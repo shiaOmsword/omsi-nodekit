@@ -119,6 +119,15 @@ class RemoteAgent:
                 finally:
                     inspector = InstallationInspector(context)
                     inspector.inspect()
+            elif action == "system_backup":
+                inspector.inspect()
+                data = create_bundle(context, self.database, inspector)
+                print(json.dumps({"backup": base64.b64encode(data).decode()}), flush=True)
+                context.emit(message_text(MessageKey.BACKUP_DOWNLOADED))
+            elif action == "system_restore":
+                inspector.inspect()
+                SystemRestorer(context, inspector).apply()
+                inspector.inspect()
             elif action == "network_benchmark":
                 inspector.inspect()
                 NetworkBenchmark(context, inspector).run()
