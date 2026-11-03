@@ -58,6 +58,7 @@ class NodeService:
         if action in {
             JobAction.INBOUND,
             JobAction.TRAFFIC,
+            JobAction.NETWORK_BENCHMARK,
             JobAction.TCP_TUNING,
             JobAction.TUNNEL,
             JobAction.XHTTP,
@@ -78,17 +79,22 @@ class NodeService:
         if request.action not in {
             JobAction.INBOUND,
             JobAction.TRAFFIC,
+            JobAction.NETWORK_BENCHMARK,
             JobAction.TUNNEL,
             JobAction.XHTTP,
             JobAction.CLIENT_IMPORT,
             JobAction.SUBSCRIPTION_MAINTENANCE,
+            JobAction.TCP_TUNING,
         }:
             return self.preview(node_id, request.action)
         options = request.model_dump(
             mode="json", exclude={"action", "revision", "backup_id"}, exclude_none=True
         )
         node = self.factory.from_yaml(stored.yaml)
-        if node.panel.installation != "managed" and request.action != JobAction.TCP_TUNING:
+        if node.panel.installation != "managed" and request.action not in {
+            JobAction.TCP_TUNING,
+            JobAction.NETWORK_BENCHMARK,
+        }:
             raise ValidationError(message_text(MessageKey.INBOUND_MANAGED_REQUIRED))
         if request.action == JobAction.TUNNEL:
             available = {t.name for t in node.tunnels}
