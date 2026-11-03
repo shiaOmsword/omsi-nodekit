@@ -23,6 +23,14 @@ class HostEnvironment:
         except OSError:
             return False
 
+    def udp_port_bound(self, port):
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            try:
+                sock.bind(("0.0.0.0", port))
+                return False
+            except OSError:
+                return True
+
     def require_free(self, port):
         with socket.socket() as sock:
             try:

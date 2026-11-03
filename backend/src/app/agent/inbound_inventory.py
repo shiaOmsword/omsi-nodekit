@@ -3,6 +3,8 @@
 import json
 import re
 
+from app.backup_wireguard import normalized_clients
+
 from .inbound_meta import public_inbound
 
 
@@ -25,6 +27,7 @@ def inbound_inventory(database, maximum):
         "CASE WHEN length(settings)<=? THEN settings END,"
         "CASE WHEN length(stream_settings)<=? THEN stream_settings END, "
         + ("tag " if "tag" in columns else "'' ")
+        + (", share_addr " if "share_addr" in columns else ", '' ")
         + "FROM inbounds ORDER BY id LIMIT 101",
         (maximum // 2, maximum // 2),
     )
@@ -33,7 +36,18 @@ def inbound_inventory(database, maximum):
         if index >= 100:
             truncated = True
             break
-        identifier, remark, enabled, listen, port, protocol, raw_settings, raw_stream, tag = row
+        (
+            identifier,
+            remark,
+            enabled,
+            listen,
+            port,
+            protocol,
+            raw_settings,
+            raw_stream,
+            tag,
+            share_addr,
+        ) = row
         if raw_settings is None or raw_stream is None:
             truncated = True
             continue
@@ -43,7 +57,11 @@ def inbound_inventory(database, maximum):
             break
         settings = json.loads(raw_settings or "{}")
         stream = json.loads(raw_stream or "{}")
-        clients = settings.get("clients", [])
+        clients = (
+            normalized_clients(database, identifier, settings)
+            if protocol == "wireguard"
+            else settings.get("clients", [])
+        )
         if not isinstance(clients, list) or not isinstance(stream, dict):
             raise ValueError()
         safe_clients = []
@@ -77,6 +95,8 @@ def inbound_inventory(database, maximum):
                         "protocol": protocol,
                         "streamSettings": stream,
                         "tag": tag,
+                        "shareAddr": share_addr,
+                        "settings": settings,
                     }
                 ),
                 "id": int(identifier),

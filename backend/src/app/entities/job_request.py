@@ -11,6 +11,7 @@ from .network import (
     TCPTuningRequest,
     TrafficRequest,
     TunnelRequest,
+    WireGuardChange,
     XHTTPChange,
 )
 from .records import JobAction
@@ -21,6 +22,7 @@ class JobRequest(StrictModel):
     backup_id: str | None = Field(default=None, pattern=r"^[a-f0-9]{32}$")
     revision: str = Field(pattern=r"^[a-f0-9]{64}$")
     inbound: InboundChange | None = None
+    wireguard: WireGuardChange | None = None
     traffic: TrafficRequest | None = None
     tcp_tuning: TCPTuningRequest | None = None
     tunnel: TunnelRequest | None = None
@@ -30,6 +32,10 @@ class JobRequest(StrictModel):
 
     @model_validator(mode="after")
     def operation_arguments(self):
+        if (self.action == JobAction.WIREGUARD) != (self.wireguard is not None):
+            raise ValueError(message_text(MessageKey.WIREGUARD_BACKUP_INVALID))
+        if self.wireguard and (self.wireguard.operation == "restore") != bool(self.backup_id):
+            raise ValueError(message_text(MessageKey.WIREGUARD_BACKUP_INVALID))
         if (self.action == JobAction.INBOUND) != (self.inbound is not None):
             raise ValueError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
         if (self.action == JobAction.TCP_TUNING) != (self.tcp_tuning is not None):

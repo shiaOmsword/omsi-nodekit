@@ -25,6 +25,7 @@ from .subscriptions import SubscriptionDiagnostics
 from .tcp_tuning import TCPConfigurator
 from .traffic_probe import TrafficProbe
 from .tunnel_manager import TunnelManager
+from .wireguard import WireGuardManager
 from .xhttp_manager import XHTTPManager
 
 
@@ -100,6 +101,13 @@ class RemoteAgent:
                 inspector.inspect()
                 try:
                     BackupClientImporter(context, self.database, inspector).apply(base)
+                finally:
+                    inspector = InstallationInspector(context)
+                    inspector.inspect()
+            elif action == "wireguard":
+                inspector.inspect()
+                try:
+                    WireGuardManager(context, self.host, self.database, inspector).apply(base)
                 finally:
                     inspector = InstallationInspector(context)
                     inspector.inspect()

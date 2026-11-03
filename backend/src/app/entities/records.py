@@ -23,6 +23,7 @@ class JobAction(StrEnum):
     TCP_TUNING = "tcp_tuning"
     TUNNEL = "tunnel"
     XHTTP = "xhttp"
+    WIREGUARD = "wireguard"
     CLIENT_IMPORT = "client_import"
     SUBSCRIPTION_MAINTENANCE = "subscription_maintenance"
 

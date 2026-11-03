@@ -57,6 +57,20 @@ class BackupService:
         """Catalog only public client metadata after checksum and SQLite validation."""
         return self.validator.clients(self.content(backup_id))
 
+    def wireguard(self, backup_id):
+        import tempfile
+        from pathlib import Path
+
+        from app.backup_wireguard import public_catalog, read_wireguard
+
+        try:
+            with tempfile.TemporaryDirectory(prefix="nodekit-wg-catalog-") as folder:
+                path = Path(folder) / "x-ui.db"
+                path.write_bytes(self.content(backup_id))
+                return public_catalog(read_wireguard(path))
+        except Exception as exc:
+            raise ValidationError(message_text(MessageKey.WIREGUARD_BACKUP_INVALID)) from exc
+
     def download(self, backup_id: str, *, manifest=False):
         metadata = self.backups.get(backup_id)
         path = self.files.path(backup_id, manifest=manifest)

@@ -32,6 +32,13 @@ def public_inbound(value):
         "server_names": [str(v)[:253] for v in names[:16] if isinstance(v, str)],
         "target": target,
     }
+    if value.get("protocol") == "wireguard":
+        settings = object_value(value.get("settings"))
+        item.update(
+            wg_domain=str(value.get("shareAddr") or value.get("share_addr") or ""),
+            wg_mtu=settings.get("mtu") or 1420,
+            wg_dns=settings.get("dns") or "",
+        )
     item["fingerprint"] = hashlib.sha256(
         json.dumps(item, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
