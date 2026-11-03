@@ -61,6 +61,7 @@ class NodeService:
         if action in {
             JobAction.INBOUND,
             JobAction.TRAFFIC,
+            JobAction.SYSTEM_RESTORE,
             JobAction.NETWORK_BENCHMARK,
             JobAction.TCP_TUNING,
             JobAction.TUNNEL,
@@ -82,6 +83,7 @@ class NodeService:
         if request.action not in {
             JobAction.INBOUND,
             JobAction.TRAFFIC,
+            JobAction.SYSTEM_RESTORE,
             JobAction.NETWORK_BENCHMARK,
             JobAction.TUNNEL,
             JobAction.XHTTP,

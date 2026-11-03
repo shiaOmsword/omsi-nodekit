@@ -25,6 +25,7 @@ class JobRequest(StrictModel):
     inbound: InboundChange | None = None
     traffic: TrafficRequest | None = None
     tcp_tuning: TCPTuningRequest | None = None
+    system_restore: SystemRestoreRequest | None = None
     network_benchmark: NetworkBenchmarkRequest | None = None
     tunnel: TunnelRequest | None = None
     xhttp: XHTTPChange | None = None

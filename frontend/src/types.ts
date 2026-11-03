@@ -8,8 +8,7 @@ export interface NodeSummary {
 export interface NodeRecord extends NodeSummary {
   yaml: string;
 }
-export type Action = 'check' | 'doctor' | 'fresh' | 'restore' | 'backup' | 'configure' | 'attach_caddy' | 'inbound' | 'traffic' | 'tunnel' | 'xhttp' | 'client_import' | 'subscription_maintenance' | 'tcp_tuning' | 'system_backup' | 'system_restore';
-export type Action = 'check' | 'doctor' | 'fresh' | 'restore' | 'backup' | 'configure' | 'attach_caddy' | 'inbound' | 'traffic' | 'tunnel' | 'xhttp' | 'client_import' | 'subscription_maintenance' | 'tcp_tuning' | 'network_benchmark';
+export type Action = 'check' | 'doctor' | 'fresh' | 'restore' | 'backup' | 'configure' | 'attach_caddy' | 'inbound' | 'traffic' | 'tunnel' | 'xhttp' | 'client_import' | 'subscription_maintenance' | 'tcp_tuning' | 'network_benchmark' | 'system_backup' | 'system_restore';
 export interface BackupClientCatalog {
   inbounds: {
     id: number;
