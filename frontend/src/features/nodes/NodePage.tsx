@@ -39,6 +39,8 @@ const actionIcons = {
   inbound: Settings2,
   traffic: Activity,
   tcp_tuning: Gauge,
+  system_backup: Save,
+  system_restore: Database,
   network_benchmark: Gauge,
   tunnel: Activity,
   xhttp: Activity,
@@ -361,7 +363,7 @@ export function NodePage({
                   )}
                 </>
               )}
-              {action === 'restore' && (
+              {['restore', 'system_restore'].includes(action) && (
                 <div className="restore-picker">
                   <label htmlFor="restore-backup">Бэкап для восстановления</label>
                   <div>
@@ -371,7 +373,7 @@ export function NodePage({
                       onChange={(e) => setBackupId(e.target.value)}
                     >
                       <option value="">Выбери снимок базы</option>
-                      {w.backups.map((backup) => (
+                      {w.backups.filter(b => action !== 'system_restore' || b.filename.endsWith('.nodekit.zip')).map((backup) => (
                         <option value={backup.id} key={backup.id}>
                           {backup.filename} · {formatDate(backup.created_at)}
                         </option>
@@ -387,7 +389,9 @@ export function NodePage({
                 </div>
               )}
               <p className="feature-hint">
-                {action === 'backup'
+                {action === 'system_backup' ? 'Архив содержит приватные ключи. Он хранится вместе с бэкапами; raw Caddy и системные файлы сохраняются для справки.'
+                  : action === 'system_restore' ? 'Вернуть системный TCP-алгоритм и отсутствующие ключи совпадающих SSH-туннелей. Сначала сохрани YAML новой VPS и выполни обнаружение. Установки и перезапуска сервисов здесь нет.'
+                  : action === 'backup'
                   ? 'Согласованный снимок SQLite будет сохранён в разделе «Бэкапы».'
                   : action === 'attach_caddy'
                     ? 'Подключение Caddy к установленной панели. Существующие inbound и клиенты сохраняются. Панель перезапустится. Если выбран исходный контейнер Caddy этой ноды, он также кратковременно перезапустится для включения локального API.'
@@ -408,7 +412,8 @@ export function NodePage({
                     locked ||
                     (['fresh', 'restore'].includes(action) && !canDeploy) ||
                     (['configure', 'attach_caddy'].includes(action) && (!canDeploy || config?.deployment?.caddy_mode !== 'existing')) ||
-                    (action === 'restore' && !backupId)
+                    (['restore', 'system_restore'].includes(action) && !backupId) ||
+                    (action === 'system_restore' && !report?.tcp_tuning)
                   }
                   onClick={() => onPlan(action, backupId)}
                 >

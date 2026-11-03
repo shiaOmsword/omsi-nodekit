@@ -6,6 +6,7 @@ from framework.entities import ConflictError, ValidationError, YamlCodec
 from framework.messages import MessageKey
 from framework.messages import text as message_text
 
+from .backups import BackupService
 from .keys import SSHKeyService
 
 
@@ -18,6 +19,7 @@ class NodeService:
         template: NodeTemplate,
         keys: SSHKeyService,
         yaml_codec: YamlCodec,
+        backups: BackupService,
     ):
         self.nodes = nodes
         self.factory = factory
@@ -25,6 +27,7 @@ class NodeService:
         self.templates = template
         self.keys = keys
         self.yaml = yaml_codec
+        self.backups = backups
 
     def template(self):
         return {"yaml": self.templates.read()}
@@ -93,6 +96,7 @@ class NodeService:
         node = self.factory.from_yaml(stored.yaml)
         if node.panel.installation != "managed" and request.action not in {
             JobAction.TCP_TUNING,
+            JobAction.SYSTEM_RESTORE,
             JobAction.NETWORK_BENCHMARK,
         }:
             raise ValidationError(message_text(MessageKey.INBOUND_MANAGED_REQUIRED))
@@ -101,6 +105,17 @@ class NodeService:
             if request.tunnel.name not in available or not set(request.tunnel.members) <= available:
                 raise ValidationError(message_text(MessageKey.TUNNEL_CONFIG_INVALID))
         plan = self.renderer.plan(node, request.action)
+        if request.action == JobAction.SYSTEM_RESTORE:
+            summary = self.backups.system_summary(request.backup_id)
+            if summary["node_id"] != node.id:
+                raise ValidationError(message_text(MessageKey.SYSTEM_BACKUP_CONFLICT))
+            plan["steps"].append(
+                message_text(
+                    MessageKey.SYSTEM_BACKUP_CONTENTS,
+                    algorithm=summary["tcp_algorithm"],
+                    tunnels=", ".join(summary["tunnel_names"]),
+                )
+            )
         if (
             request.action == JobAction.SUBSCRIPTION_MAINTENANCE
             and request.subscription_maintenance.mode == "clear_server_cache"

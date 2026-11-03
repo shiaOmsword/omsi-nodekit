@@ -189,6 +189,10 @@ WantedBy=multi-user.target
             steps.append(message_text(MessageKey.TCP_TUNING_PLAN))
         elif action == "traffic":
             steps.append(message_text(MessageKey.TRAFFIC_PLAN))
+        elif action == "system_backup":
+            steps.append(message_text(MessageKey.SYSTEM_BACKUP_PLAN))
+        elif action == "system_restore":
+            steps.append(message_text(MessageKey.SYSTEM_RESTORE_PLAN))
         elif action == "backup":
             steps += [
                 message_text(MessageKey.PLAN_EXISTING_BACKUP),
@@ -227,6 +231,7 @@ WantedBy=multi-user.target
             "client_import",
             "subscription_maintenance",
             "tcp_tuning",
+            "system_restore",
         }:
             steps.append(message_text(MessageKey.PLAN_READ_ONLY))
         return {

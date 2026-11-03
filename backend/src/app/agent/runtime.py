@@ -23,6 +23,7 @@ from .inspection import InstallationInspector
 from .network_benchmark import NetworkBenchmark
 from .subscription_maintenance import SubscriptionMaintenanceAgent
 from .subscriptions import SubscriptionDiagnostics
+from .system_backup import SystemRestorer, create_bundle
 from .tcp_tuning import TCPConfigurator
 from .traffic_probe import TrafficProbe
 from .tunnel_manager import TunnelManager

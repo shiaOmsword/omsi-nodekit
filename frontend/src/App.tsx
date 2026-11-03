@@ -128,7 +128,7 @@ function ImportModal({
   return (
     <Modal
       title="Загрузить бэкап"
-      description="Файл базы SQLite 3x-ui (.db). После загрузки проверяются структура и целостность."
+      description="База SQLite (.db) или архив ноды (.nodekit.zip). После загрузки проверяются структура, версия и целостность."
       busy={busy}
       onClose={onClose}
       footer={
@@ -151,12 +151,12 @@ function ImportModal({
       {error && <Alert tone="error">{error}</Alert>}
       <label className="upload-zone">
         <Upload size={28} />
-        <strong>{file ? file.name : 'Выбери файл .db'}</strong>
+        <strong>{file ? file.name : 'Выбери .db или .nodekit.zip'}</strong>
         <span>Файл останется в локальном разделе «Бэкапы»</span>
         <input
           type="file"
           aria-label="Файл бэкапа SQLite"
-          accept=".db"
+          accept=".db,.nodekit.zip"
           disabled={busy}
           onChange={(e) => setFile(e.target.files?.[0] || null)}
         />
@@ -315,7 +315,7 @@ export default function App() {
         body: JSON.stringify({
           action: context.action,
           revision: context.plan!.revision,
-          backup_id: ['restore', 'client_import'].includes(context.action) ? context.backupId : null,
+          backup_id: ['restore', 'client_import', 'system_restore'].includes(context.action) ? context.backupId : null,
           ...context.options,
         }),
       });
@@ -680,7 +680,7 @@ export default function App() {
             }}
             onSuggest={suggest}
             onPlan={(action, backupId) =>
-              w.selected && preview(w.selected, action, backupId || null)
+              w.selected && preview(w.selected, action, backupId || null, action === 'system_restore' && reportJob?.report?.tcp_tuning ? { system_restore: { expected_fingerprint: reportJob.report.tcp_tuning.fingerprint } } : undefined)
             }
             onImport={openImport}
             preferredBackup={

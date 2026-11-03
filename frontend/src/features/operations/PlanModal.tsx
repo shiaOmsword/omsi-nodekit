@@ -62,9 +62,9 @@ export function PlanModal({
           <>
             <div className="plan-context">
               <span
-                className={'tag ' + (['fresh', 'restore', 'configure', 'attach_caddy', 'inbound', 'tunnel', 'xhttp', 'client_import', 'subscription_maintenance', 'tcp_tuning'].includes(action) ? 'tag-warning' : '')}
+                className={'tag ' + (['fresh', 'restore', 'configure', 'attach_caddy', 'inbound', 'tunnel', 'xhttp', 'client_import', 'subscription_maintenance', 'tcp_tuning', 'system_restore'].includes(action) ? 'tag-warning' : '')}
               >
-                {['fresh', 'restore', 'configure', 'attach_caddy', 'inbound', 'tunnel', 'xhttp', 'tcp_tuning'].includes(action) || (action === 'subscription_maintenance' && plan.options?.subscription_maintenance?.mode === 'clear_server_cache')
+                {['fresh', 'restore', 'configure', 'attach_caddy', 'inbound', 'tunnel', 'xhttp', 'tcp_tuning', 'system_restore'].includes(action) || (action === 'subscription_maintenance' && plan.options?.subscription_maintenance?.mode === 'clear_server_cache')
                   ? 'Изменяет сервер'
                   : 'Сервисы на VPS не изменяются'}
               </span>

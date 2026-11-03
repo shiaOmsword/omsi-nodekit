@@ -9,6 +9,7 @@ from .network import (
     InboundChange,
     NetworkBenchmarkRequest,
     SubscriptionMaintenance,
+    SystemRestoreRequest,
     TCPTuningRequest,
     TrafficRequest,
     TunnelRequest,
@@ -34,6 +35,8 @@ class JobRequest(StrictModel):
     def operation_arguments(self):
         if (self.action == JobAction.INBOUND) != (self.inbound is not None):
             raise ValueError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
+        if (self.action == JobAction.SYSTEM_RESTORE) != (self.system_restore is not None):
+            raise ValueError(message_text(MessageKey.SYSTEM_BACKUP_INVALID))
         if (self.action == JobAction.TCP_TUNING) != (self.tcp_tuning is not None):
             raise ValueError(message_text(MessageKey.TCP_TUNING_REQUEST_INVALID))
         if (self.action == JobAction.NETWORK_BENCHMARK) != (self.network_benchmark is not None):
@@ -50,6 +53,9 @@ class JobRequest(StrictModel):
             self.subscription_maintenance is not None
         ):
             raise ValueError(message_text(MessageKey.SUB_CACHE_REQUEST_INVALID))
-        if self.action == JobAction.CLIENT_IMPORT and not self.backup_id:
+        if (
+            self.action in {JobAction.CLIENT_IMPORT, JobAction.SYSTEM_RESTORE}
+            and not self.backup_id
+        ):
             raise ValueError(message_text(MessageKey.RESTORE_BACKUP_REQUIRED))
         return self
