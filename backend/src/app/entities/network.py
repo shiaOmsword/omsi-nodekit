@@ -141,3 +141,7 @@ class SubscriptionMaintenance(StrictModel):
 class TCPTuningRequest(StrictModel):
     algorithm: Literal["cubic", "bbr"]
     expected_fingerprint: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+
+class SystemRestoreRequest(StrictModel):
+    expected_fingerprint: str = Field(pattern=r"^[a-f0-9]{64}$")

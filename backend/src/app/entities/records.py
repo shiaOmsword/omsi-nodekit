@@ -16,6 +16,8 @@ class JobAction(StrEnum):
     FRESH = "fresh"
     RESTORE = "restore"
     BACKUP = "backup"
+    SYSTEM_BACKUP = "system_backup"
+    SYSTEM_RESTORE = "system_restore"
     CONFIGURE = "configure"
     ATTACH_CADDY = "attach_caddy"
     INBOUND = "inbound"

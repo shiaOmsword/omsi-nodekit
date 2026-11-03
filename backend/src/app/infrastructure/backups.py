@@ -6,6 +6,7 @@ from app.backup_clients import public_catalog, read_catalog
 from app.config import Limits
 from app.defaults import XUI_SETTINGS_COLUMNS, XUI_TABLES
 from app.ports import BackupFiles, BackupValidator
+from app.system_backup import database_content
 from framework.database import SQLiteSnapshots
 from framework.entities import JsonCodec, NotFoundError, PayloadTooLargeError, ValidationError
 from framework.messages import MessageKey
@@ -23,6 +24,11 @@ class XuiBackupValidator(BackupValidator):
             raise PayloadTooLargeError(
                 message_text(MessageKey.BACKUP_TOO_LARGE, limit=self.limits.backup_bytes)
             )
+        if content.startswith(b"PK"):
+            try:
+                content = database_content(content, self.limits.backup_bytes)
+            except ValueError as exc:
+                raise ValidationError(message_text(MessageKey.SYSTEM_BACKUP_INVALID)) from exc
         if not content.startswith(b"SQLite format 3\x00"):
             raise ValidationError(message_text(MessageKey.BACKUP_SQLITE_REQUIRED))
         with tempfile.TemporaryDirectory() as temporary:
