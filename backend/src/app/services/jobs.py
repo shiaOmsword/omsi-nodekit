@@ -114,6 +114,7 @@ class JobService:
             JobAction.SYSTEM_RESTORE,
             JobAction.NETWORK_BENCHMARK,
             JobAction.TUNNEL,
+            JobAction.TUNNEL_RESTART,
             JobAction.XHTTP,
             JobAction.CLIENT_IMPORT,
             JobAction.SUBSCRIPTION_MAINTENANCE,
@@ -132,7 +133,18 @@ class JobService:
                 or not options
                 or set(options) != {expected}
             ):
-                raise ValidationError(message_text(MessageKey.INBOUND_MANAGED_REQUIRED))
+                raise ValidationError(
+                    message_text(
+                        MessageKey.TUNNEL_RESTART_REQUEST_INVALID
+                        if action == JobAction.TUNNEL_RESTART
+                        else MessageKey.INBOUND_MANAGED_REQUIRED
+                    )
+                )
+        if action == JobAction.TUNNEL_RESTART:
+            available = {t.name for t in node.tunnels}
+            names = options["tunnel_restart"].get("names", [])
+            if not names or len(names) != len(set(names)) or not set(names) <= available:
+                raise ValidationError(message_text(MessageKey.TUNNEL_RESTART_REQUEST_INVALID))
         if action == JobAction.TUNNEL:
             available = {t.name for t in node.tunnels}
             tunnel = options["tunnel"]

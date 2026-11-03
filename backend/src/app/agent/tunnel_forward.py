@@ -17,7 +17,7 @@ class TunnelForward:
         self.created = self.touched = False
         self.active = self.enabled = False
 
-    def preflight(self):
+    def preflight(self, *, require_installed=False):
         context, tunnel = self.context, self.tunnel
         if self.path.is_symlink() or (
             self.path.exists() and self.path.read_text(encoding="utf-8") != self.content
@@ -31,8 +31,23 @@ class TunnelForward:
             raise TunnelPreflightError(
                 message_text(MessageKey.TUNNEL_SYSTEMD_FAILED, unit=self.unit)
             ) from exc
+        if require_installed and (not self.path.is_file() or not fragment):
+            raise TunnelPreflightError(
+                message_text(MessageKey.TUNNEL_RESTART_MISSING, unit=self.unit)
+            )
         if fragment and Path(fragment) != self.path:
             raise TunnelPreflightError(message_text(MessageKey.TUNNEL_UNIT_CHANGED, unit=self.unit))
+        if require_installed:
+            drop_ins = context.command(
+                ["systemctl", "show", "-p", "DropInPaths", "--value", self.unit]
+            )
+            pending_reload = context.command(
+                ["systemctl", "show", "-p", "NeedDaemonReload", "--value", self.unit]
+            )
+            if drop_ins or pending_reload != "no":
+                raise TunnelPreflightError(
+                    message_text(MessageKey.TUNNEL_RESTART_DRIFT, unit=self.unit)
+                )
 
         def require_permission(flag, path, key=MessageKey.TUNNEL_KEY_UNREADABLE):
             try:
@@ -93,6 +108,10 @@ class TunnelForward:
         return self.context.status(
             ["systemctl", "is-active", "--quiet", self.unit]
         ) == 0 and self.host.port_open(self.tunnel["local_port"])
+
+    def restart(self):
+        self.preflight(require_installed=True)
+        self.context.command(["systemctl", "restart", self.unit])
 
     def rollback(self):
         # A rejected preflight must never stop or disable somebody else's unit.

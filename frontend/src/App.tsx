@@ -665,6 +665,9 @@ export default function App() {
               if (w.selected && reportJob?.report && requireSaved())
                 showModal({ kind: 'backup-clients', record: w.selected, inbound, report: reportJob.report });
             }}
+            onRestartTunnels={(names) => {
+              if (w.selected && requireSaved()) void preview(w.selected, 'tunnel_restart', null, { tunnel_restart: { names } });
+            }}
             onTunnel={() => {
               if (w.selected && reportJob?.report && requireSaved()) showModal({ kind: 'tunnel', record: w.selected, report: reportJob.report });
             }}
