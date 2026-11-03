@@ -7,6 +7,7 @@ from .base import StrictModel
 from .network import (
     BackupClientImport,
     InboundChange,
+    NetworkBenchmarkRequest,
     SubscriptionMaintenance,
     SystemRestoreRequest,
     TCPTuningRequest,
@@ -24,7 +25,7 @@ class JobRequest(StrictModel):
     inbound: InboundChange | None = None
     traffic: TrafficRequest | None = None
     tcp_tuning: TCPTuningRequest | None = None
-    system_restore: SystemRestoreRequest | None = None
+    network_benchmark: NetworkBenchmarkRequest | None = None
     tunnel: TunnelRequest | None = None
     xhttp: XHTTPChange | None = None
     client_import: BackupClientImport | None = None
@@ -38,6 +39,8 @@ class JobRequest(StrictModel):
             raise ValueError(message_text(MessageKey.SYSTEM_BACKUP_INVALID))
         if (self.action == JobAction.TCP_TUNING) != (self.tcp_tuning is not None):
             raise ValueError(message_text(MessageKey.TCP_TUNING_REQUEST_INVALID))
+        if (self.action == JobAction.NETWORK_BENCHMARK) != (self.network_benchmark is not None):
+            raise ValueError(message_text(MessageKey.NETWORK_BENCHMARK_INVALID))
         if (self.action == JobAction.TRAFFIC) != (self.traffic is not None):
             raise ValueError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
         if (self.action == JobAction.TUNNEL) != (self.tunnel is not None):

@@ -668,6 +668,9 @@ export default function App() {
             onTunnel={() => {
               if (w.selected && reportJob?.report && requireSaved()) showModal({ kind: 'tunnel', record: w.selected, report: reportJob.report });
             }}
+            onBenchmark={(network_benchmark) => {
+              if (w.selected && requireSaved()) void preview(w.selected, 'network_benchmark', null, { network_benchmark });
+            }}
             onTCPTuning={(algorithm, expected_fingerprint) => {
               if (w.selected && requireSaved())
                 void preview(w.selected, 'tcp_tuning', null, { tcp_tuning: { algorithm, expected_fingerprint } });

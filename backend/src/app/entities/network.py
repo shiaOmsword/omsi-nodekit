@@ -1,5 +1,6 @@
 import re
 from typing import Literal
+from urllib.parse import urlsplit
 
 from pydantic import Field, field_validator, model_validator
 
@@ -143,5 +144,30 @@ class TCPTuningRequest(StrictModel):
     expected_fingerprint: str = Field(pattern=r"^[a-f0-9]{64}$")
 
 
-class SystemRestoreRequest(StrictModel):
-    expected_fingerprint: str = Field(pattern=r"^[a-f0-9]{64}$")
+class NetworkBenchmarkRequest(StrictModel):
+    url: str = Field(min_length=10, max_length=400)
+    attempts: int = Field(default=3, ge=1, le=3)
+    sample_bytes: int = Field(default=16 * 1024 * 1024, ge=1024 * 1024, le=32 * 1024 * 1024)
+    min_mbps: float = Field(default=100, gt=0, le=100000, allow_inf_nan=False)
+    max_rtt_ms: float = Field(default=100, gt=0, le=10000, allow_inf_nan=False)
+    max_jitter_ms: float = Field(default=20, ge=0, le=10000, allow_inf_nan=False)
+    max_loss_percent: float = Field(default=1, ge=0, le=100, allow_inf_nan=False)
+
+    @field_validator("url")
+    @classmethod
+    def safe_url(cls, value):
+        try:
+            url = urlsplit(value)
+            if (
+                url.scheme != "https"
+                or not url.hostname
+                or url.username
+                or url.password
+                or url.fragment
+                or any(ord(c) <= 32 or ord(c) > 126 for c in value)
+                or (url.port is not None and not 1 <= url.port <= 65535)
+            ):
+                raise ValueError()
+        except ValueError as exc:
+            raise ValueError(message_text(MessageKey.NETWORK_BENCHMARK_INVALID)) from exc
+        return value

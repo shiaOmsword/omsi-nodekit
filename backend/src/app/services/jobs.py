@@ -111,7 +111,7 @@ class JobService:
             JobAction.INBOUND,
             JobAction.TRAFFIC,
             JobAction.TCP_TUNING,
-            JobAction.SYSTEM_RESTORE,
+            JobAction.NETWORK_BENCHMARK,
             JobAction.TUNNEL,
             JobAction.XHTTP,
             JobAction.CLIENT_IMPORT,
@@ -120,7 +120,7 @@ class JobService:
             expected = str(action)
             if (
                 (
-                    action not in {JobAction.TCP_TUNING, JobAction.SYSTEM_RESTORE}
+                    action not in {JobAction.TCP_TUNING, JobAction.NETWORK_BENCHMARK}
                     and node.panel.installation != "managed"
                 )
                 or not options

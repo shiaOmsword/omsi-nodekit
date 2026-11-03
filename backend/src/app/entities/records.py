@@ -23,6 +23,7 @@ class JobAction(StrEnum):
     INBOUND = "inbound"
     TRAFFIC = "traffic"
     TCP_TUNING = "tcp_tuning"
+    NETWORK_BENCHMARK = "network_benchmark"
     TUNNEL = "tunnel"
     XHTTP = "xhttp"
     CLIENT_IMPORT = "client_import"

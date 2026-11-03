@@ -61,7 +61,7 @@ class NodeService:
         if action in {
             JobAction.INBOUND,
             JobAction.TRAFFIC,
-            JobAction.SYSTEM_RESTORE,
+            JobAction.NETWORK_BENCHMARK,
             JobAction.TCP_TUNING,
             JobAction.TUNNEL,
             JobAction.XHTTP,
@@ -82,11 +82,12 @@ class NodeService:
         if request.action not in {
             JobAction.INBOUND,
             JobAction.TRAFFIC,
-            JobAction.SYSTEM_RESTORE,
+            JobAction.NETWORK_BENCHMARK,
             JobAction.TUNNEL,
             JobAction.XHTTP,
             JobAction.CLIENT_IMPORT,
             JobAction.SUBSCRIPTION_MAINTENANCE,
+            JobAction.TCP_TUNING,
         }:
             return self.preview(node_id, request.action)
         options = request.model_dump(
@@ -96,6 +97,7 @@ class NodeService:
         if node.panel.installation != "managed" and request.action not in {
             JobAction.TCP_TUNING,
             JobAction.SYSTEM_RESTORE,
+            JobAction.NETWORK_BENCHMARK,
         }:
             raise ValidationError(message_text(MessageKey.INBOUND_MANAGED_REQUIRED))
         if request.action == JobAction.TUNNEL:

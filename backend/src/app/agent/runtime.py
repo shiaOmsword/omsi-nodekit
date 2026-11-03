@@ -20,6 +20,7 @@ from .existing_diagnostics import ExistingDiagnostics
 from .host import HostEnvironment
 from .inbound_manager import InboundManager
 from .inspection import InstallationInspector
+from .network_benchmark import NetworkBenchmark
 from .subscription_maintenance import SubscriptionMaintenanceAgent
 from .subscriptions import SubscriptionDiagnostics
 from .system_backup import SystemRestorer, create_bundle
@@ -118,15 +119,9 @@ class RemoteAgent:
                 finally:
                     inspector = InstallationInspector(context)
                     inspector.inspect()
-            elif action == "system_backup":
+            elif action == "network_benchmark":
                 inspector.inspect()
-                data = create_bundle(context, self.database, inspector)
-                print(json.dumps({"backup": base64.b64encode(data).decode()}), flush=True)
-                context.emit(message_text(MessageKey.BACKUP_DOWNLOADED))
-            elif action == "system_restore":
-                inspector.inspect()
-                SystemRestorer(context, inspector).apply()
-                inspector.inspect()
+                NetworkBenchmark(context, inspector).run()
             elif action == "tcp_tuning":
                 TCPConfigurator(context).apply()
             elif action == "traffic":
