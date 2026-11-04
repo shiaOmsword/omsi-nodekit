@@ -25,6 +25,7 @@ class MessageKey(StrEnum):
     WIREGUARD_SUBSCRIPTIONS_REQUIRED = "wireguard_subscriptions_required"
     WIREGUARD_PLAN = "wireguard_plan"
     WIREGUARD_APPLIED = "wireguard_applied"
+    WIREGUARD_NOT_READY = "wireguard_not_ready"
     SYSTEM_BACKUP_INVALID = "system_backup_invalid"
     SYSTEM_BACKUP_CONFLICT = "system_backup_conflict"
     SYSTEM_BACKUP_RESTORED = "system_backup_restored"

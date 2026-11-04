@@ -187,7 +187,15 @@ class InboundManager:
                     i["id"] != original["id"] and i["port"] == proposed["port"] for i in others
                 ):
                     raise RuntimeError(message_text(MessageKey.DEPLOYMENT_INBOUND_COLLISION))
-                self.host.require_endpoint(proposed["port"], original.get("listen") or "0.0.0.0")
+                if original.get("protocol") == "wireguard":
+                    if self.host.udp_port_bound(proposed["port"]):
+                        raise RuntimeError(
+                            message_text(MessageKey.PORT_OCCUPIED, port=proposed["port"])
+                        )
+                else:
+                    self.host.require_endpoint(
+                        proposed["port"], original.get("listen") or "0.0.0.0"
+                    )
         self.database.snapshot(
             self.inspector.database(), base / f"before-inbound-{time.time_ns()}.db"
         )
@@ -232,7 +240,12 @@ class InboundManager:
                         new["listen"] if new["listen"] not in {"0.0.0.0", "::"} else "127.0.0.1"
                     )
                     for _ in range(context.policy["readiness_attempts"]):
-                        if self.host.port_open(new["port"], address):
+                        ready = (
+                            self.host.udp_port_bound(new["port"])
+                            if new["protocol"] == "wireguard"
+                            else self.host.port_open(new["port"], address)
+                        )
+                        if ready:
                             break
                         time.sleep(context.policy["readiness_interval"])
                     else:
@@ -248,7 +261,12 @@ class InboundManager:
                 )
             if old["port"] not in used:
                 for _ in range(min(context.policy["readiness_attempts"], 10)):
-                    if not self.host.port_open(old["port"]):
+                    bound = (
+                        self.host.udp_port_bound(old["port"])
+                        if old["protocol"] == "wireguard"
+                        else self.host.port_open(old["port"])
+                    )
+                    if not bound:
                         break
                     time.sleep(context.policy["readiness_interval"])
             firewall.prune(used, self.host)

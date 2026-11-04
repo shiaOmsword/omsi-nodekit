@@ -182,6 +182,12 @@ class WireGuardManager:
             ):
                 raise RuntimeError(message_text(MessageKey.INBOUND_IDENTITIES))
             api.request("server/restartXrayService", {})
+            for _ in range(context.policy["readiness_attempts"]):
+                if self.host.udp_port_bound(request["port"]):
+                    break
+                time.sleep(context.policy["readiness_interval"])
+            else:
+                raise RuntimeError(message_text(MessageKey.WIREGUARD_NOT_READY))
             firewall.commit()
         except Exception:
             try:

@@ -81,7 +81,9 @@ class BackupService:
         try:
             with tempfile.TemporaryDirectory(prefix="nodekit-wg-catalog-") as folder:
                 path = Path(folder) / "x-ui.db"
-                path.write_bytes(self.content(backup_id))
+                path.write_bytes(
+                    database_content(self.content(backup_id), self.limits.backup_bytes)
+                )
                 return public_catalog(read_wireguard(path))
         except Exception as exc:
             raise ValidationError(message_text(MessageKey.WIREGUARD_BACKUP_INVALID)) from exc

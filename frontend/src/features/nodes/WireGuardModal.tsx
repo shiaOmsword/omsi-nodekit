@@ -39,10 +39,10 @@ export function WireGuardModal({ record, inbound, backups, busy, error, onClose,
   const restore = !inbound && values.operation === 'restore';
   const fields: FormField[] = [
     ...(!inbound ? [{ name: 'operation', label: 'Сценарий', type: 'select', options: [
-      { value: 'create', label: 'Новый inbound и клиент' }, { value: 'restore', label: 'Восстановить WG из SQLite' },
+      { value: 'create', label: 'Новый inbound и клиент' }, { value: 'restore', label: 'Восстановить WG из бэкапа' },
     ] } as FormField] : []),
     ...(restore ? [
-      { name: 'backup_id', label: 'Бэкап SQLite', type: 'select', required: true,
+      { name: 'backup_id', label: 'Бэкап SQLite или Nodekit ZIP', type: 'select', required: true,
         options: [{ value: '', label: 'Выбери бэкап' }, ...backups.map(b => ({ value: b.id, label: b.filename }))] },
       { name: 'source_inbound_id', label: loading ? 'Чтение WG…' : 'Исходный WG inbound', type: 'select', required: true,
         options: sources.map(s => ({ value: String(s.id), label: `#${s.id} · ${s.remark} · ${s.client_count} клиентов` })) },

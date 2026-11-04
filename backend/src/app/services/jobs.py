@@ -30,6 +30,7 @@ class ExecuteJob:
                 if content is not None and job.action in {
                     JobAction.RESTORE,
                     JobAction.CLIENT_IMPORT,
+                    JobAction.WIREGUARD,
                 }:
                     from app.system_backup import database_content
 
