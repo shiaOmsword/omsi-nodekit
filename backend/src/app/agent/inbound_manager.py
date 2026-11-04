@@ -61,8 +61,11 @@ def managed_api(context, inspector, base):
 def identities(value):
     stream = object_value(value.get("streamSettings"))
     reality = stream.get("realitySettings") or {}
+    settings = object_value(value.get("settings"))
+    if value.get("protocol") == "wireguard":
+        settings = {k: v for k, v in settings.items() if k not in {"mtu", "dns"}}
     return {
-        "settings": object_value(value.get("settings")),
+        "settings": settings,
         "protocol": value.get("protocol"),
         "network": stream.get("network"),
         "security": stream.get("security"),
@@ -131,9 +134,29 @@ class InboundManager:
         if change["operation"] in {"add_client", "delete_client"}:
             self.apply_client(base, api, original, change)
             return
+        if (
+            any(change.get(k) is not None for k in ("wg_domain", "wg_mtu", "wg_dns"))
+            and original.get("protocol") != "wireguard"
+        ):
+            raise RuntimeError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
         proposed = copy.deepcopy(original)
+        if original.get("protocol") == "wireguard" and change.get("close_unmanaged_rule"):
+            raise RuntimeError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
         old = public_inbound(original)
         if change["operation"] == "update":
+            if change.get("wg_domain"):
+                proposed.update(shareAddr=change["wg_domain"], shareAddrStrategy="custom")
+            if change.get("wg_mtu") is not None or change.get("wg_dns") is not None:
+                settings = object_value(proposed.get("settings"))
+                if change.get("wg_mtu") is not None:
+                    settings["mtu"] = change["wg_mtu"]
+                if change.get("wg_dns") is not None:
+                    import ipaddress
+
+                    for address in filter(None, change["wg_dns"].split(",")):
+                        ipaddress.ip_address(address.strip())
+                    settings["dns"] = change["wg_dns"]
+                proposed["settings"] = settings
             if change.get("remark") is not None:
                 proposed["remark"] = change["remark"]
             if change.get("port") is not None:
@@ -164,7 +187,15 @@ class InboundManager:
                     i["id"] != original["id"] and i["port"] == proposed["port"] for i in others
                 ):
                     raise RuntimeError(message_text(MessageKey.DEPLOYMENT_INBOUND_COLLISION))
-                self.host.require_endpoint(proposed["port"], original.get("listen") or "0.0.0.0")
+                if original.get("protocol") == "wireguard":
+                    if self.host.udp_port_bound(proposed["port"]):
+                        raise RuntimeError(
+                            message_text(MessageKey.PORT_OCCUPIED, port=proposed["port"])
+                        )
+                else:
+                    self.host.require_endpoint(
+                        proposed["port"], original.get("listen") or "0.0.0.0"
+                    )
         self.database.snapshot(
             self.inspector.database(), base / f"before-inbound-{time.time_ns()}.db"
         )
@@ -209,7 +240,12 @@ class InboundManager:
                         new["listen"] if new["listen"] not in {"0.0.0.0", "::"} else "127.0.0.1"
                     )
                     for _ in range(context.policy["readiness_attempts"]):
-                        if self.host.port_open(new["port"], address):
+                        ready = (
+                            self.host.udp_port_bound(new["port"])
+                            if new["protocol"] == "wireguard"
+                            else self.host.port_open(new["port"], address)
+                        )
+                        if ready:
                             break
                         time.sleep(context.policy["readiness_interval"])
                     else:
@@ -225,7 +261,12 @@ class InboundManager:
                 )
             if old["port"] not in used:
                 for _ in range(min(context.policy["readiness_attempts"], 10)):
-                    if not self.host.port_open(old["port"]):
+                    bound = (
+                        self.host.udp_port_bound(old["port"])
+                        if old["protocol"] == "wireguard"
+                        else self.host.port_open(old["port"])
+                    )
+                    if not bound:
                         break
                     time.sleep(context.policy["readiness_interval"])
             firewall.prune(used, self.host)
@@ -311,6 +352,12 @@ class InboundManager:
 
     def apply_client(self, base, api, original, change):
         """Update one VLESS client without exporting its UUID or subscription ID."""
+        if original.get("protocol") == "wireguard":
+            from .wireguard import WireGuardManager
+
+            return WireGuardManager(self.context, self.host, self.database, self.inspector).client(
+                base, api, original, change
+            )
         if original.get("protocol") != "vless":
             raise RuntimeError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
         proposed = copy.deepcopy(original)

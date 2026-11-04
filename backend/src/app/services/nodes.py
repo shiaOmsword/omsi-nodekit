@@ -67,6 +67,7 @@ class NodeService:
             JobAction.TUNNEL,
             JobAction.TUNNEL_RESTART,
             JobAction.XHTTP,
+            JobAction.WIREGUARD,
             JobAction.CLIENT_IMPORT,
             JobAction.SUBSCRIPTION_MAINTENANCE,
         }:
@@ -89,6 +90,7 @@ class NodeService:
             JobAction.TUNNEL,
             JobAction.TUNNEL_RESTART,
             JobAction.XHTTP,
+            JobAction.WIREGUARD,
             JobAction.CLIENT_IMPORT,
             JobAction.SUBSCRIPTION_MAINTENANCE,
             JobAction.TCP_TUNING,

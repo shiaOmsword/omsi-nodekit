@@ -45,6 +45,7 @@ const actionIcons = {
   tunnel: Activity,
   tunnel_restart: Activity,
   xhttp: Activity,
+  wireguard: Activity,
   client_import: Database,
   subscription_maintenance: Activity,
 };
@@ -64,6 +65,7 @@ export function NodePage({
   preferredBackup,
   onInbound,
   onXHTTP,
+  onWireGuard,
   onPublishXHTTP,
   onPreparePool,
   onTunnelPool,
@@ -87,6 +89,7 @@ export function NodePage({
   onImport: (done?: (backup: Backup) => void) => void;
   preferredBackup?: string;
   onInbound: (item: InboundFinding, remove: boolean) => void;
+  onWireGuard: (item?: InboundFinding) => void;
   onXHTTP: (item?: InboundFinding) => void;
   onPublishXHTTP: (item: InboundFinding) => void;
   onPreparePool: () => void;
@@ -303,7 +306,7 @@ export function NodePage({
       {route.tab === 'operations' &&
         (!action ? (
           <div className="operation-grid">
-            {(Object.keys(actionLabels) as Action[]).filter((id) => !['inbound', 'traffic', 'tunnel', 'tunnel_restart', 'xhttp', 'client_import', 'tcp_tuning', 'network_benchmark'].includes(id)).map((id) => {
+            {(Object.keys(actionLabels) as Action[]).filter((id) => !['inbound', 'traffic', 'tunnel', 'tunnel_restart', 'xhttp', 'client_import', 'tcp_tuning', 'network_benchmark', 'wireguard'].includes(id)).map((id) => {
               const Icon = actionIcons[id];
               return (
                 <button
@@ -491,7 +494,7 @@ export function NodePage({
         </>
       )}
       {route.tab === 'inbounds' && <section className="card"><div className="section-heading"><div><h2>Inbound ноды</h2><p>Изменение порта, SNI и названия; проверка трафика и управление UFW.</p></div>
-        <div className="row-actions"><Button disabled={locked} onClick={() => onPlan('check')}>Обновить</Button><Button disabled={locked || !canDeploy || !report || !caddyReady || config?.deployment?.caddy_mode !== 'existing'} onClick={() => onXHTTP()}>+ VLESS / XHTTP</Button><Button variant="primary" disabled={locked || !canDeploy} onClick={onDeployment}>+ VLESS / REALITY</Button></div></div>
+        <div className="row-actions"><Button disabled={locked} onClick={() => onPlan('check')}>Обновить</Button><Button disabled={locked || !canDeploy || !report || !caddyReady || config?.deployment?.caddy_mode !== 'existing'} onClick={() => onXHTTP()}>+ VLESS / XHTTP</Button><Button disabled={locked || !canDeploy || !report} onClick={() => onWireGuard()}>+ WireGuard</Button><Button variant="primary" disabled={locked || !canDeploy} onClick={onDeployment}>+ VLESS / REALITY</Button></div></div>
         {config?.deployment?.caddy_mode !== 'existing' ? <div className="info-banner">
           <span>Для XHTTP выбери существующий Caddy в параметрах развёртывания.</span>
           <Button disabled={locked} onClick={onDeployment}>Настроить Caddy</Button>
@@ -500,7 +503,7 @@ export function NodePage({
           <Button disabled={locked || !canDeploy} onClick={() => onPlan('attach_caddy')}>Подключить Caddy</Button>
         </div> : !caddyReady ? <p className="page-note">Обнови обнаружение, чтобы проверить подключение Caddy перед созданием XHTTP.</p> : null}
         <div className="card-content">{report?.selected_panel ? report.panels.filter((p) => p.id === report.selected_panel).map((panel) => <InboundReport key={panel.id} panel={panel} busy={locked}
-          onEdit={panel.installation === 'managed' ? (item) => item.network === 'xhttp' ? onXHTTP(item) : onInbound(item, false) : undefined}
+          onEdit={panel.installation === 'managed' ? (item) => item.protocol === 'wireguard' ? onWireGuard(item) : item.network === 'xhttp' ? onXHTTP(item) : onInbound(item, false) : undefined}
           onDelete={(item) => onInbound(item, true)} onTest={onTraffic} onClient={onClient} onPublish={onPublishXHTTP} onRestoreClients={onRestoreClients} />) :
           <EmptyState title="Нужен актуальный отчёт выбранной панели" description="Запусти обнаружение и выбери установку 3x-ui." />}</div></section>}
       {route.tab === 'tunnels' && <section className="card">

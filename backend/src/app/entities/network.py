@@ -1,3 +1,4 @@
+import ipaddress
 import re
 from typing import Literal
 from urllib.parse import urlsplit
@@ -19,6 +20,9 @@ class InboundChange(StrictModel):
     server_name: Host | None = None
     client_email: str | None = Field(default=None, pattern=r"^[a-zA-Z0-9][a-zA-Z0-9_.@-]{0,79}$")
     close_unmanaged_rule: bool = False
+    wg_domain: Host | None = None
+    wg_mtu: int | None = Field(default=None, ge=576, le=1500)
+    wg_dns: str | None = Field(default=None, max_length=120, pattern=r"^[0-9a-fA-F:., ]*$")
 
     @field_validator("remark")
     @classmethod
@@ -30,18 +34,44 @@ class InboundChange(StrictModel):
     @model_validator(mode="after")
     def changes(self):
         if self.operation == "delete" and any(
-            x is not None for x in (self.remark, self.port, self.server_name)
+            x is not None
+            for x in (
+                self.remark,
+                self.port,
+                self.server_name,
+                self.wg_domain,
+                self.wg_mtu,
+                self.wg_dns,
+            )
         ):
             raise ValueError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
         if self.operation == "update" and all(
-            x is None for x in (self.remark, self.port, self.server_name)
+            x is None
+            for x in (
+                self.remark,
+                self.port,
+                self.server_name,
+                self.wg_domain,
+                self.wg_mtu,
+                self.wg_dns,
+            )
         ):
             raise ValueError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
         if self.operation in {"update", "delete"} and self.client_email is not None:
             raise ValueError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
         if self.operation in {"add_client", "delete_client"} and (
             not self.client_email
-            or any(x is not None for x in (self.remark, self.port, self.server_name))
+            or any(
+                x is not None
+                for x in (
+                    self.remark,
+                    self.port,
+                    self.server_name,
+                    self.wg_domain,
+                    self.wg_mtu,
+                    self.wg_dns,
+                )
+            )
             or self.close_unmanaged_rule
         ):
             raise ValueError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
@@ -142,6 +172,29 @@ class SubscriptionMaintenance(StrictModel):
 class TCPTuningRequest(StrictModel):
     algorithm: Literal["cubic", "bbr"]
     expected_fingerprint: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+
+class WireGuardChange(StrictModel):
+    operation: Literal["create", "restore"] = "create"
+    remark: str = Field(min_length=1, max_length=120, pattern=r"^[^\x00-\x1f]+$")
+    domain: Host
+    port: Port = 51820
+    mtu: int = Field(default=1420, ge=576, le=1500)
+    dns: str = Field(default="1.1.1.1", max_length=120)
+    subnet: str = "10.77.0.0/24"
+    client_email: str = Field(default="client-wg", pattern=r"^[a-zA-Z0-9][a-zA-Z0-9_.@-]{0,79}$")
+    source_inbound_id: int | None = Field(default=None, gt=0)
+
+    @model_validator(mode="after")
+    def valid_wireguard(self):
+        if (self.operation == "restore") != (self.source_inbound_id is not None):
+            raise ValueError(message_text(MessageKey.WIREGUARD_BACKUP_INVALID))
+        network = ipaddress.ip_network(self.subnet)
+        if network.version != 4 or not 16 <= network.prefixlen <= 29:
+            raise ValueError(message_text(MessageKey.WIREGUARD_BACKUP_INVALID))
+        for value in self.dns.split(","):
+            ipaddress.ip_address(value.strip())
+        return self
 
 
 class SystemRestoreRequest(StrictModel):

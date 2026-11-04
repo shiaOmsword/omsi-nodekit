@@ -30,6 +30,7 @@ class ExecuteJob:
                 if content is not None and job.action in {
                     JobAction.RESTORE,
                     JobAction.CLIENT_IMPORT,
+                    JobAction.WIREGUARD,
                 }:
                     from app.system_backup import database_content
 
@@ -116,6 +117,7 @@ class JobService:
             JobAction.TUNNEL,
             JobAction.TUNNEL_RESTART,
             JobAction.XHTTP,
+            JobAction.WIREGUARD,
             JobAction.CLIENT_IMPORT,
             JobAction.SUBSCRIPTION_MAINTENANCE,
         }:
@@ -158,7 +160,9 @@ class JobService:
             or node.deployment.caddy_mode != "existing"
         ):
             raise ValidationError(message_text(MessageKey.SUBSCRIPTION_CONFIGURE_GUARD))
-        if action in {JobAction.RESTORE, JobAction.CLIENT_IMPORT, JobAction.SYSTEM_RESTORE}:
+        if action in {JobAction.RESTORE, JobAction.CLIENT_IMPORT, JobAction.SYSTEM_RESTORE} or (
+            action == JobAction.WIREGUARD and options["wireguard"]["operation"] == "restore"
+        ):
             if not backup_id:
                 raise ValidationError(message_text(MessageKey.RESTORE_BACKUP_REQUIRED))
             self.backups.content(backup_id)

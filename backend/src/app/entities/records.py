@@ -27,6 +27,7 @@ class JobAction(StrEnum):
     TUNNEL = "tunnel"
     TUNNEL_RESTART = "tunnel_restart"
     XHTTP = "xhttp"
+    WIREGUARD = "wireguard"
     CLIENT_IMPORT = "client_import"
     SUBSCRIPTION_MAINTENANCE = "subscription_maintenance"
 

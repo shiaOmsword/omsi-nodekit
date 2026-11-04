@@ -22,6 +22,7 @@ import { NodePage } from './features/nodes/NodePage';
 import { NodeFormModal } from './features/nodes/NodeFormModal';
 import { DeploymentModal } from './features/nodes/DeploymentModal';
 import { InboundModal, ClientModal } from './features/nodes/InboundModal';
+import { WireGuardModal } from './features/nodes/WireGuardModal';
 import { XHTTPModal } from './features/nodes/XHTTPModal';
 import { TunnelPoolModal } from './features/nodes/TunnelPoolModal';
 import { parse, stringify } from 'yaml';
@@ -68,6 +69,7 @@ type ModalState =
   | { kind: 'pool'; record: NodeRecord; report: InstallationReport }
   | { kind: 'inbound'; record: NodeRecord; inbound: InboundFinding; remove: boolean }
   | { kind: 'client'; record: NodeRecord; inbound: InboundFinding; remove: boolean }
+  | { kind: 'wireguard'; record: NodeRecord; inbound?: InboundFinding }
   | { kind: 'xhttp'; record: NodeRecord; report: InstallationReport; inbound?: InboundFinding; publish?: boolean }
   | { kind: 'discovery'; record: NodeRecord; job: JobDetail }
   | { kind: 'plan'; record: NodeRecord; action: Action; backupId: string | null; plan: Plan | null; options?: JobOptions }
@@ -315,7 +317,7 @@ export default function App() {
         body: JSON.stringify({
           action: context.action,
           revision: context.plan!.revision,
-          backup_id: ['restore', 'client_import', 'system_restore'].includes(context.action) ? context.backupId : null,
+          backup_id: ['restore', 'client_import', 'system_restore', 'wireguard'].includes(context.action) ? context.backupId : null,
           ...context.options,
         }),
       });
@@ -441,6 +443,9 @@ export default function App() {
       case 'inbound':
         return <InboundModal {...common} record={modal.record} inbound={modal.inbound} remove={modal.remove}
           onPreview={(options) => preview(modal.record, 'inbound', null, options)} />;
+      case 'wireguard':
+        return <WireGuardModal {...common} record={modal.record} inbound={modal.inbound} backups={w.backups}
+          onPreview={(options, backupId) => preview(modal.record, modal.inbound ? 'inbound' : 'wireguard', backupId || null, options)} />;
       case 'xhttp':
         return <XHTTPModal {...common} record={modal.record} report={modal.report} inbound={modal.inbound} publish={modal.publish}
           onPreview={(options) => preview(modal.record, 'xhttp', null, options)} />;
@@ -654,6 +659,9 @@ export default function App() {
             }}
             onPublishXHTTP={(inbound) => {
               if (w.selected && reportJob?.report && requireSaved()) showModal({ kind: 'xhttp', record: w.selected, report: reportJob.report, inbound, publish: true });
+            }}
+            onWireGuard={(inbound) => {
+              if (w.selected && requireSaved()) showModal({ kind: 'wireguard', record: w.selected, inbound });
             }}
             onXHTTP={(inbound) => {
               if (w.selected && reportJob?.report && requireSaved()) showModal({ kind: 'xhttp', record: w.selected, report: reportJob.report, inbound });

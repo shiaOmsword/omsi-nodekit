@@ -63,6 +63,9 @@ class InboundFinding(Entity):
     security: str = ""
     client_count: int = 0
     clients: list[ClientFinding] = Field(default_factory=list)
+    wg_domain: str = ""
+    wg_mtu: int = 1420
+    wg_dns: str = ""
     xhttp_path: str = ""
     xhttp_mode: str = ""
     xhttp_domain: str | None = None

@@ -179,6 +179,8 @@ WantedBy=multi-user.target
             steps.append(message_text(MessageKey.CLIENT_EXTERNAL_PLAN))
         elif action == "subscription_maintenance":
             steps.append(message_text(MessageKey.SUB_CACHE_AUDIT_PLAN))
+        elif action == "wireguard":
+            steps.append(message_text(MessageKey.WIREGUARD_PLAN))
         elif action == "xhttp":
             steps.append(message_text(MessageKey.XHTTP_APPLY_PLAN))
         elif action == "tunnel_restart":
@@ -211,9 +213,15 @@ WantedBy=multi-user.target
                 if node.probe
                 else message_text(MessageKey.PLAN_PROXY_NOT_CONFIGURED)
             ]
-        if action in {"fresh", "restore", "configure", "attach_caddy", "inbound", "xhttp"} and (
-            not node.deployment or node.deployment.manage_ufw
-        ):
+        if action in {
+            "fresh",
+            "restore",
+            "configure",
+            "attach_caddy",
+            "inbound",
+            "xhttp",
+            "wireguard",
+        } and (not node.deployment or node.deployment.manage_ufw):
             steps.append(message_text(MessageKey.NETWORK_UFW_PLAN))
         if (
             action in {"fresh", "restore", "configure", "attach_caddy"}
@@ -231,6 +239,7 @@ WantedBy=multi-user.target
             "tunnel",
             "tunnel_restart",
             "xhttp",
+            "wireguard",
             "client_import",
             "subscription_maintenance",
             "tcp_tuning",

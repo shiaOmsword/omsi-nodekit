@@ -8,7 +8,7 @@ export interface NodeSummary {
 export interface NodeRecord extends NodeSummary {
   yaml: string;
 }
-export type Action = 'check' | 'doctor' | 'fresh' | 'restore' | 'backup' | 'configure' | 'attach_caddy' | 'inbound' | 'traffic' | 'tunnel' | 'tunnel_restart' | 'xhttp' | 'client_import' | 'subscription_maintenance' | 'tcp_tuning' | 'network_benchmark' | 'system_backup' | 'system_restore';
+export type Action = 'check' | 'doctor' | 'fresh' | 'restore' | 'backup' | 'configure' | 'attach_caddy' | 'inbound' | 'traffic' | 'tunnel' | 'tunnel_restart' | 'xhttp' | 'client_import' | 'subscription_maintenance' | 'tcp_tuning' | 'network_benchmark' | 'system_backup' | 'system_restore' | 'wireguard';
 export interface BackupClientCatalog {
   inbounds: {
     id: number;
@@ -30,6 +30,8 @@ export interface BenchmarkReport {
   warnings: string[]; host_tcp: { out_segments: number; retrans_segments: number } | null;
 }
 export interface JobOptions {
+  wireguard?: { operation: 'create' | 'restore'; remark: string; domain: string; port: number;
+    mtu: number; dns: string; subnet: string; client_email: string; source_inbound_id?: number };
   tunnel_restart?: { names: string[] };
   system_restore?: { expected_fingerprint: string };
   network_benchmark?: BenchmarkProfile;
@@ -37,7 +39,7 @@ export interface JobOptions {
   subscription_maintenance?: { id: number; expected_fingerprint: string; mode: 'audit' | 'clear_server_cache'; client_email?: string; acknowledge_restart?: boolean };
   client_import?: { source_inbound_id: number; target_inbound_id: number; expected_fingerprint: string; client_refs: string[]; include_external_links: boolean };
   tunnel?: { name: string; outbound_tag: string; id: number; expected_fingerprint: string; members?: string[]; pool_name?: string };
-  inbound?: { id: number; expected_fingerprint: string; operation: 'update' | 'delete' | 'add_client' | 'delete_client'; client_email?: string; remark?: string; port?: number; server_name?: string; close_unmanaged_rule?: boolean };
+  inbound?: { id: number; expected_fingerprint: string; operation: 'update' | 'delete' | 'add_client' | 'delete_client'; client_email?: string; remark?: string; port?: number; server_name?: string; wg_domain?: string; wg_mtu?: number; wg_dns?: string; close_unmanaged_rule?: boolean };
   traffic?: { id: number; expected_fingerprint: string };
   xhttp?: { operation: 'create' | 'update' | 'publish'; id?: number; expected_fingerprint?: string; remark: string; domain: string; port: number; path: string; mode: 'auto' | 'packet-up' | 'stream-up'; client_email?: string };
 }
@@ -157,6 +159,7 @@ export interface PanelFinding {
     target?: string;
     fingerprint?: string;
     nodekit_name?: string | null;
+    wg_domain?: string; wg_mtu?: number; wg_dns?: string;
     xhttp_path?: string;
     xhttp_mode?: string;
     xhttp_domain?: string | null;

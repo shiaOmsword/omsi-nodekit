@@ -18,7 +18,7 @@ export function InboundModal({ record, inbound, remove, busy, error, onClose, on
     ...(inbound.security === 'reality' ? [{ name: 'server_name', label: 'REALITY SNI', required: true,
       hint: 'Обновятся SNI и адрес REALITY target с прежним target-портом. Ключи и клиенты сохранятся.' } as FormField] : []),
   ];
-  if (inbound.network !== 'xhttp') fields.push({ name: 'close_unmanaged_rule', label: 'Удалить старое ручное разрешение UFW этого TCP-порта', type: 'checkbox',
+  if (inbound.network !== 'xhttp' && inbound.protocol !== 'wireguard') fields.push({ name: 'close_unmanaged_rule', label: 'Удалить старое ручное разрешение UFW этого TCP-порта', type: 'checkbox',
     hint: 'Только точное правило для старого порта, если он больше не используется. Общие правила, диапазоны и порты других сервисов сохраняются. Правила Nodekit согласуются автоматически.' });
   function submit() {
     const change: NonNullable<JobOptions['inbound']> = { id: inbound.id,
@@ -65,6 +65,6 @@ export function ClientModal({ record, inbound, remove, busy, error, onClose, onP
         operation: remove ? 'delete_client' : 'add_client', client_email: String(values.email) } });
     }}
     onClose={onClose} busy={busy} error={error} submit="Посмотреть план">
-    <p className="feature-hint">Сначала Nodekit сохранит SQLite-снимок. Изменится только список клиентов выбранного VLESS inbound; остальные настройки не пересоздаются.</p>
+    <p className="feature-hint">Сначала Nodekit сохранит SQLite-снимок. Изменится только список клиентов выбранного inbound; остальные настройки не пересоздаются.</p>
   </FormDialog>;
 }

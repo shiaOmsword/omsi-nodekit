@@ -38,7 +38,7 @@ export function InboundReport({ panel, busy = false, onEdit, onDelete, onTest, o
         <tbody>{inbounds.map((item) => <tr key={item.id}>
           <td><strong>{item.remark || 'Inbound ' + item.id}</strong><small>#{item.id}</small></td>
           <td>{item.protocol.toUpperCase()}<small>{[item.network, item.security].filter(Boolean).join(' · ')}</small></td>
-          <td><code>{item.listen}:{item.port}</code>{item.xhttp_domain && <small>{item.xhttp_domain}:443 {item.xhttp_path}</small>}</td>
+          <td><code>{item.listen}:{item.port}</code>{item.wg_domain && <small>UDP · {item.wg_domain}:{item.port} · MTU {item.wg_mtu}</small>}{item.xhttp_domain && <small>{item.xhttp_domain}:443 {item.xhttp_path}</small>}</td>
           <td><StatusBadge tone={item.enabled ? 'mint' : 'amber'}>{item.enabled ? 'Включён' : 'Выключен'}</StatusBadge></td>
           <td><strong>{item.client_count}</strong>{item.clients.map((client, i) => <small key={i}>
             {client.email || 'Без имени'} · {client.enabled ? 'включён' : 'выключен'} · {client.has_subscription ? 'ID подписки задан' : 'без ID подписки'}
@@ -47,8 +47,8 @@ export function InboundReport({ panel, busy = false, onEdit, onDelete, onTest, o
             <Button small disabled={busy || !item.fingerprint} onClick={() => onEdit(item)}>Изменить</Button>
             {onPublish && item.protocol === 'vless' && item.network === 'xhttp' && <Button small disabled={busy || !item.fingerprint} onClick={() => onPublish(item)}>Публичная подписка</Button>}
             {onRestoreClients && item.protocol === 'vless' && <Button small disabled={busy || !item.fingerprint} onClick={() => onRestoreClients(item)}>Из бэкапа</Button>}
-            {onClient && item.protocol === 'vless' && <Button small disabled={busy || !item.fingerprint} onClick={() => onClient(item, false)}>+ Клиент</Button>}
-            {onClient && item.protocol === 'vless' && item.clients.length > 0 && <Button small disabled={busy || !item.fingerprint} onClick={() => onClient(item, true)}>− Клиент</Button>}
+            {onClient && ['vless', 'wireguard'].includes(item.protocol) && <Button small disabled={busy || !item.fingerprint} onClick={() => onClient(item, false)}>+ Клиент</Button>}
+            {onClient && ['vless', 'wireguard'].includes(item.protocol) && item.clients.length > 0 && <Button small disabled={busy || !item.fingerprint} onClick={() => onClient(item, true)}>− Клиент</Button>}
             <Button small disabled={busy || !item.fingerprint || !item.enabled || item.protocol !== 'vless' || item.security !== 'reality' || !['tcp', 'raw'].includes(item.network)} onClick={() => onTest?.(item)}>Проверить трафик</Button>
             <Button small className="danger-button" disabled={busy || !item.fingerprint} onClick={() => onDelete?.(item)}>Удалить</Button>
           </div></td>}

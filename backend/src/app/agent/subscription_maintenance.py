@@ -54,7 +54,7 @@ def share_link_count(body):
     return sum(
         1
         for line in text.splitlines()
-        if re.match(r"^(?:vless|vmess|trojan|ss|hysteria2?|tuic)://", line.strip())
+        if re.match(r"^(?:vless|vmess|trojan|ss|hysteria2?|tuic|wireguard)://", line.strip())
     )
 
 
@@ -173,7 +173,7 @@ class SubscriptionMaintenanceAgent:
         item = api.request(f"inbounds/get/{request['id']}")
         if (
             not isinstance(item, dict)
-            or item.get("protocol") != "vless"
+            or item.get("protocol") not in {"vless", "wireguard"}
             or public_inbound(item)["fingerprint"] != request["expected_fingerprint"]
         ):
             raise RuntimeError(message_text(MessageKey.INBOUND_STALE))

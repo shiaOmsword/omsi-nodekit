@@ -4,6 +4,7 @@ import ipaddress
 import json
 import re
 import shutil
+import socket
 
 from framework.messages import MessageKey
 from framework.messages import text as message_text
@@ -301,6 +302,38 @@ def network_checks(context, report):
         if panel["id"] != report.get("selected_panel"):
             continue
         for inbound in panel.get("inbounds", []):
+            if inbound.get("protocol") == "wireguard":
+                domain = inbound.get("wg_domain")
+                try:
+                    if not domain:
+                        raise ValueError()
+                    addresses = {
+                        r[4][0]
+                        for r in socket.getaddrinfo(
+                            domain, inbound["port"], socket.AF_INET, socket.SOCK_DGRAM
+                        )
+                    }
+                    expected = {
+                        r[4][0]
+                        for r in socket.getaddrinfo(
+                            context.node["ssh"]["host"], None, socket.AF_INET
+                        )
+                    }
+                    valid = bool(addresses & expected)
+                    detail = f"WG endpoint {domain}: A {', '.join(sorted(addresses))}; " + (
+                        "соответствует SSH-адресу VPS."
+                        if valid
+                        else "отличается от SSH-адреса VPS; проверь DNS."
+                    )
+                except (OSError, ValueError):
+                    valid, detail = False, "WG endpoint: DNS не разрешён; проверь A-запись домена."
+                checks.append(
+                    {
+                        "name": "wireguard_dns",
+                        "state": "ok" if valid else "warning",
+                        "detail": detail,
+                    }
+                )
             if inbound.get("security") == "reality" and (
                 not inbound.get("server_names") or not inbound.get("target")
             ):
@@ -431,6 +464,7 @@ class FirewallTransaction:
                 entry["scope"] not in {"inbound", "xhttp"}
                 or entry["port"] in used_ports
                 or host.port_open(entry["port"])
+                or (entry["protocol"] == "udp" and host.udp_port_bound(entry["port"]))
             ):
                 continue
             if not any(
