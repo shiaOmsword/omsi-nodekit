@@ -24,6 +24,8 @@ import { messages } from '../../framework/messages';
 import { InstallationReportView } from './InstallationReportView';
 import { JobTable } from '../operations/JobTable';
 import { InboundReport, SubscriptionReport } from './SubscriptionReport';
+import { NetworkBenchmarkPanel } from './NetworkBenchmarkPanel';
+import type { BenchmarkProfile } from '../../types';
 import { NetworkReport } from './NetworkReport';
 
 const actionIcons = {
@@ -37,7 +39,11 @@ const actionIcons = {
   inbound: Settings2,
   traffic: Activity,
   tcp_tuning: Gauge,
+  system_backup: Save,
+  system_restore: Database,
+  network_benchmark: Gauge,
   tunnel: Activity,
+  tunnel_restart: Activity,
   xhttp: Activity,
   wireguard: Activity,
   client_import: Database,
@@ -67,7 +73,9 @@ export function NodePage({
   onRestoreClients,
   onTraffic,
   onTunnel,
+  onRestartTunnels,
   onTCPTuning,
+  onBenchmark,
 }: {
   route: NodeRoute;
   workspace: Workspace;
@@ -90,6 +98,8 @@ export function NodePage({
   onRestoreClients: (item: InboundFinding) => void;
   onTraffic: (item: InboundFinding) => void;
   onTunnel: () => void;
+  onRestartTunnels: (names: string[]) => void;
+  onBenchmark: (profile: BenchmarkProfile) => void;
   onTCPTuning: (algorithm: 'bbr' | 'cubic', fingerprint: string) => void;
 }) {
   const [backupId, setBackupId] = useState(preferredBackup || '');
@@ -296,7 +306,7 @@ export function NodePage({
       {route.tab === 'operations' &&
         (!action ? (
           <div className="operation-grid">
-            {(Object.keys(actionLabels) as Action[]).filter((id) => !['inbound', 'traffic', 'tunnel', 'xhttp', 'client_import', 'tcp_tuning', 'wireguard'].includes(id)).map((id) => {
+            {(Object.keys(actionLabels) as Action[]).filter((id) => !['inbound', 'traffic', 'tunnel', 'tunnel_restart', 'xhttp', 'client_import', 'tcp_tuning', 'network_benchmark', 'wireguard'].includes(id)).map((id) => {
               const Icon = actionIcons[id];
               return (
                 <button
@@ -359,7 +369,7 @@ export function NodePage({
                   )}
                 </>
               )}
-              {action === 'restore' && (
+              {['restore', 'system_restore'].includes(action) && (
                 <div className="restore-picker">
                   <label htmlFor="restore-backup">Бэкап для восстановления</label>
                   <div>
@@ -369,7 +379,7 @@ export function NodePage({
                       onChange={(e) => setBackupId(e.target.value)}
                     >
                       <option value="">Выбери снимок базы</option>
-                      {w.backups.map((backup) => (
+                      {w.backups.filter(b => action !== 'system_restore' || b.filename.endsWith('.nodekit.zip')).map((backup) => (
                         <option value={backup.id} key={backup.id}>
                           {backup.filename} · {formatDate(backup.created_at)}
                         </option>
@@ -385,7 +395,9 @@ export function NodePage({
                 </div>
               )}
               <p className="feature-hint">
-                {action === 'backup'
+                {action === 'system_backup' ? 'Архив содержит приватные ключи. Он хранится вместе с бэкапами; raw Caddy и системные файлы сохраняются для справки.'
+                  : action === 'system_restore' ? 'Вернуть системный TCP-алгоритм и отсутствующие ключи совпадающих SSH-туннелей. Сначала сохрани YAML новой VPS и выполни обнаружение. Установки и перезапуска сервисов здесь нет.'
+                  : action === 'backup'
                   ? 'Согласованный снимок SQLite будет сохранён в разделе «Бэкапы».'
                   : action === 'attach_caddy'
                     ? 'Подключение Caddy к установленной панели. Существующие inbound и клиенты сохраняются. Панель перезапустится. Если выбран исходный контейнер Caddy этой ноды, он также кратковременно перезапустится для включения локального API.'
@@ -406,7 +418,8 @@ export function NodePage({
                     locked ||
                     (['fresh', 'restore'].includes(action) && !canDeploy) ||
                     (['configure', 'attach_caddy'].includes(action) && (!canDeploy || config?.deployment?.caddy_mode !== 'existing')) ||
-                    (action === 'restore' && !backupId)
+                    (['restore', 'system_restore'].includes(action) && !backupId) ||
+                    (action === 'system_restore' && !report?.tcp_tuning)
                   }
                   onClick={() => onPlan(action, backupId)}
                 >
@@ -499,24 +512,28 @@ export function NodePage({
           <div className="row-actions">
             {sshTunnels.length === 1 && <Button disabled={locked} onClick={onPreparePool}>Подготовить 3 в YAML</Button>}
             <Button disabled={locked} onClick={() => onPlan('check')}>Обновить</Button>
+            <Button disabled={locked || !canDeploy || !sshTunnels.length} onClick={() => onRestartTunnels(sshTunnels.map(t => t.name))}>Перезапустить все</Button>
             <Button disabled={locked || !report} onClick={onTunnel}>Один туннель</Button>
             <Button variant="primary" disabled={locked || !report || sshTunnels.length < 2} onClick={onTunnelPool}>Поднять пул</Button>
           </div>
         </div>
         <div className="card-content">
           {!sshTunnels.length ? <EmptyState title="Нет туннелей в YAML" description="Добавь tunnels в конфигурации ноды: host, ssh_port, local_port, target_port, identity_file, known_hosts_file." /> :
-            <div className="table-scroll"><table className="data-table"><thead><tr><th>Туннель</th><th>SSH</th><th>Локальный порт → выход</th><th>Ключ сервера</th><th>Systemd</th></tr></thead><tbody>
+            <div className="table-scroll"><table className="data-table"><thead><tr><th>Туннель</th><th>SSH</th><th>Локальный порт → выход</th><th>Ключ сервера</th><th>Systemd</th><th>Действия</th></tr></thead><tbody>
               {sshTunnels.map((t) => { const live = report?.tunnels?.find((item) => item.name === t.name);
                 return <tr key={t.name}><td><strong>{t.name}</strong></td><td><code>{t.host}:{t.ssh_port || 22}</code></td>
                   <td><code>127.0.0.1:{t.local_port} → 127.0.0.1:{t.target_port}</code></td>
                   <td>{t.host_key_policy === 'accept-new' ? 'Автодоверие при первом подключении' : 'Только известный ключ'}</td>
-                  <td>{live ? live.active ? 'Работает' : 'Не запущен' : 'Нет свежей проверки'}</td></tr>; })}
+                  <td>{live ? live.active ? 'Работает' : 'Не запущен' : 'Нет свежей проверки'}</td>
+                  <td><Button small disabled={locked || !canDeploy} onClick={() => onRestartTunnels([t.name])}>Перезапустить</Button></td></tr>; })}
             </tbody></table></div>}
+          <p className="feature-hint">Перезапуск кратковременно прервёт трафик через выбранные SSH-туннели. Сначала откроется план; после запуска проверятся службы и локальные порты. Новые SSH-соединения используют текущие настройки TCP.</p>
           <p className="feature-hint">Пул распределяет новые соединения по отдельным SSH-сессиям. При потере всех выходов fallback блокирует соединения, не подменяя зарубежный IP на российский. Существующие TCP-сессии не мигрируют автоматически.</p>
           <p className="feature-hint">Для независимого резервирования провайдеров/локаций одного пула недостаточно; здесь проверяется один общий выходной VLESS endpoint.</p>
           <p className="feature-hint">Неизвестный SSH fingerprint может автоматически приниматься только при явном host_key_policy: accept-new в YAML. Изменённый ключ известной ноды всегда отклоняется.</p>
         </div>
       </section>}
+      {route.tab === 'network' && <NetworkBenchmarkPanel key={node.id} nodeId={node.id} jobs={nodeJobs} locked={locked} onPreview={onBenchmark} />}
       {route.tab === 'network' && <section className="card">
         <div className="section-heading">
           <div><h2>TCP congestion control</h2><p>Алгоритм новых TCP-соединений VPS. Не меняет текущие SSH-сессии.</p></div>

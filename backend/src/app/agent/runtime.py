@@ -20,11 +20,14 @@ from .existing_diagnostics import ExistingDiagnostics
 from .host import HostEnvironment
 from .inbound_manager import InboundManager
 from .inspection import InstallationInspector
+from .network_benchmark import NetworkBenchmark
 from .subscription_maintenance import SubscriptionMaintenanceAgent
 from .subscriptions import SubscriptionDiagnostics
+from .system_backup import SystemRestorer, create_bundle
 from .tcp_tuning import TCPConfigurator
 from .traffic_probe import TrafficProbe
 from .tunnel_manager import TunnelManager
+from .tunnel_restart import TunnelRestarter
 from .wireguard import WireGuardManager
 from .xhttp_manager import XHTTPManager
 
@@ -118,6 +121,13 @@ class RemoteAgent:
                 finally:
                     inspector = InstallationInspector(context)
                     inspector.inspect()
+            elif action == "tunnel_restart":
+                inspector.inspect()
+                try:
+                    TunnelRestarter(context, self.host).apply()
+                finally:
+                    inspector = InstallationInspector(context)
+                    inspector.inspect()
             elif action == "tunnel":
                 inspector.inspect()
                 try:
@@ -125,6 +135,18 @@ class RemoteAgent:
                 finally:
                     inspector = InstallationInspector(context)
                     inspector.inspect()
+            elif action == "system_backup":
+                inspector.inspect()
+                data = create_bundle(context, self.database, inspector)
+                print(json.dumps({"backup": base64.b64encode(data).decode()}), flush=True)
+                context.emit(message_text(MessageKey.BACKUP_DOWNLOADED))
+            elif action == "system_restore":
+                inspector.inspect()
+                SystemRestorer(context, inspector).apply()
+                inspector.inspect()
+            elif action == "network_benchmark":
+                inspector.inspect()
+                NetworkBenchmark(context, inspector).run()
             elif action == "tcp_tuning":
                 TCPConfigurator(context).apply()
             elif action == "traffic":

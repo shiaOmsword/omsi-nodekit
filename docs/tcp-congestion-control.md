@@ -19,3 +19,9 @@ BBR may considerably improve throughput on lossy networks, but does not remove p
 Diagnostics: sysctl net.ipv4.tcp_congestion_control; sysctl net.ipv4.tcp_available_congestion_control; ss -tinp.
 
 This feature requires a privileged remote agent on Linux and works independently of panel runtime (native/Docker).
+
+After applying BBR/CUBIC, use Node > SSH tunnels > Restart (one row) or Restart
+all, review the selected names, then launch. This reconnects only already
+installed, verified Nodekit SSH services so their new outgoing TCP sockets use
+the current default. Traffic through them briefly disconnects. See
+[SSH restart controls](ssh-egress.md#перезапуск-установленных-ssh-туннелей).

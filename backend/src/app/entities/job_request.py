@@ -7,10 +7,13 @@ from .base import StrictModel
 from .network import (
     BackupClientImport,
     InboundChange,
+    NetworkBenchmarkRequest,
     SubscriptionMaintenance,
+    SystemRestoreRequest,
     TCPTuningRequest,
     TrafficRequest,
     TunnelRequest,
+    TunnelRestartRequest,
     WireGuardChange,
     XHTTPChange,
 )
@@ -25,7 +28,10 @@ class JobRequest(StrictModel):
     wireguard: WireGuardChange | None = None
     traffic: TrafficRequest | None = None
     tcp_tuning: TCPTuningRequest | None = None
+    system_restore: SystemRestoreRequest | None = None
+    network_benchmark: NetworkBenchmarkRequest | None = None
     tunnel: TunnelRequest | None = None
+    tunnel_restart: TunnelRestartRequest | None = None
     xhttp: XHTTPChange | None = None
     client_import: BackupClientImport | None = None
     subscription_maintenance: SubscriptionMaintenance | None = None
@@ -38,10 +44,16 @@ class JobRequest(StrictModel):
             raise ValueError(message_text(MessageKey.WIREGUARD_BACKUP_INVALID))
         if (self.action == JobAction.INBOUND) != (self.inbound is not None):
             raise ValueError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
+        if (self.action == JobAction.SYSTEM_RESTORE) != (self.system_restore is not None):
+            raise ValueError(message_text(MessageKey.SYSTEM_BACKUP_INVALID))
         if (self.action == JobAction.TCP_TUNING) != (self.tcp_tuning is not None):
             raise ValueError(message_text(MessageKey.TCP_TUNING_REQUEST_INVALID))
+        if (self.action == JobAction.NETWORK_BENCHMARK) != (self.network_benchmark is not None):
+            raise ValueError(message_text(MessageKey.NETWORK_BENCHMARK_INVALID))
         if (self.action == JobAction.TRAFFIC) != (self.traffic is not None):
             raise ValueError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
+        if (self.action == JobAction.TUNNEL_RESTART) != (self.tunnel_restart is not None):
+            raise ValueError(message_text(MessageKey.TUNNEL_RESTART_REQUEST_INVALID))
         if (self.action == JobAction.TUNNEL) != (self.tunnel is not None):
             raise ValueError(message_text(MessageKey.INBOUND_REQUEST_INVALID))
         if (self.action == JobAction.XHTTP) != (self.xhttp is not None):
@@ -52,6 +64,9 @@ class JobRequest(StrictModel):
             self.subscription_maintenance is not None
         ):
             raise ValueError(message_text(MessageKey.SUB_CACHE_REQUEST_INVALID))
-        if self.action == JobAction.CLIENT_IMPORT and not self.backup_id:
+        if (
+            self.action in {JobAction.CLIENT_IMPORT, JobAction.SYSTEM_RESTORE}
+            and not self.backup_id
+        ):
             raise ValueError(message_text(MessageKey.RESTORE_BACKUP_REQUIRED))
         return self

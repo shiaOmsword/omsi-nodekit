@@ -183,12 +183,20 @@ WantedBy=multi-user.target
             steps.append(message_text(MessageKey.WIREGUARD_PLAN))
         elif action == "xhttp":
             steps.append(message_text(MessageKey.XHTTP_APPLY_PLAN))
+        elif action == "tunnel_restart":
+            steps.append(message_text(MessageKey.TUNNEL_RESTART_PLAN))
         elif action == "tunnel":
             steps.append(message_text(MessageKey.TUNNEL_APPLY_PLAN))
+        elif action == "network_benchmark":
+            steps.append(message_text(MessageKey.NETWORK_BENCHMARK_PLAN))
         elif action == "tcp_tuning":
             steps.append(message_text(MessageKey.TCP_TUNING_PLAN))
         elif action == "traffic":
             steps.append(message_text(MessageKey.TRAFFIC_PLAN))
+        elif action == "system_backup":
+            steps.append(message_text(MessageKey.SYSTEM_BACKUP_PLAN))
+        elif action == "system_restore":
+            steps.append(message_text(MessageKey.SYSTEM_RESTORE_PLAN))
         elif action == "backup":
             steps += [
                 message_text(MessageKey.PLAN_EXISTING_BACKUP),
@@ -229,11 +237,13 @@ WantedBy=multi-user.target
             "attach_caddy",
             "inbound",
             "tunnel",
+            "tunnel_restart",
             "xhttp",
             "wireguard",
             "client_import",
             "subscription_maintenance",
             "tcp_tuning",
+            "system_restore",
         }:
             steps.append(message_text(MessageKey.PLAN_READ_ONLY))
         return {

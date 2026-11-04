@@ -77,3 +77,17 @@ test('TCP BBR action has a dedicated route and warns about socket scope', () => 
   assert.ok(html.includes('Изменяет сервер'));
   assert.ok(html.includes('Действующие SSH-сессии'));
 });
+
+const { BenchmarkComparison, comparable } = compiled('features/nodes/NetworkBenchmarkPanel.js');
+test('network comparison never calls missing ICMP healthy or compares different targets', () => {
+  const report = { observed_at: '2026-11-03T10:00:00Z', scope: 'vps_direct_https_download',
+    algorithm: 'bbr', profile: { url: 'https://example.com/test', attempts: 3 },
+    resolved_addresses: ['203.0.113.1'], samples: [], warnings: ['icmp_unavailable'],
+    metrics: { mbps: null, rtt_ms: null, jitter_ms: null, loss_percent: null },
+    assessment: { mbps: 'unavailable', rtt_ms: 'unavailable', jitter_ms: 'unavailable', loss_percent: 'unavailable' }, host_tcp: null };
+  assert.equal(comparable(report, { ...report, algorithm: 'cubic' }), true);
+  assert.equal(comparable(report, { ...report, resolved_addresses: ['203.0.113.2'] }), false);
+  const html = renderToStaticMarkup(React.createElement(BenchmarkComparison, { reports: [report, { ...report, scope: 'other' }] }));
+  assert.ok(html.includes('Недоступно') && html.includes('Сравнение до/после недоступно'));
+  assert.ok(!html.includes('В пределах цели'));
+});

@@ -27,6 +27,13 @@ class ExecuteJob:
                 self.jobs.update(job)
                 logger.info(message_text(MessageKey.JOB_STARTED))
                 content = self.backups.content(backup_id) if backup_id else None
+                if content is not None and job.action in {
+                    JobAction.RESTORE,
+                    JobAction.CLIENT_IMPORT,
+                }:
+                    from app.system_backup import database_content
+
+                    content = database_content(content, self.backups.limits.backup_bytes)
                 execution = (
                     self.executor.execute(node, job.action, content, options)
                     if options
@@ -36,18 +43,25 @@ class ExecuteJob:
                     if event.report is not None:
                         self.jobs.save_report(job.id, event.report)
                     elif event.backup is not None:
-                        if job.action != JobAction.BACKUP or received is not None:
+                        if (
+                            job.action not in {JobAction.BACKUP, JobAction.SYSTEM_BACKUP}
+                            or received is not None
+                        ):
                             raise InfrastructureError(
                                 message_text(MessageKey.REMOTE_BACKUP_UNEXPECTED)
                             )
                         received = self.backups.import_backup(
-                            event.backup, f"{node.id}-x-ui.db", node
+                            event.backup,
+                            f"{node.id}.nodekit.zip"
+                            if job.action == JobAction.SYSTEM_BACKUP
+                            else f"{node.id}-x-ui.db",
+                            node,
                         ).id
                     else:
                         self.jobs.append_event(
                             JobEvent(job_id=job.id, level=event.level, message=event.message)
                         )
-                if job.action == JobAction.BACKUP and received is None:
+                if job.action in {JobAction.BACKUP, JobAction.SYSTEM_BACKUP} and received is None:
                     raise InfrastructureError(message_text(MessageKey.REMOTE_BACKUP_MISSING))
                 self.jobs.update(job.transition(JobStatus.SUCCEEDED, backup_id=received))
                 logger.info(message_text(MessageKey.JOB_COMPLETED))
@@ -97,7 +111,10 @@ class JobService:
             JobAction.INBOUND,
             JobAction.TRAFFIC,
             JobAction.TCP_TUNING,
+            JobAction.SYSTEM_RESTORE,
+            JobAction.NETWORK_BENCHMARK,
             JobAction.TUNNEL,
+            JobAction.TUNNEL_RESTART,
             JobAction.XHTTP,
             JobAction.WIREGUARD,
             JobAction.CLIENT_IMPORT,
@@ -105,11 +122,30 @@ class JobService:
         }:
             expected = str(action)
             if (
-                (action != JobAction.TCP_TUNING and node.panel.installation != "managed")
+                (
+                    action
+                    not in {
+                        JobAction.TCP_TUNING,
+                        JobAction.SYSTEM_RESTORE,
+                        JobAction.NETWORK_BENCHMARK,
+                    }
+                    and node.panel.installation != "managed"
+                )
                 or not options
                 or set(options) != {expected}
             ):
-                raise ValidationError(message_text(MessageKey.INBOUND_MANAGED_REQUIRED))
+                raise ValidationError(
+                    message_text(
+                        MessageKey.TUNNEL_RESTART_REQUEST_INVALID
+                        if action == JobAction.TUNNEL_RESTART
+                        else MessageKey.INBOUND_MANAGED_REQUIRED
+                    )
+                )
+        if action == JobAction.TUNNEL_RESTART:
+            available = {t.name for t in node.tunnels}
+            names = options["tunnel_restart"].get("names", [])
+            if not names or len(names) != len(set(names)) or not set(names) <= available:
+                raise ValidationError(message_text(MessageKey.TUNNEL_RESTART_REQUEST_INVALID))
         if action == JobAction.TUNNEL:
             available = {t.name for t in node.tunnels}
             tunnel = options["tunnel"]
@@ -123,7 +159,7 @@ class JobService:
             or node.deployment.caddy_mode != "existing"
         ):
             raise ValidationError(message_text(MessageKey.SUBSCRIPTION_CONFIGURE_GUARD))
-        if action in {JobAction.RESTORE, JobAction.CLIENT_IMPORT} or (
+        if action in {JobAction.RESTORE, JobAction.CLIENT_IMPORT, JobAction.SYSTEM_RESTORE} or (
             action == JobAction.WIREGUARD and options["wireguard"]["operation"] == "restore"
         ):
             if not backup_id:

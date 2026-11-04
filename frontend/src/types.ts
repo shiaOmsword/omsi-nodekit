@@ -8,7 +8,7 @@ export interface NodeSummary {
 export interface NodeRecord extends NodeSummary {
   yaml: string;
 }
-export type Action = 'check' | 'doctor' | 'fresh' | 'restore' | 'backup' | 'configure' | 'attach_caddy' | 'inbound' | 'traffic' | 'tunnel' | 'xhttp' | 'client_import' | 'subscription_maintenance' | 'tcp_tuning' | 'wireguard';
+export type Action = 'check' | 'doctor' | 'fresh' | 'restore' | 'backup' | 'configure' | 'attach_caddy' | 'inbound' | 'traffic' | 'tunnel' | 'tunnel_restart' | 'xhttp' | 'client_import' | 'subscription_maintenance' | 'tcp_tuning' | 'network_benchmark' | 'system_backup' | 'system_restore' | 'wireguard';
 export interface BackupClientCatalog {
   inbounds: {
     id: number;
@@ -18,9 +18,23 @@ export interface BackupClientCatalog {
     clients: { ref: string; email: string; enabled: boolean; has_subscription: boolean; restorable: boolean; shared_subscription: boolean; subscription_owner_email: string | null; subscription_owner_refs: string[]; external_link_count: number; external_links_compatible: boolean; depends_on: string[] }[];
   }[];
 }
+export interface BenchmarkProfile {
+  url: string; attempts: number; sample_bytes: number; min_mbps: number;
+  max_rtt_ms: number; max_jitter_ms: number; max_loss_percent: number;
+}
+export interface BenchmarkReport {
+  observed_at: string; scope: string; profile: BenchmarkProfile; algorithm: string | null;
+  resolved_addresses: string[]; dns_ms: number | null;
+  samples: { bytes: number; elapsed_ms: number; connect_tls_ms: number; ttfb_ms: number; mbps: number; capped: boolean }[];
+  metrics: Record<string, number | null>; assessment: Record<string, 'ok' | 'warning' | 'unavailable'>;
+  warnings: string[]; host_tcp: { out_segments: number; retrans_segments: number } | null;
+}
 export interface JobOptions {
   wireguard?: { operation: 'create' | 'restore'; remark: string; domain: string; port: number;
     mtu: number; dns: string; subnet: string; client_email: string; source_inbound_id?: number };
+  tunnel_restart?: { names: string[] };
+  system_restore?: { expected_fingerprint: string };
+  network_benchmark?: BenchmarkProfile;
   tcp_tuning?: { algorithm: "cubic" | "bbr"; expected_fingerprint: string };
   subscription_maintenance?: { id: number; expected_fingerprint: string; mode: 'audit' | 'clear_server_cache'; client_email?: string; acknowledge_restart?: boolean };
   client_import?: { source_inbound_id: number; target_inbound_id: number; expected_fingerprint: string; client_refs: string[]; include_external_links: boolean };
@@ -187,6 +201,7 @@ export interface DeploymentProfileFinding {
   ready: boolean;
 }
 export interface InstallationReport {
+  network_benchmark?: BenchmarkReport | null;
   caddy_attachment?: 'ready' | 'required' | 'unknown';
   tcp_tuning?: { current: string; available: string[]; managed_algorithm?: string | null; conflict: boolean; fingerprint: string } | null;
   observed_at: string;

@@ -185,6 +185,7 @@ class InstallationReport(Entity):
     traffic_checks: list[EndpointCheck] = Field(default_factory=list)
     tunnels: list[TunnelFinding] = Field(default_factory=list)
     tcp_tuning: TCPTuningFinding | None = None
+    network_benchmark: dict | None = None
 
 
 class KeySelection(Entity):
