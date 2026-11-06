@@ -98,3 +98,5 @@ id_ed25519*
 *.db-journal
 *.ovpn
 *.age
+
+ready_commands.txt
