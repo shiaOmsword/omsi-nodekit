@@ -103,6 +103,20 @@ class TunnelRequest(TrafficRequest):
         return self
 
 
+class TunnelRouteRequest(StrictModel):
+    kind: Literal["tunnel", "pool"]
+    name: Slug
+    expected_exit_fingerprint: str = Field(pattern=r"^[a-f0-9]{64}$")
+    inbounds: list[TrafficRequest] = Field(min_length=1, max_length=100)
+
+    @field_validator("inbounds")
+    @classmethod
+    def unique_inbounds(cls, value):
+        if len({i.id for i in value}) != len(value):
+            raise ValueError(message_text(MessageKey.TUNNEL_ROUTE_INVALID))
+        return value
+
+
 class XHTTPChange(StrictModel):
     """Managed XHTTP ingress. Private backend binds only to the Caddy host gateway."""
 

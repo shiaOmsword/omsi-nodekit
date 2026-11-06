@@ -11,6 +11,7 @@ from .egress import routing_inventory
 from .firewall import inspect_firewall, network_checks, public_firewall
 from .panels import PanelInspector
 from .preflight import PrerequisiteInspector
+from .ssh_routes import exit_inventory
 from .tcp_tuning import TCPConfigurator
 
 
@@ -47,6 +48,7 @@ class InstallationInspector:
         self.report["firewall"] = public_firewall(inspect_firewall(self.context))
         self.report["network_checks"] = network_checks(self.context, self.report)
         self.report["egress"] = routing_inventory(self.context, self)
+        self.report["ssh_exits"] = exit_inventory(self.context, self)
         self.report["tcp_tuning"] = TCPConfigurator(self.context).inspect()
         # Read-only systemd health; never claim that an active SSH process proves
         # VLESS authentication or actual egress return traffic.

@@ -14,6 +14,7 @@ from .network import (
     TrafficRequest,
     TunnelRequest,
     TunnelRestartRequest,
+    TunnelRouteRequest,
     WireGuardChange,
     XHTTPChange,
 )
@@ -32,12 +33,15 @@ class JobRequest(StrictModel):
     network_benchmark: NetworkBenchmarkRequest | None = None
     tunnel: TunnelRequest | None = None
     tunnel_restart: TunnelRestartRequest | None = None
+    tunnel_route: TunnelRouteRequest | None = None
     xhttp: XHTTPChange | None = None
     client_import: BackupClientImport | None = None
     subscription_maintenance: SubscriptionMaintenance | None = None
 
     @model_validator(mode="after")
     def operation_arguments(self):
+        if (self.action == JobAction.TUNNEL_ROUTE) != (self.tunnel_route is not None):
+            raise ValueError(message_text(MessageKey.TUNNEL_ROUTE_INVALID))
         if (self.action == JobAction.WIREGUARD) != (self.wireguard is not None):
             raise ValueError(message_text(MessageKey.WIREGUARD_BACKUP_INVALID))
         if self.wireguard and (self.wireguard.operation == "restore") != bool(self.backup_id):
