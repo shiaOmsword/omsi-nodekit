@@ -59,10 +59,8 @@ class TunnelRouter:
         tags = [by_id[i]["tag"] for i in ids]
         added_tags = set(tags) - set(record["rule"]["inboundTag"])
         rules = original.get("routing", {}).get("rules", [])
-        if any(
-            rule != record["rule"] and set(rule.get("inboundTag", [])) & added_tags
-            for rule in rules
-        ):
+        index = rules.index(record["rule"])
+        if any(set(rule.get("inboundTag", [])) & added_tags for rule in rules[:index]):
             raise TunnelPreflightError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
         tunnels = {t["name"]: t for t in context.node["tunnels"]}
         forwards = [TunnelForward(context, self.host, tunnels[name]) for name in names]
@@ -79,14 +77,15 @@ class TunnelRouter:
         if "balancer" in updated:
             updated["inbound_tag"] = tags[0]
         proposed = copy.deepcopy(original)
-        index = rules.index(record["rule"])
         proposed["routing"]["rules"][index] = updated["rule"]
         # Keep the owned rule after the protected API/blackhole prefix, but do
         # not let an earlier catch-all silently bypass a newly selected inbound.
         protected = {
             o.get("tag") for o in original["outbounds"] if o.get("protocol") == "blackhole"
         }
-        protected.add((original.get("api") or {}).get("tag"))
+        api_tag = (original.get("api") or {}).get("tag")
+        if api_tag:
+            protected.add(api_tag)
         if any(
             not r.get("inboundTag") and r.get("outboundTag") not in protected for r in rules[:index]
         ):

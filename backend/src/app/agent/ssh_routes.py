@@ -55,10 +55,19 @@ def verify_exit(config, record, *, runtime=False):
     route_ids(record)
     verify_route(config, record)
     outbounds = record["outbounds"] if "balancer" in record else [record["outbound"]]
-    if any(config.get("outbounds", []).count(o) != 1 for o in outbounds):
+    if any(
+        [current for current in config.get("outbounds", []) if current.get("tag") == o["tag"]]
+        != [o]
+        for o in outbounds
+    ):
         raise TunnelPreflightError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
     if "balancer" in record and (
-        (config.get("routing") or {}).get("balancers", []).count(record["balancer"]) != 1
+        [
+            b
+            for b in (config.get("routing") or {}).get("balancers", [])
+            if b.get("tag") == record["balancer"]["tag"]
+        ]
+        != [record["balancer"]]
         or (not runtime and config.get("observatory") != record["observatory"])
     ):
         raise TunnelPreflightError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
