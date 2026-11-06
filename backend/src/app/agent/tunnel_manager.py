@@ -157,19 +157,99 @@ class TunnelManager:
             time.sleep(self.context.policy["readiness_interval"])
         raise ValueError()
 
-    def runtime_matches(self, outbound, rule):
+    def runtime_matches(self, outbound, rule, balancer=None):
+        status = self.runtime_status(outbound, rule, balancer)
+        return (
+            status["config"] == "readable"
+            and status["outbound"] == "matched"
+            and status["route"] == "matched"
+            and status["balancer"] in {"matched", "not_requested"}
+        )
+
+    def runtime_status(self, outbound, rule, balancer=None):
+        status = {
+            "config": "unavailable",
+            "outbound": "unknown",
+            "route": "unknown",
+            "balancer": "not_requested" if balancer is None else "unknown",
+        }
         try:
             path, _ = runtime_paths(self.context, self.inspector)
+            if path is None:
+                return status
             config = json.loads(path.read_text(encoding="utf-8"))
-            return outbound in config["outbounds"] and rule in config["routing"]["rules"]
-        except (OSError, ValueError, TypeError, KeyError, AttributeError):
-            return False
+            status["config"] = "readable"
+            matches = [o for o in config["outbounds"] if o.get("tag") == outbound["tag"]]
+            status["outbound"] = (
+                "matched"
+                if matches == [outbound]
+                else "missing"
+                if not matches
+                else "duplicate_tag"
+                if len(matches) > 1
+                else "different_fields"
+            )
+            status["route"] = (
+                "matched" if rule in config["routing"]["rules"] else "missing_or_different"
+            )
+            if balancer is not None:
+                status["balancer"] = (
+                    "matched"
+                    if balancer in config["routing"].get("balancers", [])
+                    else "missing_or_different"
+                )
+        except ValueError:
+            status["config"] = "invalid_json"
+        except (TypeError, KeyError, AttributeError):
+            status["config"] = "invalid_structure"
+        except OSError:
+            pass
+        return status
+
+    def wait_runtime(self, outbounds, rule, balancer=None):
+        def matches(outbound):
+            return (
+                self.runtime_matches(outbound, rule)
+                if balancer is None
+                else self.runtime_matches(outbound, rule, balancer)
+            )
+
+        try:
+            self.wait(lambda: all(matches(o) for o in outbounds))
+        except ValueError as exc:
+            failed = next((o for o in outbounds if not matches(o)), outbounds[0])
+            raise TunnelPreflightError(
+                message_text(
+                    MessageKey.TUNNEL_RUNTIME_FAILED, **self.runtime_status(failed, rule, balancer)
+                )
+            ) from exc
+
+    def verify_return_traffic(self, outbound):
+        attempts = self.context.policy["tunnel_probe_attempts"]
+        for attempt in range(1, attempts + 1):
+            try:
+                return self.probe(outbound)
+            except TunnelPreflightError as exc:
+                if attempt == attempts:
+                    raise
+                delay = self.context.policy["readiness_interval"]
+                self.context.emit(
+                    message_text(
+                        MessageKey.TUNNEL_PROBE_RETRY,
+                        attempt=attempt,
+                        attempts=attempts,
+                        delay=delay,
+                        reason=str(exc),
+                    ),
+                    "warning",
+                )
+                time.sleep(delay)
 
     def probe(self, outbound, url="https://example.com/"):
         """Require actual HTTPS return traffic, rather than an SSH local TCP accept."""
         _, binary = runtime_paths(self.context, self.inspector)
         if not binary or not binary.is_file():
-            raise ValueError()
+            raise TunnelPreflightError(message_text(MessageKey.TUNNEL_PROBE_UNAVAILABLE))
         with socket.socket() as sock:
             sock.bind(("127.0.0.1", 0))
             port = sock.getsockname()[1]
@@ -190,18 +270,42 @@ class TunnelManager:
             path.write_text(json.dumps(config), encoding="utf-8")
             path.chmod(0o600)
             with (Path(folder) / "private.log").open("wb") as log:
-                process = subprocess.Popen(
-                    [str(binary), "run", "-config", str(path)],
-                    cwd=folder,
-                    stdout=log,
-                    stderr=log,
-                    start_new_session=True,
-                )
                 try:
-                    self.wait(lambda: process.poll() is None and self.host.port_open(port))
+                    process = subprocess.Popen(
+                        [str(binary), "run", "-config", str(path)],
+                        cwd=folder,
+                        stdout=log,
+                        stderr=log,
+                        start_new_session=True,
+                    )
+                except OSError as exc:
+                    raise TunnelPreflightError(
+                        message_text(MessageKey.TUNNEL_PROBE_START_FAILED)
+                    ) from exc
+                try:
+
+                    def ready():
+                        if process.poll() is not None:
+                            raise TunnelPreflightError(
+                                message_text(MessageKey.TUNNEL_PROBE_START_FAILED)
+                            )
+                        return self.host.port_open(port)
+
+                    try:
+                        self.wait(ready)
+                    except TunnelPreflightError:
+                        raise
+                    except ValueError as exc:
+                        raise TunnelPreflightError(
+                            message_text(MessageKey.TUNNEL_PROBE_START_FAILED)
+                        ) from exc
                     result = curl_probe(self.context, url, socks_port=port)
-                    if not result["ok"] or not result.get("bytes"):
-                        raise ValueError()
+                    if not result["ok"]:
+                        raise TunnelPreflightError(
+                            message_text(MessageKey.TUNNEL_PROBE_FAILED, reason=result["reason"])
+                        )
+                    if not result.get("bytes"):
+                        raise TunnelPreflightError(message_text(MessageKey.TUNNEL_PROBE_EMPTY))
                     return result
                 finally:
                     if process.poll() is None:
@@ -294,9 +398,12 @@ class TunnelManager:
             if self.template(api) != proposed:
                 raise ValueError()
             api.request("server/restartXrayService", {})
-            stage = self.stage("runtime route and return traffic verification")
-            self.wait(lambda: self.runtime_matches(outbound, rule))
-            self.probe(outbound)
+            stage = self.stage("runtime route verification")
+            self.wait_runtime([outbound], rule)
+            stage = self.stage("HTTPS return traffic after routing update")
+            self.verify_return_traffic(outbound)
+            if self.template(api) != proposed:
+                raise TunnelPreflightError(message_text(MessageKey.TUNNEL_ROUTE_STALE))
             applied = {t["name"]: t for t in manifest["node"]["tunnels"]}
             applied[tunnel["name"]] = tunnel
             names = {t["name"] for t in context.node["tunnels"]}

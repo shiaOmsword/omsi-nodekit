@@ -114,11 +114,11 @@ class TunnelRouter:
                 if manager.template(api) != proposed:
                     raise ValueError()
                 api.request("server/restartXrayService", {})
-            manager.wait(
-                lambda: all(manager.runtime_matches(o, updated["rule"]) for o in outbounds)
-            )
+            manager.stage("runtime shared route verification")
+            manager.wait_runtime(outbounds, updated["rule"], updated.get("balancer"))
+            manager.stage("HTTPS return traffic after shared routing update")
             for outbound in outbounds:
-                manager.probe(outbound)
+                manager.verify_return_traffic(outbound)
             if path.is_symlink() or path.read_bytes() != raw or manager.template(api) != proposed:
                 raise TunnelPreflightError(message_text(MessageKey.TUNNEL_ROUTE_STALE))
             data = json.dumps(updated).encode()

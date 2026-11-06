@@ -92,6 +92,7 @@ class DeploymentSettings(Entity):
     socket_timeout: int = Field(default=2, ge=1)
     http_timeout: int = Field(default=8, ge=1)
     probe_timeout: int = Field(default=20, ge=1)
+    tunnel_probe_attempts: int = Field(default=3, ge=1, le=5)
     docker_log_size: str = "10m"
     docker_log_files: int = Field(default=3, ge=1)
     timezone: str = "UTC"
