@@ -28,6 +28,7 @@ from .tcp_tuning import TCPConfigurator
 from .traffic_probe import TrafficProbe
 from .tunnel_manager import TunnelManager
 from .tunnel_restart import TunnelRestarter
+from .tunnel_routing import TunnelRouter
 from .wireguard import WireGuardManager
 from .xhttp_manager import XHTTPManager
 
@@ -118,6 +119,13 @@ class RemoteAgent:
                 inspector.inspect()
                 try:
                     XHTTPManager(context, self.host, self.database, inspector).apply(base)
+                finally:
+                    inspector = InstallationInspector(context)
+                    inspector.inspect()
+            elif action == "tunnel_route":
+                inspector.inspect()
+                try:
+                    TunnelRouter(context, self.host, self.database, inspector).apply(base)
                 finally:
                     inspector = InstallationInspector(context)
                     inspector.inspect()

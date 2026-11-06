@@ -66,6 +66,7 @@ class NodeService:
             JobAction.TCP_TUNING,
             JobAction.TUNNEL,
             JobAction.TUNNEL_RESTART,
+            JobAction.TUNNEL_ROUTE,
             JobAction.XHTTP,
             JobAction.WIREGUARD,
             JobAction.CLIENT_IMPORT,
@@ -89,6 +90,7 @@ class NodeService:
             JobAction.NETWORK_BENCHMARK,
             JobAction.TUNNEL,
             JobAction.TUNNEL_RESTART,
+            JobAction.TUNNEL_ROUTE,
             JobAction.XHTTP,
             JobAction.WIREGUARD,
             JobAction.CLIENT_IMPORT,
@@ -121,6 +123,17 @@ class NodeService:
             if request.tunnel.name not in available or not set(request.tunnel.members) <= available:
                 raise ValidationError(message_text(MessageKey.TUNNEL_CONFIG_INVALID))
         plan = self.renderer.plan(node, request.action)
+        if request.action == JobAction.TUNNEL_ROUTE:
+            route = request.tunnel_route
+            if route.kind == "tunnel" and route.name not in {t.name for t in node.tunnels}:
+                raise ValidationError(message_text(MessageKey.TUNNEL_ROUTE_INVALID))
+            plan["steps"].append(
+                message_text(
+                    MessageKey.TUNNEL_ROUTE_SELECTION,
+                    name=route.name,
+                    ids=", ".join(str(i.id) for i in route.inbounds),
+                )
+            )
         if request.action == JobAction.TUNNEL_RESTART:
             plan["steps"].append(
                 message_text(

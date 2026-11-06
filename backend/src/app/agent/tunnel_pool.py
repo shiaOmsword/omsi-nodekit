@@ -9,6 +9,7 @@ from framework.messages import text as message_text
 
 from .inbound_manager import managed_api
 from .inbound_meta import public_inbound
+from .ssh_routes import refresh_route
 from .tunnel_errors import TunnelPreflightError
 from .tunnel_forward import TunnelForward
 from .tunnel_manager import TunnelManager, loopback_outbound, private_write, routed_template
@@ -130,7 +131,11 @@ def pool_template(
         "fallbackTag": "blocked",
         "strategy": {"type": "roundRobin", "settings": {}},
     }
-    rule = {"type": "field", "inboundTag": [inbound_tag], "balancerTag": balancer_tag}
+    rule = {
+        "type": "field",
+        "inboundTag": previous["rule"]["inboundTag"] if previous else [inbound_tag],
+        "balancerTag": balancer_tag,
+    }
     if any(r.get("balancerTag") == balancer_tag for r in routing["rules"]):
         raise TunnelPreflightError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
     config["outbounds"].extend(clones)
@@ -165,6 +170,8 @@ def pool_template(
         "rule": rule,
         "observatory": observer,
     }
+    if previous and previous.get("inbound_ids"):
+        record["inbound_ids"] = previous["inbound_ids"]
     return config, record
 
 
@@ -210,15 +217,26 @@ class TunnelPoolManager:
         # member already had a valid Nodekit-managed route.
         single_records = []
         for path in base.glob("tunnel-*.json"):
+            name = path.name[len("tunnel-") : -len(".json")]
+            if name not in all_tunnels:
+                continue
             if path.is_symlink() or not path.is_file():
                 raise RuntimeError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
-            name = path.name[len("tunnel-") : -len(".json")]
             state_bytes = path.read_bytes()
             state = json.loads(state_bytes)
-            if name in names or state.get("inbound_id") == request["id"]:
+            if name in names or request["id"] in state.get(
+                "inbound_ids", [state.get("inbound_id")]
+            ):
                 originals[path] = state_bytes
                 if state.get("pooled_into") == pool_name and previous:
-                    if state.get("inbound_id") != request["id"] or name not in names:
+                    if (
+                        name not in names
+                        or name not in previous.get("migrated_names", [])
+                        or (
+                            state.get("inbound_id") != request["id"]
+                            and not previous.get("inbound_ids")
+                        )
+                    ):
                         raise RuntimeError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
                     continue
                 if (
@@ -235,7 +253,7 @@ class TunnelPoolManager:
             if path.is_symlink():
                 raise RuntimeError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
             state = json.loads(path.read_text(encoding="utf-8"))
-            if state.get("inbound_id") == request["id"]:
+            if request["id"] in state.get("inbound_ids", [state.get("inbound_id")]):
                 raise RuntimeError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
         if previous:
             migrated = previous.get("migrated_names", [])
@@ -259,6 +277,8 @@ class TunnelPoolManager:
                 or inbound["fingerprint"] != request["expected_fingerprint"]
             ):
                 raise TunnelPreflightError(message_text(MessageKey.INBOUND_STALE))
+            if previous and previous.get("inbound_ids"):
+                previous = refresh_route(previous, api.request("inbounds/list") or [])
             stage = "Xray pool ownership"
             original = manager.template(api)
             proposed, record = pool_template(

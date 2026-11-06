@@ -183,6 +183,8 @@ WantedBy=multi-user.target
             steps.append(message_text(MessageKey.WIREGUARD_PLAN))
         elif action == "xhttp":
             steps.append(message_text(MessageKey.XHTTP_APPLY_PLAN))
+        elif action == "tunnel_route":
+            steps.append(message_text(MessageKey.TUNNEL_ROUTE_PLAN))
         elif action == "tunnel_restart":
             steps.append(message_text(MessageKey.TUNNEL_RESTART_PLAN))
         elif action == "tunnel":
@@ -238,6 +240,7 @@ WantedBy=multi-user.target
             "inbound",
             "tunnel",
             "tunnel_restart",
+            "tunnel_route",
             "xhttp",
             "wireguard",
             "client_import",

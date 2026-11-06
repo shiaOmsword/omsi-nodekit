@@ -116,6 +116,7 @@ class JobService:
             JobAction.NETWORK_BENCHMARK,
             JobAction.TUNNEL,
             JobAction.TUNNEL_RESTART,
+            JobAction.TUNNEL_ROUTE,
             JobAction.XHTTP,
             JobAction.WIREGUARD,
             JobAction.CLIENT_IMPORT,
@@ -142,6 +143,10 @@ class JobService:
                         else MessageKey.INBOUND_MANAGED_REQUIRED
                     )
                 )
+        if action == JobAction.TUNNEL_ROUTE:
+            route = options["tunnel_route"]
+            if route["kind"] == "tunnel" and route["name"] not in {t.name for t in node.tunnels}:
+                raise ValidationError(message_text(MessageKey.TUNNEL_ROUTE_INVALID))
         if action == JobAction.TUNNEL_RESTART:
             available = {t.name for t in node.tunnels}
             names = options["tunnel_restart"].get("names", [])
