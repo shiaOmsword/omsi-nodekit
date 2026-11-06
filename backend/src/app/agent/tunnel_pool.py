@@ -325,9 +325,9 @@ class TunnelPoolManager:
             if manager.template(api) != proposed:
                 raise ValueError()
             api.request("server/restartXrayService", {})
-            stage = "runtime pool route verification"
+            stage = manager.stage("runtime pool route verification")
             manager.wait_runtime(record["outbounds"], record["rule"], record["balancer"])
-            stage = "HTTPS return traffic after pool routing update"
+            stage = manager.stage("HTTPS return traffic after pool routing update")
             for outbound in record["outbounds"]:
                 manager.verify_return_traffic(outbound)
             if manager.template(api) != proposed:

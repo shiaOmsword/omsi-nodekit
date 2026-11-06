@@ -198,7 +198,7 @@ class TunnelManager:
                     if balancer in config["routing"].get("balancers", [])
                     else "missing_or_different"
                 )
-        except json.JSONDecodeError:
+        except ValueError:
             status["config"] = "invalid_json"
         except (TypeError, KeyError, AttributeError):
             status["config"] = "invalid_structure"
