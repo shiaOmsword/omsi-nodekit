@@ -325,25 +325,13 @@ class TunnelPoolManager:
             if manager.template(api) != proposed:
                 raise ValueError()
             api.request("server/restartXrayService", {})
-            stage = "runtime and egress verification"
-
-            def active():
-                try:
-                    path, _ = __import__(
-                        "app.agent.egress", fromlist=["runtime_paths"]
-                    ).runtime_paths(context, self.inspector)
-                    live = json.loads(path.read_text(encoding="utf-8"))
-                    return (
-                        all(o in live["outbounds"] for o in record["outbounds"])
-                        and record["rule"] in live["routing"]["rules"]
-                        and record["balancer"] in live["routing"]["balancers"]
-                    )
-                except (OSError, ValueError, TypeError, KeyError, AttributeError):
-                    return False
-
-            manager.wait(active)
+            stage = "runtime pool route verification"
+            manager.wait_runtime(record["outbounds"], record["rule"], record["balancer"])
+            stage = "HTTPS return traffic after pool routing update"
             for outbound in record["outbounds"]:
-                manager.probe(outbound)
+                manager.verify_return_traffic(outbound)
+            if manager.template(api) != proposed:
+                raise TunnelPreflightError(message_text(MessageKey.TUNNEL_ROUTE_STALE))
             stage = "write owned pool metadata"
             manifest = json.loads(originals[manifest_path])
             applied = {t["name"]: t for t in manifest["node"]["tunnels"]}
