@@ -8,7 +8,7 @@ export interface NodeSummary {
 export interface NodeRecord extends NodeSummary {
   yaml: string;
 }
-export type Action = 'check' | 'doctor' | 'fresh' | 'restore' | 'backup' | 'configure' | 'attach_caddy' | 'inbound' | 'traffic' | 'tunnel' | 'tunnel_restart' | 'xhttp' | 'client_import' | 'subscription_maintenance' | 'tcp_tuning' | 'network_benchmark' | 'system_backup' | 'system_restore' | 'wireguard';
+export type Action = 'check' | 'doctor' | 'fresh' | 'restore' | 'backup' | 'configure' | 'attach_caddy' | 'inbound' | 'traffic' | 'tunnel' | 'tunnel_restart' | 'tunnel_route' | 'xhttp' | 'client_import' | 'subscription_maintenance' | 'tcp_tuning' | 'network_benchmark' | 'system_backup' | 'system_restore' | 'wireguard';
 export interface BackupClientCatalog {
   inbounds: {
     id: number;
@@ -33,6 +33,7 @@ export interface JobOptions {
   wireguard?: { operation: 'create' | 'restore'; remark: string; domain: string; port: number;
     mtu: number; dns: string; subnet: string; client_email: string; source_inbound_id?: number };
   tunnel_restart?: { names: string[] };
+  tunnel_route?: { kind: 'tunnel' | 'pool'; name: string; expected_exit_fingerprint: string; inbounds: { id: number; expected_fingerprint: string }[] };
   system_restore?: { expected_fingerprint: string };
   network_benchmark?: BenchmarkProfile;
   tcp_tuning?: { algorithm: "cubic" | "bbr"; expected_fingerprint: string };
@@ -200,7 +201,11 @@ export interface DeploymentProfileFinding {
   missing: string[];
   ready: boolean;
 }
+export interface SSHExitFinding {
+  kind: 'tunnel' | 'pool'; name: string; members: string[]; inbound_ids: number[]; fingerprint: string;
+}
 export interface InstallationReport {
+  ssh_exits?: SSHExitFinding[];
   network_benchmark?: BenchmarkReport | null;
   caddy_attachment?: 'ready' | 'required' | 'unknown';
   tcp_tuning?: { current: string; available: string[]; managed_algorithm?: string | null; conflict: boolean; fingerprint: string } | null;

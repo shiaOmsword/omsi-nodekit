@@ -10,6 +10,7 @@ export const actionLabels: Record<Action, { title: string; description: string }
   client_import: { title: 'Клиенты из бэкапа', description: 'Выборочно восстановить VLESS-клиентов, не меняя их UUID и ID подписки.' },
   wireguard: { title: 'WireGuard', description: 'Создать WG inbound на UDP или восстановить ключи из SQLite; подписки через Caddy.' },
   xhttp: { title: 'VLESS / XHTTP', description: 'Приватный XHTTP inbound, публичный HTTPS в Caddy и scoped UFW.' },
+  tunnel_route: { title: 'Inbound общего SSH-выхода', description: 'Направить несколько inbound через установленный туннель или пул.' },
   tunnel_restart: { title: 'Перезапуск SSH-туннелей', description: 'Перезапустить выбранные службы SSH из YAML и проверить их процессы и локальные порты.' },
   tunnel: { title: 'SSH-выход', description: 'Создать SSH-туннель и направить выбранный inbound через выходную ноду.' },
   inbound: { title: 'Изменение inbound', description: 'Порт, SNI, название и правила UFW выбранного inbound.' },
