@@ -15,6 +15,7 @@ from framework.messages import text as message_text
 from .egress import curl_probe, runtime_paths
 from .inbound_manager import managed_api
 from .inbound_meta import public_inbound
+from .ssh_routes import refresh_route, verify_route
 from .tunnel_errors import TunnelPreflightError
 from .tunnel_forward import TunnelForward
 
@@ -92,13 +93,12 @@ def routed_template(original, source_tag, tunnel, owned_tag, inbound_tag, previo
         config["outbounds"].append(outbound)
     rules = config.setdefault("routing", {}).setdefault("rules", [])
     if previous:
-        if previous["rule"].get("inboundTag") != [inbound_tag] or previous["rule"] not in rules:
+        if (
+            previous["rule"].get("inboundTag", [])[:1] != [inbound_tag]
+            or previous["rule"] not in rules
+        ):
             raise TunnelPreflightError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
-        if rules.count(previous["rule"]) != 1:
-            raise TunnelPreflightError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
-        index = rules.index(previous["rule"])
-        if any(r.get("outboundTag") == owned_tag for r in rules[:index] + rules[index + 1 :]):
-            raise TunnelPreflightError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
+        verify_route(config, previous)
         return config, outbound, previous["rule"]
     if any(r.get("outboundTag") == owned_tag for r in rules):
         raise TunnelPreflightError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
@@ -252,7 +252,10 @@ class TunnelManager:
                 raise ValueError()
             if previous and previous.get("inbound_id") == request["id"]:
                 # 3x-ui migrates the route tag when an inbound's port changes.
-                previous["rule"]["inboundTag"] = [inbound["tag"]]
+                if previous.get("inbound_ids"):
+                    previous = refresh_route(previous, api.request("inbounds/list") or [])
+                else:
+                    previous["rule"]["inboundTag"] = [inbound["tag"]]
             tag = f"ssh-{context.node['id']}-{tunnel['name']}"
             stage = self.stage("local panel Xray template API")
             original = self.template(api)
@@ -301,7 +304,12 @@ class TunnelManager:
                 applied[t["name"]] for t in context.node["tunnels"] if t["name"] in applied
             ] + [t for name, t in applied.items() if name not in names]
             records = {
-                state_path: {"outbound": outbound, "rule": rule, "inbound_id": request["id"]},
+                state_path: {
+                    **(previous or {}),
+                    "outbound": outbound,
+                    "rule": rule,
+                    "inbound_id": request["id"],
+                },
                 manifest_path: manifest,
             }
             for path, value in records.items():

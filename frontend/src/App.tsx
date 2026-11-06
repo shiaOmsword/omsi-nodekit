@@ -26,6 +26,7 @@ import { WireGuardModal } from './features/nodes/WireGuardModal';
 import { XHTTPModal } from './features/nodes/XHTTPModal';
 import { TunnelPoolModal } from './features/nodes/TunnelPoolModal';
 import { parse, stringify } from 'yaml';
+import { TunnelRoutesModal } from './features/nodes/TunnelRoutesModal';
 import { TunnelModal } from './features/nodes/TunnelModal';
 import { DiscoveryModal } from './features/nodes/DiscoveryModal';
 import { NodeManagementModal } from './features/nodes/NodeManagementModal';
@@ -66,6 +67,7 @@ type ModalState =
   | { kind: 'assign-key'; keyId: string }
   | { kind: 'deployment'; record: NodeRecord; report: InstallationReport | null }
   | { kind: 'tunnel'; record: NodeRecord; report: InstallationReport }
+  | { kind: 'tunnel-routes'; record: NodeRecord; report: InstallationReport }
   | { kind: 'pool'; record: NodeRecord; report: InstallationReport }
   | { kind: 'inbound'; record: NodeRecord; inbound: InboundFinding; remove: boolean }
   | { kind: 'client'; record: NodeRecord; inbound: InboundFinding; remove: boolean }
@@ -434,6 +436,9 @@ export default function App() {
             }}
           />
         );
+      case 'tunnel-routes':
+        return <TunnelRoutesModal {...common} record={modal.record} report={modal.report}
+          onPreview={(options) => preview(modal.record, 'tunnel_route', null, options)} />;
       case 'pool':
         return <TunnelPoolModal {...common} record={modal.record} report={modal.report}
           onPreview={(options) => preview(modal.record, 'tunnel', null, options)} />;
@@ -672,6 +677,9 @@ export default function App() {
             onRestoreClients={(inbound) => {
               if (w.selected && reportJob?.report && requireSaved())
                 showModal({ kind: 'backup-clients', record: w.selected, inbound, report: reportJob.report });
+            }}
+            onTunnelRoutes={() => {
+              if (w.selected && reportJob?.report && requireSaved()) showModal({ kind: 'tunnel-routes', record: w.selected, report: reportJob.report });
             }}
             onRestartTunnels={(names) => {
               if (w.selected && requireSaved()) void preview(w.selected, 'tunnel_restart', null, { tunnel_restart: { names } });

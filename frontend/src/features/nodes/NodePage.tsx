@@ -44,6 +44,7 @@ const actionIcons = {
   network_benchmark: Gauge,
   tunnel: Activity,
   tunnel_restart: Activity,
+  tunnel_route: Activity,
   xhttp: Activity,
   wireguard: Activity,
   client_import: Database,
@@ -74,6 +75,7 @@ export function NodePage({
   onTraffic,
   onTunnel,
   onRestartTunnels,
+  onTunnelRoutes,
   onTCPTuning,
   onBenchmark,
 }: {
@@ -99,6 +101,7 @@ export function NodePage({
   onTraffic: (item: InboundFinding) => void;
   onTunnel: () => void;
   onRestartTunnels: (names: string[]) => void;
+  onTunnelRoutes: () => void;
   onBenchmark: (profile: BenchmarkProfile) => void;
   onTCPTuning: (algorithm: 'bbr' | 'cubic', fingerprint: string) => void;
 }) {
@@ -306,7 +309,7 @@ export function NodePage({
       {route.tab === 'operations' &&
         (!action ? (
           <div className="operation-grid">
-            {(Object.keys(actionLabels) as Action[]).filter((id) => !['inbound', 'traffic', 'tunnel', 'tunnel_restart', 'xhttp', 'client_import', 'tcp_tuning', 'network_benchmark', 'wireguard'].includes(id)).map((id) => {
+            {(Object.keys(actionLabels) as Action[]).filter((id) => !['inbound', 'traffic', 'tunnel', 'tunnel_restart', 'tunnel_route', 'xhttp', 'client_import', 'tcp_tuning', 'network_benchmark', 'wireguard'].includes(id)).map((id) => {
               const Icon = actionIcons[id];
               return (
                 <button
@@ -513,6 +516,7 @@ export function NodePage({
             {sshTunnels.length === 1 && <Button disabled={locked} onClick={onPreparePool}>Подготовить 3 в YAML</Button>}
             <Button disabled={locked} onClick={() => onPlan('check')}>Обновить</Button>
             <Button disabled={locked || !canDeploy || !sshTunnels.length} onClick={() => onRestartTunnels(sshTunnels.map(t => t.name))}>Перезапустить все</Button>
+            <Button disabled={locked || !canDeploy || !report?.ssh_exits?.length} onClick={onTunnelRoutes}>Настроить inbound</Button>
             <Button disabled={locked || !report} onClick={onTunnel}>Один туннель</Button>
             <Button variant="primary" disabled={locked || !report || sshTunnels.length < 2} onClick={onTunnelPool}>Поднять пул</Button>
           </div>
@@ -527,6 +531,10 @@ export function NodePage({
                   <td>{live ? live.active ? 'Работает' : 'Не запущен' : 'Нет свежей проверки'}</td>
                   <td><Button small disabled={locked || !canDeploy} onClick={() => onRestartTunnels([t.name])}>Перезапустить</Button></td></tr>; })}
             </tbody></table></div>}
+          {!!report?.ssh_exits?.length && <div className="report-section"><h3>Inbound SSH-выходов</h3>{report.ssh_exits.map(exit => <p key={exit.kind + ':' + exit.name}><strong>{exit.kind === 'pool' ? 'Пул ' : 'Туннель '}{exit.name}</strong>: {exit.inbound_ids.map(id => {
+            const inbound = report.panels.find(p => p.id === report.selected_panel)?.inbounds?.find(i => i.id === id);
+            return inbound ? `${inbound.remark || '#' + id} (${inbound.protocol.toUpperCase()})` : '#' + id;
+          }).join(', ')}</p>)}</div>}
           <p className="feature-hint">Перезапуск кратковременно прервёт трафик через выбранные SSH-туннели. Сначала откроется план; после запуска проверятся службы и локальные порты. Новые SSH-соединения используют текущие настройки TCP.</p>
           <p className="feature-hint">Пул распределяет новые соединения по отдельным SSH-сессиям. При потере всех выходов fallback блокирует соединения, не подменяя зарубежный IP на российский. Существующие TCP-сессии не мигрируют автоматически.</p>
           <p className="feature-hint">Для независимого резервирования провайдеров/локаций одного пула недостаточно; здесь проверяется один общий выходной VLESS endpoint.</p>

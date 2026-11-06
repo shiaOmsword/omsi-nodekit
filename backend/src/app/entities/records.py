@@ -26,6 +26,7 @@ class JobAction(StrEnum):
     NETWORK_BENCHMARK = "network_benchmark"
     TUNNEL = "tunnel"
     TUNNEL_RESTART = "tunnel_restart"
+    TUNNEL_ROUTE = "tunnel_route"
     XHTTP = "xhttp"
     WIREGUARD = "wireguard"
     CLIENT_IMPORT = "client_import"
