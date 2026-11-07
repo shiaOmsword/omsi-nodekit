@@ -27,6 +27,14 @@ class TunnelSetup(XrayConfigurator):
         change = XrayChange(self, base, request["expected_fingerprint"])
         proposed = change.original
         records, outbounds, forwards = [], [], []
+        pooled = {}
+        for pool_path in sorted(base.glob("pool-*.json"))[:100]:
+            try:
+                _, _, pool, members = read_exit(context, "pool", pool_path.stem[5:])
+            except (OSError, ValueError, TypeError, KeyError, TunnelPreflightError):
+                continue
+            for member, outbound in zip(members, pool["outbounds"]):
+                pooled.setdefault(member, []).append(outbound)
         for name in names:
             tunnel = configured[name]
             path = base / f"tunnel-{name}.json"
@@ -43,10 +51,10 @@ class TunnelSetup(XrayConfigurator):
                 else:
                     _, _, saved, _ = read_exit(context, "tunnel", name)
                     outbound = saved["outbound"]
-                if [o for o in proposed["outbounds"] if o.get("tag") == outbound["tag"]] != [
-                    outbound
-                ] or loopback_outbound(outbound, outbound["tag"], tunnel["local_port"]) != outbound:
+            elif name in pooled:
+                if len(pooled[name]) != 1:
                     raise TunnelPreflightError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
+                outbound = pooled[name][0]
             else:
                 tag = f"ssh-{context.node['id']}-{name}"
                 if any(
@@ -71,6 +79,10 @@ class TunnelSetup(XrayConfigurator):
                         },
                     )
                 )
+            if [o for o in proposed["outbounds"] if o.get("tag") == outbound["tag"]] != [
+                outbound
+            ] or loopback_outbound(outbound, outbound["tag"], tunnel["local_port"]) != outbound:
+                raise TunnelPreflightError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
             outbounds.append(outbound)
             forward = TunnelForward(context, self.host, tunnel)
             forward.preflight(require_installed=forward.path.exists())
