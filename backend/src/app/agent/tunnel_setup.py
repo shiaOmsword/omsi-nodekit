@@ -30,7 +30,9 @@ class TunnelSetup(XrayConfigurator):
         for name in names:
             tunnel = configured[name]
             path = base / f"tunnel-{name}.json"
-            if path.is_symlink():
+            if path.is_symlink() or (
+                path.exists() and path.stat().st_size > context.discovery["metadata_bytes"]
+            ):
                 raise TunnelPreflightError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
             if path.exists():
                 raw = path.read_bytes()
@@ -97,19 +99,16 @@ class TunnelSetup(XrayConfigurator):
                     self.wait(forward.ready)
                     self.probe(outbound)
                 self.stage("Xray outbound and balancer runtime verification")
-                change.apply(
-                    proposed,
-                    lambda: self.verify(
-                        proposed,
-                        balancer=next(
-                            (
-                                b
-                                for b in (proposed.get("routing") or {}).get("balancers", [])
-                                if b.get("tag") == request.get("balancer_tag")
-                            ),
-                            None,
-                        ),
+                balancer = next(
+                    (
+                        b
+                        for b in (proposed.get("routing") or {}).get("balancers", [])
+                        if b.get("tag") == request.get("balancer_tag")
                     ),
+                    None,
+                )
+                change.apply(
+                    proposed, lambda: self.verify(proposed, outbounds=outbounds, balancer=balancer)
                 )
                 for outbound in outbounds:
                     self.verify_return_traffic(outbound)

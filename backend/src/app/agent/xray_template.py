@@ -18,10 +18,38 @@ def fingerprint(config):
     ).hexdigest()
 
 
+RULE_METADATA = {
+    "type",
+    "inboundTag",
+    "outboundTag",
+    "balancerTag",
+    "enabled",
+    "comment",
+    "ruleTag",
+    "domainMatcher",
+}
+RULE_CONDITIONS = {
+    "domain",
+    "ip",
+    "port",
+    "sourcePort",
+    "network",
+    "source",
+    "user",
+    "protocol",
+    "attrs",
+}
+
+
+def conditional_rule(rule):
+    return any(rule.get(k) for k in set(rule) - RULE_METADATA)
+
+
 def editable_rule(rule, api_tag=None):
     return (
         isinstance(rule, dict)
-        and set(rule) <= {"type", "inboundTag", "outboundTag", "balancerTag", "enabled", "comment"}
+        and set(rule) <= RULE_METADATA | RULE_CONDITIONS
+        and not conditional_rule(rule)
         and rule.get("type", "field") == "field"
         and rule.get("enabled", True) is True
         and isinstance(rule.get("inboundTag"), list)
@@ -72,8 +100,22 @@ def add_balancer(original, tag, members, fallback):
     }
     balancers = config.setdefault("routing", {}).setdefault("balancers", [])
     existing = [b for b in balancers if b.get("tag") == tag]
-    if existing and existing != [balancer]:
-        raise TunnelPreflightError(message_text(MessageKey.XRAY_CONFIG_INVALID))
+    if existing:
+        current = existing[0]
+        strategy = current.get("strategy") or {}
+        current_members = {
+            t
+            for t in tags
+            if isinstance(t, str) and any(t.startswith(s) for s in current.get("selector", []))
+        }
+        if (
+            len(existing) != 1
+            or current_members != set(members)
+            or current.get("fallbackTag") != fallback
+            or strategy.get("type") != "roundRobin"
+            or strategy.get("settings")
+        ):
+            raise TunnelPreflightError(message_text(MessageKey.XRAY_CONFIG_INVALID))
     if not existing:
         balancers.append(balancer)
     if config.get("burstObservatory") is not None:
@@ -136,5 +178,5 @@ def saved_routing_inventory(context, inspector):
             "balancers": balancers,
             "rules": rules,
         }
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, sqlite3.Error):
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, sqlite3.Error):
         return empty

@@ -97,12 +97,21 @@ def run_xray_operation(manager, operation):
     try:
         operation()
     except TunnelPreflightError as exc:
+        manager.context.emit(
+            message_text(
+                MessageKey.XRAY_CONFIG_FAILED, stage=getattr(manager, "current_stage", "preflight")
+            ),
+            "error",
+        )
         raise RuntimeError(str(exc)) from exc
     except Exception as exc:
         manager.context.emit(
             message_text(MessageKey.TUNNEL_ERROR_TYPE, kind=type(exc).__name__), "error"
         )
         raise RuntimeError(
-            message_text(MessageKey.XRAY_CONFIG_FAILED, stage="configuration update")
+            message_text(
+                MessageKey.XRAY_CONFIG_FAILED,
+                stage=getattr(manager, "current_stage", "configuration update"),
+            )
         ) from exc
     manager.context.emit(message_text(MessageKey.XRAY_CONFIG_APPLIED))

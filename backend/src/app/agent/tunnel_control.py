@@ -3,6 +3,7 @@ import time
 from framework.messages import MessageKey
 from framework.messages import text as message_text
 
+from .tunnel_errors import TunnelPreflightError
 from .tunnel_forward import TunnelForward
 
 
@@ -49,7 +50,7 @@ class TunnelController:
                     time.sleep(context.policy["readiness_interval"])
                 else:
                     raise RuntimeError(
-                        message_text(MessageKey.TUNNEL_RESTART_FAILED, unit=forward.unit)
+                        message_text(MessageKey.TUNNEL_CONTROL_FAILED, unit=forward.unit)
                     )
                 context.emit(
                     message_text(
@@ -58,7 +59,10 @@ class TunnelController:
                         operation=operation,
                     )
                 )
-        except Exception:
+        except Exception as exc:
+            failed_unit = forward.unit
+            if isinstance(exc, TunnelPreflightError):
+                context.emit(str(exc), "error")
             for forward in reversed(touched):
                 try:
                     if (
@@ -74,4 +78,6 @@ class TunnelController:
                     )
                 except Exception:
                     context.emit(message_text(MessageKey.DEPLOYMENT_ROLLBACK_FAILED), "error")
-            raise
+            raise RuntimeError(
+                message_text(MessageKey.TUNNEL_CONTROL_FAILED, unit=failed_unit)
+            ) from exc
