@@ -64,6 +64,9 @@ class NodeService:
             JobAction.SYSTEM_RESTORE,
             JobAction.NETWORK_BENCHMARK,
             JobAction.TCP_TUNING,
+            JobAction.TUNNEL_SETUP,
+            JobAction.TUNNEL_CONTROL,
+            JobAction.XRAY,
             JobAction.TUNNEL,
             JobAction.TUNNEL_RESTART,
             JobAction.TUNNEL_ROUTE,
@@ -88,6 +91,9 @@ class NodeService:
             JobAction.TRAFFIC,
             JobAction.SYSTEM_RESTORE,
             JobAction.NETWORK_BENCHMARK,
+            JobAction.TUNNEL_SETUP,
+            JobAction.TUNNEL_CONTROL,
+            JobAction.XRAY,
             JobAction.TUNNEL,
             JobAction.TUNNEL_RESTART,
             JobAction.TUNNEL_ROUTE,
@@ -114,6 +120,10 @@ class NodeService:
                     else MessageKey.INBOUND_MANAGED_REQUIRED
                 )
             )
+        if request.action in {JobAction.TUNNEL_SETUP, JobAction.TUNNEL_CONTROL}:
+            names = (request.tunnel_setup or request.tunnel_control).names
+            if not set(names) <= {t.name for t in node.tunnels}:
+                raise ValidationError(message_text(MessageKey.TUNNEL_CONFIG_INVALID))
         if request.action == JobAction.TUNNEL_RESTART:
             available = {t.name for t in node.tunnels}
             if not set(request.tunnel_restart.names) <= available:

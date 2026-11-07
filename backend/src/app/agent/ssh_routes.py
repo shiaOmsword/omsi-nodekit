@@ -11,6 +11,12 @@ from .tunnel_errors import TunnelPreflightError
 
 
 def route_ids(record):
+    if (
+        record.get("rule") is None
+        and record.get("inbound_ids") == []
+        and record.get("inbound_id") is None
+    ):
+        return []
     ids = record.get("inbound_ids", [record.get("inbound_id")])
     tags = record["rule"].get("inboundTag")
     if (
@@ -30,6 +36,8 @@ def route_ids(record):
 
 def refresh_route(record, inbounds):
     result = copy.deepcopy(record)
+    if not route_ids(record):
+        return result
     by_id = {i["id"]: i for i in inbounds}
     result["rule"]["inboundTag"] = [
         by_id.get(identifier, {}).get("tag") or tag
@@ -41,6 +49,9 @@ def refresh_route(record, inbounds):
 
 
 def verify_route(config, record):
+    if record.get("rule") is None:
+        route_ids(record)
+        return
     key = "balancerTag" if "balancer" in record else "outboundTag"
     tag = record["balancer" if "balancer" in record else "outbound"]["tag"]
     rule = record["rule"]
