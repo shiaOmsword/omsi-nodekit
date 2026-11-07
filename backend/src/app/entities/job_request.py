@@ -6,15 +6,19 @@ from framework.messages import text as message_text
 from .base import StrictModel
 from .network import (
     BackupClientImport,
+    BalancerChange,
     InboundChange,
     NetworkBenchmarkRequest,
+    RouteChange,
     SubscriptionMaintenance,
     SystemRestoreRequest,
     TCPTuningRequest,
     TrafficRequest,
+    TunnelControlRequest,
     TunnelRequest,
     TunnelRestartRequest,
     TunnelRouteRequest,
+    TunnelSetupRequest,
     WireGuardChange,
     XHTTPChange,
 )
@@ -31,6 +35,9 @@ class JobRequest(StrictModel):
     tcp_tuning: TCPTuningRequest | None = None
     system_restore: SystemRestoreRequest | None = None
     network_benchmark: NetworkBenchmarkRequest | None = None
+    tunnel_setup: TunnelSetupRequest | None = None
+    tunnel_control: TunnelControlRequest | None = None
+    xray: BalancerChange | RouteChange | None = Field(default=None, discriminator="operation")
     tunnel: TunnelRequest | None = None
     tunnel_restart: TunnelRestartRequest | None = None
     tunnel_route: TunnelRouteRequest | None = None
@@ -40,6 +47,13 @@ class JobRequest(StrictModel):
 
     @model_validator(mode="after")
     def operation_arguments(self):
+        for action, value in (
+            (JobAction.TUNNEL_SETUP, self.tunnel_setup),
+            (JobAction.TUNNEL_CONTROL, self.tunnel_control),
+            (JobAction.XRAY, self.xray),
+        ):
+            if (self.action == action) != (value is not None):
+                raise ValueError(message_text(MessageKey.XRAY_CONFIG_INVALID))
         if (self.action == JobAction.TUNNEL_ROUTE) != (self.tunnel_route is not None):
             raise ValueError(message_text(MessageKey.TUNNEL_ROUTE_INVALID))
         if (self.action == JobAction.WIREGUARD) != (self.wireguard is not None):

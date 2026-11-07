@@ -24,6 +24,7 @@ import { DeploymentModal } from './features/nodes/DeploymentModal';
 import { InboundModal, ClientModal } from './features/nodes/InboundModal';
 import { WireGuardModal } from './features/nodes/WireGuardModal';
 import { XHTTPModal } from './features/nodes/XHTTPModal';
+import { BalancerModal } from './features/nodes/BalancerModal';
 import { TunnelPoolModal } from './features/nodes/TunnelPoolModal';
 import { parse, stringify } from 'yaml';
 import { TunnelRoutesModal } from './features/nodes/TunnelRoutesModal';
@@ -67,6 +68,7 @@ type ModalState =
   | { kind: 'assign-key'; keyId: string }
   | { kind: 'deployment'; record: NodeRecord; report: InstallationReport | null }
   | { kind: 'tunnel'; record: NodeRecord; report: InstallationReport }
+  | { kind: 'balancer'; record: NodeRecord; report: InstallationReport }
   | { kind: 'tunnel-routes'; record: NodeRecord; report: InstallationReport }
   | { kind: 'pool'; record: NodeRecord; report: InstallationReport }
   | { kind: 'inbound'; record: NodeRecord; inbound: InboundFinding; remove: boolean }
@@ -436,15 +438,18 @@ export default function App() {
             }}
           />
         );
+      case 'balancer':
+        return <BalancerModal {...common} record={modal.record} report={modal.report}
+          onPreview={(options) => preview(modal.record, 'xray', null, options)} />;
       case 'tunnel-routes':
         return <TunnelRoutesModal {...common} record={modal.record} report={modal.report}
-          onPreview={(options) => preview(modal.record, 'tunnel_route', null, options)} />;
+          onPreview={(options) => preview(modal.record, 'xray', null, options)} />;
       case 'pool':
         return <TunnelPoolModal {...common} record={modal.record} report={modal.report}
-          onPreview={(options) => preview(modal.record, 'tunnel', null, options)} />;
+          onPreview={(options) => preview(modal.record, 'tunnel_setup', null, options)} />;
       case 'tunnel':
         return <TunnelModal {...common} record={modal.record} report={modal.report}
-          onPreview={(options) => preview(modal.record, 'tunnel', null, options)} />;
+          onPreview={(options) => preview(modal.record, 'tunnel_setup', null, options)} />;
       case 'inbound':
         return <InboundModal {...common} record={modal.record} inbound={modal.inbound} remove={modal.remove}
           onPreview={(options) => preview(modal.record, 'inbound', null, options)} />;
@@ -677,6 +682,12 @@ export default function App() {
             onRestoreClients={(inbound) => {
               if (w.selected && reportJob?.report && requireSaved())
                 showModal({ kind: 'backup-clients', record: w.selected, inbound, report: reportJob.report });
+            }}
+            onBalancer={() => {
+              if (w.selected && reportJob?.report && requireSaved()) showModal({ kind: 'balancer', record: w.selected, report: reportJob.report });
+            }}
+            onControlTunnels={(names, operation) => {
+              if (w.selected && requireSaved()) void preview(w.selected, 'tunnel_control', null, { tunnel_control: { names, operation } });
             }}
             onTunnelRoutes={() => {
               if (w.selected && reportJob?.report && requireSaved()) showModal({ kind: 'tunnel-routes', record: w.selected, report: reportJob.report });

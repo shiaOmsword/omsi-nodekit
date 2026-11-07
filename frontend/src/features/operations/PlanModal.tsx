@@ -49,7 +49,7 @@ export function PlanModal({
             loading={busy}
             icon={<Play size={16} />}
           >
-            {plan?.options?.inbound?.operation === 'delete' ? 'Удалить inbound' : plan?.options?.subscription_maintenance?.mode === 'clear_server_cache' ? 'Перезапустить 3x-ui' : action === 'tunnel_route' ? 'Применить маршруты' : action === 'tunnel_restart' ? 'Перезапустить туннели' : 'Запустить операцию'}
+            {plan?.options?.inbound?.operation === 'delete' ? 'Удалить inbound' : plan?.options?.subscription_maintenance?.mode === 'clear_server_cache' ? 'Перезапустить 3x-ui' : action === 'tunnel_control' ? (plan?.options?.tunnel_control?.operation === 'disable' ? 'Выключить туннели' : 'Включить туннели') : action === 'xray' ? 'Сохранить в Xray' : action === 'tunnel_route' ? 'Применить маршруты' : action === 'tunnel_restart' ? 'Перезапустить туннели' : 'Запустить операцию'}
           </Button>
         </>
       }
@@ -62,9 +62,9 @@ export function PlanModal({
           <>
             <div className="plan-context">
               <span
-                className={'tag ' + (['fresh', 'restore', 'configure', 'attach_caddy', 'inbound', 'tunnel', 'tunnel_restart', 'tunnel_route', 'xhttp', 'client_import', 'subscription_maintenance', 'tcp_tuning', 'system_restore', 'wireguard'].includes(action) ? 'tag-warning' : '')}
+                className={'tag ' + (['fresh', 'restore', 'configure', 'attach_caddy', 'inbound', 'tunnel', 'tunnel_restart', 'tunnel_route', 'tunnel_setup', 'tunnel_control', 'xray', 'xhttp', 'client_import', 'subscription_maintenance', 'tcp_tuning', 'system_restore', 'wireguard'].includes(action) ? 'tag-warning' : '')}
               >
-                {['fresh', 'restore', 'configure', 'attach_caddy', 'inbound', 'tunnel', 'tunnel_restart', 'tunnel_route', 'xhttp', 'tcp_tuning', 'system_restore', 'wireguard'].includes(action) || (action === 'subscription_maintenance' && plan.options?.subscription_maintenance?.mode === 'clear_server_cache')
+                {['fresh', 'restore', 'configure', 'attach_caddy', 'inbound', 'tunnel', 'tunnel_restart', 'tunnel_route', 'tunnel_setup', 'tunnel_control', 'xray', 'xhttp', 'tcp_tuning', 'system_restore', 'wireguard'].includes(action) || (action === 'subscription_maintenance' && plan.options?.subscription_maintenance?.mode === 'clear_server_cache')
                   ? 'Изменяет сервер'
                   : 'Сервисы на VPS не изменяются'}
               </span>
@@ -131,6 +131,10 @@ export function PlanModal({
               Существующие inbound и клиенты не редактируются. Разрешённые изменения UFW и публикаций Caddy перечислены в плане.
             </p>}
             {action === 'xhttp' && <p className="feature-hint">Изменяется только управляемый XHTTP inbound и принадлежащие Nodekit маршруты Caddy. Backend остаётся приватным, UFW ограничивается сетью Caddy. У других сайтов Caddy и контейнеров Docker ничего не меняется. Для корректной подписки отдельно проверь Hosts override.</p>}
+            {action === 'tunnel_setup' && <p className="feature-hint">Туннели: {plan.options?.tunnel_setup?.names.join(', ')}. Образец для новых выходов: {plan.options?.tunnel_setup?.outbound_tag}. {plan.options?.tunnel_setup?.balancer_tag ? `Балансировщик: ${plan.options.tunnel_setup.balancer_tag}; fallback: ${plan.options.tunnel_setup.fallback_tag}.` : 'Балансировщик создаётся отдельным шагом.'} Существующие маршруты сохраняются. При создании ресурсов Xray перезапустится.</p>}
+            {action === 'tunnel_control' && <p className="feature-hint">{plan.options?.tunnel_control?.operation === 'disable' ? 'Выключение' : 'Включение'}: {plan.options?.tunnel_control?.names.join(', ')}. Меняются служба и автозапуск. Выключение прервёт текущие соединения; балансировщик использует оставшиеся выходы или свой fallback.</p>}
+            {action === 'xray' && plan.options?.xray?.operation === 'balancer' && <p className="feature-hint">Создать {plan.options.xray.tag}: roundRobin, участники {plan.options.xray.members.join(', ')}, fallback {plan.options.xray.fallback_tag}. При direct трафик после отказа всех участников может выходить через эту VPS. Маршруты inbound сохраняются; Xray перезапустится.</p>}
+            {action === 'xray' && plan.options?.xray?.operation === 'route' && <p className="feature-hint">{plan.options.xray.rule_index === undefined ? 'Новое правило в конце таблицы' : `Изменить правило #${plan.options.xray.rule_index + 1}`}: inbound #{plan.options.xray.inbounds.map(i => i.id).join(', #')} → {plan.options.xray.balancer_tag}. Выбранный список заменяется целиком; остальные правила сохраняют свой порядок. Xray перезапустится.</p>}
             {action === 'tunnel_route' && <p className="feature-hint">SSH-выход {plan.options?.tunnel_route?.name}: выбранные inbound #{plan.options?.tunnel_route?.inbounds.map(i => i.id).join(', #')}. Список заменяется целиком. SSH-службы, ключи, европейский outbound и параметры пула сохраняются; Xray может перезапуститься. Снятые inbound возвращаются к остальным правилам, которые могут вести в direct.</p>}
             {action === 'tunnel_restart' && <p className="feature-hint">Будут последовательно перезапущены SSH-туннели: {plan.options?.tunnel_restart?.names.join(', ')}. VPN-трафик через них кратковременно прервётся. Xray, Caddy, маршруты, ключи и автозапуск сохраняются. При ошибке операция остановится; уже перезапущенные соединения не откатываются.</p>}
             {action === 'tunnel' && plan.options?.tunnel?.members?.length && <p className="feature-hint">Пул поднимет несколько независимых systemd SSH-процессов и создаст roundRobin с observatory и fallback=blocked. Один общий выходной сервер не заменяет независимое резервирование. Xray будет перезапущен.</p>}

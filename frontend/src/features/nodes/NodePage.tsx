@@ -45,6 +45,9 @@ const actionIcons = {
   tunnel: Activity,
   tunnel_restart: Activity,
   tunnel_route: Activity,
+  tunnel_setup: Activity,
+  tunnel_control: Activity,
+  xray: Settings2,
   xhttp: Activity,
   wireguard: Activity,
   client_import: Database,
@@ -76,6 +79,8 @@ export function NodePage({
   onTunnel,
   onRestartTunnels,
   onTunnelRoutes,
+  onBalancer,
+  onControlTunnels,
   onTCPTuning,
   onBenchmark,
 }: {
@@ -102,6 +107,8 @@ export function NodePage({
   onTunnel: () => void;
   onRestartTunnels: (names: string[]) => void;
   onTunnelRoutes: () => void;
+  onBalancer: () => void;
+  onControlTunnels: (names: string[], operation: 'enable' | 'disable') => void;
   onBenchmark: (profile: BenchmarkProfile) => void;
   onTCPTuning: (algorithm: 'bbr' | 'cubic', fingerprint: string) => void;
 }) {
@@ -309,7 +316,7 @@ export function NodePage({
       {route.tab === 'operations' &&
         (!action ? (
           <div className="operation-grid">
-            {(Object.keys(actionLabels) as Action[]).filter((id) => !['inbound', 'traffic', 'tunnel', 'tunnel_restart', 'tunnel_route', 'xhttp', 'client_import', 'tcp_tuning', 'network_benchmark', 'wireguard'].includes(id)).map((id) => {
+            {(Object.keys(actionLabels) as Action[]).filter((id) => !['inbound', 'traffic', 'tunnel', 'tunnel_restart', 'tunnel_route', 'tunnel_setup', 'tunnel_control', 'xray', 'xhttp', 'client_import', 'tcp_tuning', 'network_benchmark', 'wireguard'].includes(id)).map((id) => {
               const Icon = actionIcons[id];
               return (
                 <button
@@ -516,9 +523,10 @@ export function NodePage({
             {sshTunnels.length === 1 && <Button disabled={locked} onClick={onPreparePool}>Подготовить 3 в YAML</Button>}
             <Button disabled={locked} onClick={() => onPlan('check')}>Обновить</Button>
             <Button disabled={locked || !canDeploy || !sshTunnels.length} onClick={() => onRestartTunnels(sshTunnels.map(t => t.name))}>Перезапустить все</Button>
-            <Button disabled={locked || !canDeploy || !report?.ssh_exits?.length} onClick={onTunnelRoutes}>Настроить inbound</Button>
-            <Button disabled={locked || !report} onClick={onTunnel}>Один туннель</Button>
-            <Button variant="primary" disabled={locked || !report || sshTunnels.length < 2} onClick={onTunnelPool}>Поднять пул</Button>
+            <Button disabled={locked || !canDeploy || !report?.routing?.readable} onClick={onBalancer}>Создать балансировщик</Button>
+            <Button disabled={locked || !canDeploy || !report?.routing?.balancers.length} onClick={onTunnelRoutes}>Настроить маршрут</Button>
+            <Button disabled={locked || !canDeploy || !report?.routing?.readable} onClick={onTunnel}>Один туннель</Button>
+            <Button variant="primary" disabled={locked || !canDeploy || !report?.routing?.readable || !sshTunnels.length} onClick={onTunnelPool}>Поднять пул</Button>
           </div>
         </div>
         <div className="card-content">
@@ -528,16 +536,27 @@ export function NodePage({
                 return <tr key={t.name}><td><strong>{t.name}</strong></td><td><code>{t.host}:{t.ssh_port || 22}</code></td>
                   <td><code>127.0.0.1:{t.local_port} → 127.0.0.1:{t.target_port}</code></td>
                   <td>{t.host_key_policy === 'accept-new' ? 'Автодоверие при первом подключении' : 'Только известный ключ'}</td>
-                  <td>{live ? live.active ? 'Работает' : 'Не запущен' : 'Нет свежей проверки'}</td>
-                  <td><Button small disabled={locked || !canDeploy} onClick={() => onRestartTunnels([t.name])}>Перезапустить</Button></td></tr>; })}
+                  <td>{live ? `${live.active ? 'Работает' : 'Не запущен'} · автозапуск ${live.enabled ? 'вкл' : 'выкл'}` : 'Нет свежей проверки'}</td>
+                  <td><div className="row-actions"><Button small disabled={locked || !canDeploy} onClick={() => onRestartTunnels([t.name])}>Перезапустить</Button>
+                  <Button small disabled={locked || !canDeploy || !live} onClick={() => onControlTunnels([t.name], live?.active || live?.enabled ? 'disable' : 'enable')}>{live?.active || live?.enabled ? 'Выключить' : 'Включить'}</Button></div></td></tr>; })}
             </tbody></table></div>}
-          {!!report?.ssh_exits?.length && <div className="report-section"><h3>Inbound SSH-выходов</h3>{report.ssh_exits.map(exit => <p key={exit.kind + ':' + exit.name}><strong>{exit.kind === 'pool' ? 'Пул ' : 'Туннель '}{exit.name}</strong>: {exit.inbound_ids.map(id => {
-            const inbound = report.panels.find(p => p.id === report.selected_panel)?.inbounds?.find(i => i.id === id);
-            return inbound ? `${inbound.remark || '#' + id} (${inbound.protocol.toUpperCase()})` : '#' + id;
-          }).join(', ')}</p>)}</div>}
-          <p className="feature-hint">Перезапуск кратковременно прервёт трафик через выбранные SSH-туннели. Сначала откроется план; после запуска проверятся службы и локальные порты. Новые SSH-соединения используют текущие настройки TCP.</p>
-          <p className="feature-hint">Пул распределяет новые соединения по отдельным SSH-сессиям. При потере всех выходов fallback блокирует соединения, не подменяя зарубежный IP на российский. Существующие TCP-сессии не мигрируют автоматически.</p>
-          <p className="feature-hint">Для независимого резервирования провайдеров/локаций одного пула недостаточно; здесь проверяется один общий выходной VLESS endpoint.</p>
+          <div className="report-section"><h3>Балансировщики Xray</h3>
+            {!report?.routing?.readable ? <p>Обнови обнаружение для чтения сохранённой конфигурации.</p> : !report.routing.balancers.length ? <p>Балансировщики не найдены.</p> :
+              <div className="table-scroll"><table className="data-table"><thead><tr><th>Тег</th><th>Стратегия</th><th>Участники</th><th>Fallback</th></tr></thead><tbody>
+                {report.routing.balancers.map(b => <tr key={b.tag}><td><code>{b.tag}</code></td><td>{b.strategy}</td><td>{b.members.join(', ') || 'Нет совпадений'}</td><td>{b.fallback_tag || 'Не задан'}</td></tr>)}
+              </tbody></table></div>}
+          </div>
+          <div className="report-section"><h3>Маршруты Xray</h3>
+            <div className="table-scroll"><table className="data-table"><thead><tr><th>Приоритет</th><th>Inbound</th><th>Выход</th><th>Изменение</th></tr></thead><tbody>
+              {(report?.routing?.rules || []).map(r => <tr key={r.index}><td>{r.index + 1}</td><td>{r.inbound_tags.map(tag => {
+                const inbound = report?.panels.find(p => p.id === report.selected_panel)?.inbounds?.find(i => i.tag === tag);
+                return inbound ? `${inbound.remark || tag} (${inbound.protocol.toUpperCase()})` : tag;
+              }).join(', ') || 'По условиям правила'}</td><td>{r.balancer_tag ? 'Балансировщик ' + r.balancer_tag : r.outbound_tag}</td><td>{r.editable ? 'Доступно в настройке маршрута' : r.enabled ? 'В 3x-ui' : 'Выключен · в 3x-ui'}</td></tr>)}
+            </tbody></table></div>
+          </div>
+          <p className="feature-hint">Порядок: подготовить туннели → создать балансировщик → настроить маршрут для WG и VLESS. «Поднять пул» выполняет первые два шага для выбранных туннелей из YAML.</p>
+          <p className="feature-hint">Включение/выключение меняет и службу, и автозапуск. Выключение и перезапуск прерывают текущие соединения. Новые SSH-соединения используют текущие настройки TCP.</p>
+          <p className="feature-hint">Новые балансировщики используют roundRobin с fallback direct по умолчанию: при отказе туннелей выход может идти через эту VPS. Для блокировки выбери blackhole. Существующие балансировщики сохраняют свой fallback.</p>
           <p className="feature-hint">Неизвестный SSH fingerprint может автоматически приниматься только при явном host_key_policy: accept-new в YAML. Изменённый ключ известной ноды всегда отклоняется.</p>
         </div>
       </section>}

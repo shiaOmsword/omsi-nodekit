@@ -4,36 +4,50 @@ import type { InstallationReport, JobOptions, NodeRecord } from '../../types';
 import { FormDialog } from '../../framework/components';
 import type { FormField, FormValues } from '../../framework/components';
 
-export function TunnelModal({ record, report, busy, error, onClose, onPreview }: {
+export interface TunnelModalProps {
   record: NodeRecord; report: InstallationReport; busy: boolean; error: string;
   onClose: () => void; onPreview: (options: JobOptions) => void;
-}) {
-  const document = parse(record.yaml);
-  const tunnels: { name: string; host: string; ssh_port?: number; local_port?: number; target_port?: number }[] = document.tunnels || [];
-  const panel = report.panels.find((p) => p.id === report.selected_panel);
-  const inbounds = panel?.installation === 'managed'
-    ? (panel.inbounds || []).filter((i) => i.enabled && i.fingerprint && i.tag) : [];
-  const outbounds = (report.egress?.outbounds || []).filter((o) => o.protocol === 'vless' && !o.tag.startsWith('ssh-'));
-  const [values, setValues] = useState<FormValues>({ name: tunnels[0]?.name || '', outbound_tag: outbounds[0]?.tag || '', id: String(inbounds[0]?.id || ''), confirm: false });
+}
+
+export function TunnelModal({ record, report, busy, error, onClose, onPreview, pool = false }: TunnelModalProps & { pool?: boolean }) {
+  const tunnels: { name: string; host: string; ssh_port?: number; local_port?: number; target_port?: number }[] = parse(record.yaml)?.tunnels || [];
+  const routing = report.routing;
+  const outbounds = (routing?.outbounds || []).filter(o => o.protocol === 'vless');
+  const [values, setValues] = useState<FormValues>({
+    name: tunnels[0]?.name || '', outbound_tag: outbounds.find(o => !o.tag.startsWith('ssh-'))?.tag || outbounds[0]?.tag || '',
+    balancer_tag: `ssh-${record.id}-balancer-main`, fallback_tag: routing?.outbounds.find(o => o.tag === 'direct')?.tag || '', confirm: false,
+    ...Object.fromEntries(tunnels.map((t, i) => ['member-' + t.name, i < 6])),
+  });
+  const [validation, setValidation] = useState('');
   const fields: FormField[] = [
-    { name: 'name', label: 'SSH-туннель из YAML ноды', type: 'select', required: true,
-      options: tunnels.map((t) => ({ value: t.name, label: `${t.name} · ${t.host}:${t.ssh_port || 22} · 127.0.0.1:${t.local_port || 15443} → 127.0.0.1:${t.target_port || 443}` })) },
-    { name: 'outbound_tag', label: 'VLESS / RAW / REALITY outbound выходной ноды', type: 'select', required: true,
-      options: outbounds.map((o) => ({ value: o.tag, label: o.tag })),
-      hint: 'Создастся отдельная копия с адресом локального SSH-туннеля. UUID, SNI и ключи сохранятся.' },
-    { name: 'id', label: 'Inbound Москвы, который направить через SSH', type: 'select', required: true,
-      options: inbounds.map((i) => ({ value: String(i.id), label: `${i.remark || i.tag} · ${i.port} · ${i.network}` })) },
-    { name: 'confirm', label: 'Применить маршрут для выбранного inbound и перезапустить Xray', type: 'checkbox', required: true },
+    ...(pool ? tunnels.map(t => ({ name: 'member-' + t.name, label: `${t.name} · ${t.host}:${t.ssh_port ?? report.tunnels?.find(live => live.name === t.name)?.ssh_port ?? '?'} · 127.0.0.1:${t.local_port ?? report.tunnels?.find(live => live.name === t.name)?.local_port ?? '?'} → 127.0.0.1:${t.target_port ?? report.tunnels?.find(live => live.name === t.name)?.target_port ?? '?'}`, type: 'checkbox' as const })) : [
+      { name: 'name', label: 'SSH-туннель из YAML', type: 'select' as const, required: true,
+        options: tunnels.map(t => ({ value: t.name, label: `${t.name} · ${t.host}:${t.ssh_port ?? report.tunnels?.find(live => live.name === t.name)?.ssh_port ?? '?'} · 127.0.0.1:${t.local_port ?? report.tunnels?.find(live => live.name === t.name)?.local_port ?? '?'} → 127.0.0.1:${t.target_port ?? report.tunnels?.find(live => live.name === t.name)?.target_port ?? '?'}` })) },
+    ]),
+    { name: 'outbound_tag', label: 'Образец VLESS / RAW / REALITY для новых выходов', type: 'select', required: true,
+      options: outbounds.map(o => ({ value: o.tag, label: o.tag })),
+      hint: 'Новые копии сохранят UUID, SNI и ключи образца. Уже созданные выходы сохранят свои параметры. Для разных выходных VLESS endpoint подготовь туннели по одному.' },
+    ...(pool ? [
+      { name: 'balancer_tag', label: 'Тег балансировщика roundRobin', required: true, maxLength: 120, pattern: '[a-zA-Z0-9_.-]+' },
+      { name: 'fallback_tag', label: 'Fallback при отказе всех выходов', type: 'select' as const, required: true,
+        options: (routing?.outbounds || []).filter(o => o.protocol === 'freedom' || o.protocol === 'blackhole').map(o => ({ value: o.tag, label: `${o.tag} · ${o.protocol}` })) },
+    ] : []),
+    { name: 'confirm', label: 'Разрешить запуск служб и перезапуск Xray для новых ресурсов', type: 'checkbox', required: true },
   ];
-  const ready = !!tunnels.length && !!outbounds.length && !!inbounds.length;
-  return <FormDialog title="SSH-выход" description={record.name}
-    fields={fields} values={values} onChange={(name, value) => setValues((v) => ({ ...v, [name]: value }))}
-    onSubmit={() => {
-      const inbound = inbounds.find((i) => i.id === Number(values.id));
-      if (ready && inbound && values.confirm) onPreview({ tunnel: { name: String(values.name), outbound_tag: String(values.outbound_tag), id: inbound.id, expected_fingerprint: inbound.fingerprint! } });
-    }} onClose={onClose} busy={busy} error={error} submit="Посмотреть план">
-    {!ready && <p className="report-warning">Добавь tunnels в YAML ноды и VLESS / RAW / REALITY outbound в 3x-ui, затем обнови обнаружение. Выходной inbound должен быть доступен по 127.0.0.1 на выходной ноде.</p>}
-    <p>Приватный SSH-ключ и проверенный known_hosts должны находиться на московской VPS по путям из tunnels. Ключ должен работать без ввода пароля. Доступ к выходной ноде проверяется с VPS.</p>
-    <p>Перед изменением сохраняется приватный бэкап. Проверка получает HTTPS-ответ через выходной inbound. При ошибке выполняется откат; участок телефон → Москва этим тестом не проверяется.</p>
+  function submit() {
+    const names = pool ? tunnels.filter(t => values['member-' + t.name]).map(t => t.name) : [String(values.name)];
+    if (!values.confirm || !routing?.fingerprint || !names.length || names.length > 6 || !values.outbound_tag || (pool && !values.fallback_tag)) {
+      setValidation('Нужны актуальное обнаружение Xray, образец outbound и от 1 до 6 туннелей. Подтверди изменение.'); return;
+    }
+    onPreview({ tunnel_setup: { names, outbound_tag: String(values.outbound_tag), expected_fingerprint: routing.fingerprint,
+      ...(pool ? { balancer_tag: String(values.balancer_tag), fallback_tag: String(values.fallback_tag) } : {}) } });
+  }
+  return <FormDialog title={pool ? 'Поднять SSH-пул' : 'Подготовить SSH-туннель'} description={record.name}
+    fields={fields} values={values} busy={busy} error={error || validation} onClose={onClose} onSubmit={submit} submit="Посмотреть план"
+    onChange={(name, value) => { setValidation(''); setValues(v => ({ ...v, [name]: value, ...(name !== 'confirm' ? { confirm: false } : {}) })); }}>
+    {!routing?.readable && <p className="report-warning">Обнови обнаружение: нужен сохранённый шаблон Xray управляемой панели.</p>}
+    <p className="feature-hint">Сначала подготавливаются SSH-службы и копии VLESS outbound с локальными адресами. Существующие маршруты сохраняются. {pool ? 'Создаётся балансировщик из выбранных выходов; совпадающие ресурсы используются повторно.' : 'Затем можно создать балансировщик и выбрать inbound в настройке маршрута.'}</p>
+    {pool && <p className="report-warning">Fallback direct разрешает выход через эту VPS (например, Москву), если все туннели недоступны. Для блокировки выбери blackhole.</p>}
+    <p className="feature-hint">Ключ без пароля и known_hosts должны находиться на VPS по путям из YAML. Проверяется HTTPS через каждый выход; участок телефон → Москва, WG и клиентский UDP проверяются отдельно.</p>
   </FormDialog>;
 }
