@@ -26,7 +26,7 @@ export function PanelAccessModal({ record, report, busy, error, onClose, onSave 
     ] },
     { name: 'caddy_id', label: 'Caddy для входа в панель', type: 'select', required: true, disabled: target?.caddy_mode === 'existing',
       options: [{ value: '', label: 'Выбери обнаруженный Caddy' }, ...proxies.map(p => ({ value: p.id, label: p.container || p.service || p.id }))],
-      hint: target?.caddy_mode === 'docker' ? 'Собственный Caddy подключится через существующий механизм Nodekit. Он может кратковременно перезапуститься.' : undefined },
+      hint: target?.caddy_mode === 'docker' ? 'При применении этот контейнер Caddy может кратковременно перезапуститься.' : undefined },
     ...(values.mode === 'basic_auth' ? [
       { name: 'username', label: 'Дополнительный логин Caddy', required: true, maxLength: 64, pattern: '[a-zA-Z0-9_.@-]+' },
       { name: 'password', label: previous?.password_hash ? 'Новый пароль (пусто — сохранить текущий)' : 'Пароль', type: 'password' as const,

@@ -240,9 +240,9 @@ export function DeploymentModal({
       error={error || profileError}
       submit="Сохранить параметры"
     >
-      {!installed && <p><Button onClick={() => setValues(v => ({ ...v, runtime: 'docker', caddy: v.caddy === 'existing' ? 'existing' : 'docker' }))}>Docker + Caddy · рекомендуемый вариант</Button></p>}
+      {!installed && <p><Button onClick={() => setValues(v => ({ ...v, runtime: 'docker', caddy: v.caddy === 'existing' && selectedProxy?.active ? 'existing' : 'docker' }))}>Docker + Caddy · рекомендуемый вариант</Button></p>}
       {backupId && <div className="form-section"><h3>Пути из выбранного бэкапа</h3>
-        {profile ? <p>Панель: <code>{profile.base_path}</code> · подписки: <code>{profile.subscription_path}</code>. Сохраняются для совместимости с существующими ссылками.</p> : <p>Не удалось получить пути; сохранение заблокировано до успешного чтения выбранного бэкапа.</p>}
+        {profile ? <p>Панель: <code>{profile.base_path}</code> · подписки: <code>{profile.subscription_path}</code>. Сохраняются для совместимости с существующими ссылками.</p> : <p>{profileLoading ? 'Читаю пути из выбранного бэкапа…' : 'Не удалось получить пути; сохранение заблокировано до успешного чтения выбранного бэкапа.'}</p>}
         <p className="feature-hint">Источник SQLite может быть native или Docker. Окружение назначения выбирается выше; клиенты, WG-ключи и маршруты остаются в базе. Установка возможна на пустую цель.</p>
       </div>}
       {!source.deployment && <p className="feature-hint">Для новой установки рекомендуется Docker + Caddy. Native и работа без Caddy доступны для явного выбора.</p>}

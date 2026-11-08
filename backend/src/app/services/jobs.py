@@ -181,9 +181,10 @@ class JobService:
         ):
             if not backup_id:
                 raise ValidationError(message_text(MessageKey.RESTORE_BACKUP_REQUIRED))
-            self.backups.content(backup_id)
             if action == JobAction.RESTORE:
                 self.backups.check_restore(node, backup_id)
+            else:
+                self.backups.content(backup_id)
         elif backup_id:
             raise ValidationError(message_text(MessageKey.BACKUP_ONLY_FOR_RESTORE))
         job = Job.create(node_id, action)
