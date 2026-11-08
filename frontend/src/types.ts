@@ -35,7 +35,7 @@ export interface JobOptions {
   xray?: { operation: 'balancer'; expected_fingerprint: string; tag: string; members: string[]; fallback_tag: string }
     | { operation: 'route'; expected_fingerprint: string; balancer_tag: string; rule_index?: number; inbounds: { id: number; expected_fingerprint: string }[] };
   wireguard?: { operation: 'create' | 'restore'; remark: string; domain: string; port: number;
-    mtu: number; dns: string; subnet: string; client_email: string; source_inbound_id?: number };
+    mtu: number; dns: string; subnet: string; client_email: string; source_inbound_id?: number; source_ipv6?: boolean };
   tunnel_restart?: { names: string[] };
   tunnel_route?: { kind: 'tunnel' | 'pool'; name: string; expected_exit_fingerprint: string; inbounds: { id: number; expected_fingerprint: string }[] };
   system_restore?: { expected_fingerprint: string };

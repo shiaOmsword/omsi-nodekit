@@ -136,7 +136,7 @@ function ImportModal({
   return (
     <Modal
       title="Загрузить бэкап"
-      description="База SQLite (.db) или архив ноды (.nodekit.zip). После загрузки проверяются структура, версия и целостность."
+      description="База 3x-ui / wg-easy v15 (.db) или архив ноды (.nodekit.zip). Для wg-easy нужен согласованный SQLite-снимок; перенос выполняется через Inbound → + WireGuard."
       busy={busy}
       onClose={onClose}
       footer={

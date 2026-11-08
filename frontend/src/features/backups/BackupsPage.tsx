@@ -23,7 +23,7 @@ export function BackupsPage({
     <>
       <PageHeading
         title="Бэкапы"
-        description="Проверенные снимки базы 3x-ui для скачивания и восстановления."
+        description="Снимки 3x-ui и wg-easy v15. Перенос wg-easy доступен в Inbound → + WireGuard на новой ноде."
         actions={
           <Button variant="primary" onClick={onImport} icon={<Upload size={18} />}>
             Загрузить бэкап
