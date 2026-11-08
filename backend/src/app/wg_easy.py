@@ -195,19 +195,23 @@ def read_wg_easy(path, source_ipv6=None):
                     "SELECT * FROM clients_table ORDER BY id LIMIT ?", (MAX_CLIENTS + 1,)
                 )
             ]
-            configs = {
-                r["id"]: dict(r)
+            config_rows = [
+                dict(r)
                 for r in db.execute("SELECT * FROM user_configs_table LIMIT ?", (MAX_INBOUNDS + 1,))
-            }
-            hooks = {
-                r["id"]: dict(r)
+            ]
+            hook_rows = [
+                dict(r)
                 for r in db.execute("SELECT * FROM hooks_table LIMIT ?", (MAX_INBOUNDS + 1,))
-            }
+            ]
+            configs = {r["id"]: r for r in config_rows}
+            hooks = {r["id"]: r for r in hook_rows}
         if not interfaces or len(interfaces) > MAX_INBOUNDS or len(clients) > MAX_CLIENTS:
             raise invalid()
         names = {i["name"] for i in interfaces}
         if (
             len(names) != len(interfaces)
+            or len(configs) != len(config_rows)
+            or len(hooks) != len(hook_rows)
             or set(configs) != names
             or set(hooks) != names
             or any(c["interface_id"] not in names for c in clients)
@@ -241,7 +245,7 @@ def convert(identifier, interface, config, hooks, peers, source_ipv6):
         raise invalid()
     subnet = ipaddress.IPv4Network(interface["ipv4_cidr"])
     subnet6 = ipaddress.IPv6Network(interface["ipv6_cidr"])
-    if not 16 <= subnet.prefixlen <= 29:
+    if not 1 <= subnet.prefixlen <= 30:
         raise invalid()
     server_key = key(interface["private_key"])
     server_public = key(interface["public_key"])
@@ -251,7 +255,7 @@ def convert(identifier, interface, config, hooks, peers, source_ipv6):
     integer(config["default_persistent_keepalive"], 0, 65535)
     port = integer(config["port"], 1, 65535)
     integer(interface["port"], 1, 65535)
-    enabled = bool(integer(interface["enabled"], 0, 1))
+    integer(interface["enabled"], 0, 1)
     blockers = set()
     if not default_hooks(hooks):
         blockers.add("server_hooks")
@@ -285,9 +289,11 @@ def convert(identifier, interface, config, hooks, peers, source_ipv6):
         original_name = text(peer["name"])
         email = original_name
         if not EMAIL.fullmatch(email) or counts[email.lower()] != 1:
-            email = f"wg-easy-{name}-{peer_id}"
+            base_email = email = f"wg-easy-{name}-{peer_id}"
+            suffix = 0
             while email.lower() in reserved:
-                email += "-wg"
+                suffix += 1
+                email = f"{base_email}-{suffix}"
         reserved.add(email.lower())
         address = ipaddress.IPv4Address(peer["ipv4_address"])
         address6 = ipaddress.IPv6Address(peer["ipv6_address"])
@@ -327,7 +333,7 @@ def convert(identifier, interface, config, hooks, peers, source_ipv6):
             if peer["allowed_ips"] is None
             else [str(ipaddress.ip_network(v)) for v in array(peer["allowed_ips"])]
         )
-        if routes != base_routes:
+        if set(routes) != set(base_routes):
             blockers.add("client_routes")
         if array(peer["server_allowed_ips"]):
             blockers.add("server_routes")
@@ -358,7 +364,8 @@ def convert(identifier, interface, config, hooks, peers, source_ipv6):
         "remark": f"wg-easy-{name}",
         "port": port,
         "interface": name,
-        "enable": enabled,
+        # wg-easy v15 does not apply interfaces_table.enabled to the running WG.
+        "enable": True,
         "endpoint": {"host": host, "port": port},
         "subnet": str(subnet),
         "ipv6_subnet": str(subnet6),
@@ -373,6 +380,7 @@ def convert(identifier, interface, config, hooks, peers, source_ipv6):
             "peers": [],
         },
         "clients": clients,
+        "server_public_key": server_public,
         "blockers": sorted(blockers),
     }
     source["migration"] = public_source(source)

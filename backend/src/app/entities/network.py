@@ -198,7 +198,7 @@ class WireGuardChange(StrictModel):
     subnet: str = "10.77.0.0/24"
     client_email: str = Field(default="client-wg", pattern=r"^[a-zA-Z0-9][a-zA-Z0-9_.@-]{0,79}$")
     source_inbound_id: int | None = Field(default=None, gt=0)
-    source_ipv6: bool | None = None
+    source_ipv6: bool | None = Field(default=None, strict=True)
 
     @model_validator(mode="after")
     def valid_wireguard(self):

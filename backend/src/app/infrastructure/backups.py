@@ -3,7 +3,10 @@ import tempfile
 from contextlib import closing
 from pathlib import Path
 
+from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
+
 from app.backup_clients import public_catalog, read_catalog
+from app.backup_wireguard import key_bytes
 from app.config import Limits
 from app.defaults import XUI_READ_DEFAULTS, XUI_SETTINGS_COLUMNS, XUI_TABLES
 from app.entities.panel import Panel
@@ -49,7 +52,23 @@ class XuiBackupValidator(BackupValidator):
                 if WG_EASY_TABLES <= tables:
                     if "inbounds" in tables or system_archive:
                         raise ValueError()
-                    read_wg_easy(path)
+                    for source in read_wg_easy(path):
+                        identities = [
+                            (source["settings"]["secretKey"], source["server_public_key"])
+                        ]
+                        identities += [
+                            (c["privateKey"], c["publicKey"])
+                            for c in source["clients"]
+                            if c.get("privateKey")
+                        ]
+                        for private, public in identities:
+                            derived = (
+                                X25519PrivateKey.from_private_bytes(key_bytes(private))
+                                .public_key()
+                                .public_bytes_raw()
+                            )
+                            if derived != key_bytes(public):
+                                raise ValueError()
                     return
                 self.snapshots.validate(
                     path,

@@ -197,7 +197,7 @@ MESSAGES = MappingProxyType(
         MessageKey.BACKUP_SQLITE_REQUIRED: "Upload a complete SQLite .db snapshot",
         MessageKey.BACKUP_MANIFEST_MISSING: "Backup manifest is not available",
         MessageKey.BACKUP_FILE_MISSING: "Backup file is missing",
-        MessageKey.BACKUP_SQLITE_INVALID: "Invalid 3x-ui SQLite snapshot",
+        MessageKey.BACKUP_SQLITE_INVALID: "Invalid or unsupported 3x-ui / wg-easy v15 SQLite snapshot",
         MessageKey.REMOTE_EVENT_PAYLOAD_INVALID: "Invalid remote event payload",
         MessageKey.REMOTE_EVENT_INVALID: "Invalid remote event",
         MessageKey.REMOTE_BACKUP_TOO_LARGE: "Remote backup exceeds configured size limit",

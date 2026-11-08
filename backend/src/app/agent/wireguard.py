@@ -83,6 +83,8 @@ class WireGuardManager:
                 source = select_wireguard(
                     path, request["source_inbound_id"], source_ipv6=request.get("source_ipv6")
                 )
+                if not source.get("migration"):
+                    self.database.validate(path)
             settings = copy.deepcopy(source["settings"])
             clients = copy.deepcopy(source["clients"])
             for index, client in enumerate(clients):
