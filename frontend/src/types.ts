@@ -214,7 +214,9 @@ export interface XrayRoutingFinding {
   balancers: { tag: string; selector: string[]; members: string[]; strategy: string; fallback_tag: string }[];
   rules: { index: number; inbound_tags: string[]; outbound_tag: string; balancer_tag: string; enabled: boolean; editable: boolean }[];
 }
+export interface RestoreProfile { base_path: string; subscription_path: string; }
 export interface InstallationReport {
+  panel_access?: { mode: 'disabled' | 'basic_auth' | 'ip_allowlist'; configured: boolean; backend_host: string; public_url: string | null };
   routing?: XrayRoutingFinding | null;
   ssh_exits?: SSHExitFinding[];
   network_benchmark?: BenchmarkReport | null;

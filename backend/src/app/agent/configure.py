@@ -11,8 +11,9 @@ from .attach_caddy import AttachmentCaddy
 from .caddy_reuse import ExistingCaddy
 from .native_release import NativeRelease
 from .node_network import NodeNetwork
+from .panel_access import panel_bind
 from .panel_api import InboundProvisioner, PanelAPI
-from .subscriptions import public_base, verify_caddy_upstream
+from .subscriptions import public_base, verify_caddy_upstream, verify_panel_upstream
 from .xhttp_manager import load_routes, render_managed_site
 
 
@@ -151,6 +152,7 @@ class ConfigureSubscriptions:
                 caddy = caddy_for(network.inspector)
                 caddy.preflight(previous_site, previous["caddy"]["domain"])
             control("stop")
+            self.host.require_endpoint(node["panel"]["port"], panel_bind(node))
             self.host.require_endpoint(
                 node["panel"]["subscription_port"], target["subscription_bind"]
             )
@@ -173,6 +175,7 @@ class ConfigureSubscriptions:
                 context.payload["files"]["Caddyfile.site"], load_routes(base)
             )
             caddy.apply(base, combined_site)
+            verify_panel_upstream(context, caddy.finding)
             links_file = base / "subscriptions.json"
             if links_file.exists():
                 links = json.loads(links_file.read_text())
@@ -250,7 +253,9 @@ class ConfigureSubscriptions:
 
     def _ready(self):
         for _ in range(self.context.policy["readiness_attempts"]):
-            if self.host.port_open(self.context.node["panel"]["port"]) and self.host.port_open(
+            if self.host.port_open(
+                self.context.node["panel"]["port"], panel_bind(self.context.node)
+            ) and self.host.port_open(
                 self.context.node["panel"]["subscription_port"],
                 self.context.node["deployment"]["subscription_bind"],
             ):

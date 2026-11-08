@@ -23,6 +23,7 @@ from framework.messages import text as message_text
 
 from .inbound_manager import managed_api
 from .inbound_meta import public_inbound
+from .panel_access import panel_bind
 from .subscriptions import public_base
 
 MAX_SUB_BODY = 1024 * 1024
@@ -202,7 +203,7 @@ class SubscriptionMaintenanceAgent:
         )
         for _ in range(25):
             try:
-                if self.host.port_open(context.node["panel"]["port"]):
+                if self.host.port_open(context.node["panel"]["port"], panel_bind(context.node)):
                     after = api.request(f"inbounds/get/{request['id']}")
                     if (
                         isinstance(after, dict)

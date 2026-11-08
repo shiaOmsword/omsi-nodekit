@@ -96,6 +96,9 @@ class BackupValidator(ABC):
     @abstractmethod
     def clients(self, content: bytes) -> dict: ...
 
+    @abstractmethod
+    def restore_profile(self, content: bytes) -> dict: ...
+
 
 class ArtifactRenderer(ABC):
     @abstractmethod

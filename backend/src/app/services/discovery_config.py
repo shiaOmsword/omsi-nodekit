@@ -57,7 +57,7 @@ class DiscoveryConfigService:
                 raise ValidationError(message_text(MessageKey.DISCOVERY_SELECTION_REQUIRED))
             panel.update(installation="managed", container=None, database_path=None)
             target = DeploymentTarget(
-                role=request.role, panel_runtime="native" if request.role == "exit" else "docker"
+                role=request.role, panel_runtime="docker", caddy_mode="docker"
             )
             if request.caddy_id:
                 candidates = [c for c in report.caddy if c.id == request.caddy_id]

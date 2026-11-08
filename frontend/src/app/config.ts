@@ -1,6 +1,10 @@
 import { parse, stringify } from 'yaml';
 import type { DeploymentTarget, Installation } from '../types';
 
+export interface PanelAccessConfig {
+  mode: 'disabled' | 'basic_auth' | 'ip_allowlist';
+  username?: string | null; password_hash?: string | null; allowed_ips?: string[];
+}
 export interface NodeConfig {
   id: string;
   name: string;
@@ -23,7 +27,7 @@ export interface NodeConfig {
     subscription_path?: string;
     [key: string]: unknown;
   };
-  caddy?: { enabled?: boolean; domain?: string; https_port?: number; [key: string]: unknown };
+  caddy?: { panel_access?: PanelAccessConfig; enabled?: boolean; domain?: string; https_port?: number; [key: string]: unknown };
   deployment?: DeploymentTarget | null;
   [key: string]: unknown;
 }
@@ -51,8 +55,8 @@ export function tryConfig(text: string): NodeConfig | null {
 }
 export const defaultTarget = (): DeploymentTarget => ({
   role: 'exit',
-  panel_runtime: 'native',
-  caddy_mode: 'none',
+  panel_runtime: 'docker',
+  caddy_mode: 'docker',
   caddy_id: null,
   subscription_bind: '127.0.0.1',
   install_docker: false,

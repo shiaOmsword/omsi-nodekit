@@ -181,6 +181,7 @@ class InstallationReport(Entity):
     caddy_attachment: Literal["ready", "required", "unknown"] = "unknown"
     firewall: FirewallFinding | None = None
     network_checks: list[EndpointCheck] = Field(default_factory=list)
+    panel_access: dict | None = None
     routing: dict | None = None
     egress: dict | None = None
     traffic_checks: list[EndpointCheck] = Field(default_factory=list)

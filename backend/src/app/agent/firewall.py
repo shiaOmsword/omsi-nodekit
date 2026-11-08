@@ -9,6 +9,7 @@ import socket
 from framework.messages import MessageKey
 from framework.messages import text as message_text
 
+from .panel_access import panel_bind
 from .subscriptions import public_base
 
 
@@ -268,6 +269,16 @@ def desired_rules(context, report, *, extra=()):
                         scope="subscription",
                     )
                 )
+                if panel_bind(context.node) == bind:
+                    desired.append(
+                        rule_spec(
+                            context.node["panel"]["port"],
+                            source=bridge["subnet"],
+                            destination=bind,
+                            interface=bridge["interface"],
+                            scope="panel",
+                        )
+                    )
     return list({json.dumps(r, sort_keys=True): r for r in desired}.values())
 
 

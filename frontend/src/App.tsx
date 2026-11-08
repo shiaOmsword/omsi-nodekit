@@ -25,6 +25,7 @@ import { InboundModal, ClientModal } from './features/nodes/InboundModal';
 import { WireGuardModal } from './features/nodes/WireGuardModal';
 import { XHTTPModal } from './features/nodes/XHTTPModal';
 import { BalancerModal } from './features/nodes/BalancerModal';
+import { PanelAccessModal } from './features/nodes/PanelAccessModal';
 import { TunnelPoolModal } from './features/nodes/TunnelPoolModal';
 import { parse, stringify } from 'yaml';
 import { TunnelRoutesModal } from './features/nodes/TunnelRoutesModal';
@@ -66,7 +67,8 @@ type ModalState =
   | { kind: 'create-key' }
   | { kind: 'key-result'; key: SSHKey }
   | { kind: 'assign-key'; keyId: string }
-  | { kind: 'deployment'; record: NodeRecord; report: InstallationReport | null }
+  | { kind: 'deployment'; record: NodeRecord; report: InstallationReport | null; backupId?: string }
+  | { kind: 'panel-access'; record: NodeRecord; report: InstallationReport }
   | { kind: 'tunnel'; record: NodeRecord; report: InstallationReport }
   | { kind: 'balancer'; record: NodeRecord; report: InstallationReport }
   | { kind: 'tunnel-routes'; record: NodeRecord; report: InstallationReport }
@@ -261,7 +263,7 @@ export default function App() {
   async function getRecord(job?: JobDetail) {
     return job ? api<NodeRecord>('/nodes/' + job.node_id) : w.selected;
   }
-  async function configure(job?: JobDetail) {
+  async function configure(job?: JobDetail, backupId?: string) {
     if (!requireSaved()) return;
     const record = await w.run(() => getRecord(job));
     if (!record) return;
@@ -269,7 +271,7 @@ export default function App() {
     const inventory = job?.report || reportJob?.report || null;
     const matches =
       inventory?.ssh_host === config.ssh.host && inventory?.ssh_port === (config.ssh.port || 22);
-    showModal({ kind: 'deployment', record, report: matches ? inventory : null });
+    showModal({ kind: 'deployment', record, report: matches ? inventory : null, backupId });
   }
   async function suggest(job: JobDetail) {
     if (!job.report || !requireSaved()) return;
@@ -307,7 +309,7 @@ export default function App() {
   async function preview(record: NodeRecord, action: Action, backupId: string | null = null, options?: JobOptions) {
     if (!requireSaved()) return;
     showModal({ kind: 'plan', record, action, backupId, plan: null, options });
-    const plan = await w.run(() => options ? api<Plan>('/nodes/' + record.id + '/plan', {
+    const plan = await w.run(() => options || action === 'restore' ? api<Plan>('/nodes/' + record.id + '/plan', {
       method: 'POST', body: JSON.stringify({ action, revision: record.revision, ...(backupId ? { backup_id: backupId } : {}), ...options }),
     }) : api<Plan>('/nodes/' + record.id + '/plan?action=' + action));
     if (plan) setModal({ kind: 'plan', record, action, backupId, plan, options });
@@ -423,12 +425,18 @@ export default function App() {
             onCreateKey={generateKey}
           />
         );
+      case 'panel-access':
+        return <PanelAccessModal {...common} record={modal.record} report={modal.report} onSave={async (yaml, action) => {
+          const saved = await w.run(() => w.saveNode(yaml, modal.record.id));
+          if (saved) await preview(saved, action);
+        }} />;
       case 'deployment':
         return (
           <DeploymentModal
             {...common}
             record={modal.record}
             report={modal.report}
+            backupId={modal.backupId}
             onSave={async (text) => {
               const saved = await w.run(() => w.saveNode(text, modal.record.id));
               if (saved) {
@@ -642,7 +650,10 @@ export default function App() {
             navigate={navigate}
             onEdit={editNode}
             onManage={() => w.selected && manageNode(w.selected)}
-            onDeployment={() => configure()}
+            onDeployment={(backupId) => configure(undefined, backupId)}
+            onPanelAccess={() => {
+              if (w.selected && reportJob?.report && requireSaved()) showModal({ kind: 'panel-access', record: w.selected, report: reportJob.report });
+            }}
             onInbound={(inbound, remove) => {
               if (w.selected && requireSaved()) showModal({ kind: 'inbound', record: w.selected, inbound, remove });
             }}

@@ -52,7 +52,7 @@ def saved_report(container, node_yaml, inventory):
     return job
 
 
-def test_caddy_without_panel_suggests_native_exit_and_preserves_credentials(container, node_yaml):
+def test_caddy_without_panel_suggests_docker_exit_and_preserves_credentials(container, node_yaml):
     inventory = report(
         caddy=[
             {
@@ -75,7 +75,7 @@ def test_caddy_without_panel_suggests_native_exit_and_preserves_credentials(cont
         DiscoverySelection(yaml=text, job_id=job.id, caddy_id="docker:abc")
     )
     node = container.resolve(NodeService).factory.from_yaml(result["yaml"])
-    assert node.deployment.panel_runtime == "native"
+    assert node.deployment.panel_runtime == "docker"
     assert node.deployment.caddy_mode == "existing"
     assert node.deployment.subscription_bind == "172.18.0.1"
     assert node.caddy.https_port == 443

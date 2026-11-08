@@ -7,6 +7,7 @@ from framework.messages import text as message_text
 
 from .context import AgentContext
 from .host import HostEnvironment
+from .panel_access import panel_bind
 
 
 class Diagnostics:
@@ -17,7 +18,7 @@ class Diagnostics:
     def check(self, node, base):
         failures = []
         panel = node["panel"]
-        url = f"http://127.0.0.1:{panel['port']}{panel['base_path']}"
+        url = f"http://{panel_bind(node)}:{panel['port']}{panel['base_path']}"
         try:
             opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
             with opener.open(url, timeout=self.context.policy["http_timeout"]) as response:

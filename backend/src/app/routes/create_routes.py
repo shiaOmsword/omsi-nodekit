@@ -155,6 +155,10 @@ class ApplicationRoutes:
             backup = await run_in_threadpool(self.backups.import_backup, bytes(content), filename)
             return Responses.success(backup)
 
+        @router.get("/backups/{backup_id}/restore-profile")
+        def restore_profile(backup_id: str) -> ApiResponse:
+            return Responses.success(self.backups.restore_profile(backup_id))
+
         @router.get("/backups/{backup_id}/wireguard")
         def wireguard_backup(backup_id: str) -> ApiResponse:
             return Responses.success(self.backups.wireguard(backup_id))

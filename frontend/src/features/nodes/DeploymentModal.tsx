@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
-import type { DeploymentTarget, InstallationReport, NodeRecord } from '../../types';
+import type { DeploymentTarget, InstallationReport, NodeRecord, RestoreProfile } from '../../types';
+import { api, getErrorMessage } from '../../api';
 import { defaultTarget, readConfig, writeConfig } from '../../app/config';
 import { Button, FormDialog, FormFields } from '../../framework/components';
 import type { FormField, FormValues } from '../../framework/components';
@@ -8,6 +9,7 @@ import type { FormField, FormValues } from '../../framework/components';
 export function DeploymentModal({
   record,
   report,
+  backupId,
   busy,
   error,
   onClose,
@@ -15,12 +17,26 @@ export function DeploymentModal({
 }: {
   record: NodeRecord;
   report: InstallationReport | null;
+  backupId?: string;
   busy: boolean;
   error: string;
   onClose: () => void;
   onSave: (yaml: string) => void;
 }) {
   const source = readConfig(record.yaml);
+  const [profile, setProfile] = useState<RestoreProfile | null>(null);
+  const [profileError, setProfileError] = useState('');
+  const [profileLoading, setProfileLoading] = useState(!!backupId);
+  useEffect(() => {
+    setProfile(null); setProfileError(''); setProfileLoading(!!backupId);
+    if (!backupId) return;
+    const controller = new AbortController();
+    api<RestoreProfile>('/backups/' + encodeURIComponent(backupId) + '/restore-profile', { signal: controller.signal })
+      .then(result => { if (!controller.signal.aborted) setProfile(result); })
+      .catch(error => { if (!controller.signal.aborted) setProfileError(getErrorMessage(error)); })
+      .finally(() => { if (!controller.signal.aborted) setProfileLoading(false); });
+    return () => controller.abort();
+  }, [backupId]);
   const observed = new Set(report?.panels.flatMap((p) => (p.inbounds || []).map((i) => i.nodekit_name ||
     (i.remark.startsWith('nodekit:' + record.id + ':') ? i.remark.slice(('nodekit:' + record.id + ':').length) : ''))) || []);
   const [target, setTarget] = useState<DeploymentTarget>(
@@ -65,8 +81,8 @@ export function DeploymentModal({
       disabled: installed,
       hint: installed ? 'Панель уже установлена. Эта операция не переносит её между Docker и systemd.' : undefined,
       options: [
+        { value: 'docker', label: 'Docker Compose · рекомендуется' },
         { value: 'native', label: 'В системе · systemd' },
-        { value: 'docker', label: 'Docker Compose' },
       ],
     },
     { name: 'subscription_port', label: 'Внутренний порт подписок 3x-ui', type: 'number',
@@ -132,7 +148,6 @@ export function DeploymentModal({
   function change(name: string, value: string | boolean) {
     setValues((v) => {
       const next = { ...v, [name]: value };
-      if (name === 'role' && !installed) next.runtime = value === 'exit' ? 'native' : 'docker';
       if (name === 'caddy_id') {
         const proxy = proxies.find((p) => p.id === value);
         if (
@@ -175,6 +190,7 @@ export function DeploymentModal({
     }));
   }
   function submit() {
+    if (backupId && !profile) return;
     const data = readConfig(record.yaml);
     const proxy = proxies.find((p) => p.id === values.caddy_id);
     const bind =
@@ -199,10 +215,11 @@ export function DeploymentModal({
       manage_caddy_ports: !!values.manage_caddy_ports,
     };
     data.panel = { ...data.panel, installation: 'managed', container: null, database_path: null,
-      subscription_port: Number(values.subscription_port) };
+      subscription_port: Number(values.subscription_port), ...(profile || {}) };
     data.caddy = {
       ...data.caddy,
       enabled: values.caddy !== 'none',
+      ...(values.caddy === 'none' ? { panel_access: { mode: 'disabled' as const } } : {}),
       domain: String(values.domain) || 'vpn.example.com',
       https_port: Number(values.https_port),
     };
@@ -212,17 +229,23 @@ export function DeploymentModal({
   }
   return (
     <FormDialog
-      title="Параметры установки"
+      title={backupId ? "Параметры восстановления" : "Параметры установки"}
       description={record.name + (installed ? ' · настройки установленной панели' : ' · новая установка или восстановление')}
       fields={fields}
       values={values}
       onChange={change}
       onSubmit={submit}
       onClose={onClose}
-      busy={busy}
-      error={error}
+      busy={busy || profileLoading}
+      error={error || profileError}
       submit="Сохранить параметры"
     >
+      {!installed && <p><Button onClick={() => setValues(v => ({ ...v, runtime: 'docker', caddy: v.caddy === 'existing' && selectedProxy?.active ? 'existing' : 'docker' }))}>Docker + Caddy · рекомендуемый вариант</Button></p>}
+      {backupId && <div className="form-section"><h3>Пути из выбранного бэкапа</h3>
+        {profile ? <p>Панель: <code>{profile.base_path}</code> · подписки: <code>{profile.subscription_path}</code>. Сохраняются для совместимости с существующими ссылками.</p> : <p>{profileLoading ? 'Читаю пути из выбранного бэкапа…' : 'Не удалось получить пути; сохранение заблокировано до успешного чтения выбранного бэкапа.'}</p>}
+        <p className="feature-hint">Источник SQLite может быть native или Docker. Окружение назначения выбирается выше; клиенты, WG-ключи и маршруты остаются в базе. Установка возможна на пустую цель.</p>
+      </div>}
+      {!source.deployment && <p className="feature-hint">Для новой установки рекомендуется Docker + Caddy. Native и работа без Caddy доступны для явного выбора.</p>}
       {values.caddy !== 'none' && <div className="form-section">
         <h3>Публичный адрес подписок</h3>
         <code className="subscription-template">https://{String(values.domain) || 'домен'}{Number(values.https_port) === 443 ? '' : ':' + values.https_port}{source.panel?.subscription_path || '/sub/'}&lt;ID подписки&gt;</code>

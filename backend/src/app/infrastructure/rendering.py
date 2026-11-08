@@ -1,6 +1,7 @@
 import json
 
 from app.agent.caddy_config import standalone_config, subscription_site
+from app.agent.panel_access import panel_bind, panel_url
 from app.config import DeploymentSettings, SSHSettings
 from app.entities import Node
 from app.ports import ArtifactRenderer
@@ -262,6 +263,19 @@ WantedBy=multi-user.target
             "system_restore",
         }:
             steps.append(message_text(MessageKey.PLAN_READ_ONLY))
+        if action in {"fresh", "restore", "configure", "attach_caddy"}:
+            access = node.caddy.panel_access
+            steps.append(
+                message_text(
+                    MessageKey.PANEL_ACCESS_PLAN,
+                    mode=access.mode,
+                    url=panel_url(node.export_config())
+                    if access.mode != "disabled"
+                    else "SSH only",
+                    host=panel_bind(node.export_config()),
+                    port=node.panel.port,
+                )
+            )
         return {
             "action": action,
             "remote_dir": self.remote_dir(node),

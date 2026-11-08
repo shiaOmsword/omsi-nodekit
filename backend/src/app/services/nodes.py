@@ -86,6 +86,22 @@ class NodeService:
         stored = self.nodes.get(node_id)
         if stored.revision != request.revision:
             raise ConflictError(message_text(MessageKey.CONFIGURATION_CHANGED))
+        if request.action == JobAction.RESTORE:
+            if not request.backup_id:
+                raise ValidationError(message_text(MessageKey.RESTORE_BACKUP_REQUIRED))
+            node = self.factory.from_yaml(stored.yaml)
+            self.backups.check_restore(node, request.backup_id)
+            plan = self.preview(node_id, request.action)
+            plan["steps"].append(
+                message_text(
+                    MessageKey.RESTORE_ENV_PLAN,
+                    runtime=node.deployment.panel_runtime if node.deployment else "docker",
+                    caddy=node.deployment.caddy_mode
+                    if node.deployment
+                    else ("docker" if node.caddy.enabled else "none"),
+                )
+            )
+            return plan
         if request.action not in {
             JobAction.INBOUND,
             JobAction.TRAFFIC,

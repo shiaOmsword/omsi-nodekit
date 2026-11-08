@@ -60,6 +60,17 @@ class BackupService:
             database_content(self.content(backup_id), self.limits.backup_bytes)
         )
 
+    def restore_profile(self, backup_id):
+        return self.validator.restore_profile(
+            database_content(self.content(backup_id), self.limits.backup_bytes)
+        )
+
+    def check_restore(self, node, backup_id):
+        profile = self.restore_profile(backup_id)
+        if any(getattr(node.panel, key) != value for key, value in profile.items()):
+            raise ValidationError(message_text(MessageKey.RESTORE_PROFILE_MISMATCH))
+        return profile
+
     def system_summary(self, backup_id):
         try:
             _, system = unpack(self.content(backup_id), self.limits.backup_bytes)

@@ -15,8 +15,9 @@ from framework.messages import text as message_text
 from .caddy_reuse import ExistingCaddy
 from .native_release import NativeRelease, architecture
 from .node_network import NodeNetwork
+from .panel_access import panel_bind
 from .panel_api import InboundProvisioner, PanelAPI
-from .subscriptions import preflight_caddy_network, verify_caddy_upstream
+from .subscriptions import preflight_caddy_network, verify_caddy_upstream, verify_panel_upstream
 
 
 class AdaptiveDeployment:
@@ -82,7 +83,7 @@ class AdaptiveDeployment:
         if caddy:
             caddy.preflight(allow_unpublished=bool(network.ports.missing))
         for port, bind in [
-            (node["panel"]["port"], "127.0.0.1"),
+            (node["panel"]["port"], panel_bind(node)),
             (node["panel"]["subscription_port"], target["subscription_bind"]),
         ]:
             self.host.require_endpoint(port, bind)
@@ -173,7 +174,7 @@ class AdaptiveDeployment:
             self.database.configure_listeners(db_path, node, action == "restore")
             db_path.chmod(0o600)
             # Recheck all endpoints immediately before starting owned services.
-            self.host.require_endpoint(node["panel"]["port"], "127.0.0.1")
+            self.host.require_endpoint(node["panel"]["port"], panel_bind(node))
             self.host.require_endpoint(
                 node["panel"]["subscription_port"], target["subscription_bind"]
             )
@@ -204,7 +205,9 @@ class AdaptiveDeployment:
                     )
                 context.command(compose + ["up", "-d"], timeout=context.policy["startup_timeout"])
             for _ in range(context.policy["readiness_attempts"]):
-                if self.host.port_open(node["panel"]["port"]) and self.host.port_open(
+                if self.host.port_open(
+                    node["panel"]["port"], panel_bind(node)
+                ) and self.host.port_open(
                     node["panel"]["subscription_port"], target["subscription_bind"]
                 ):
                     break
@@ -217,6 +220,7 @@ class AdaptiveDeployment:
             if caddy:
                 verify_caddy_upstream(context, caddy.finding)
                 caddy.apply(base, context.payload["files"]["Caddyfile.site"])
+                verify_panel_upstream(context, caddy.finding)
             (base / "manifest.json").write_text(
                 json.dumps({"node": node, "action": action}, indent=2)
             )
