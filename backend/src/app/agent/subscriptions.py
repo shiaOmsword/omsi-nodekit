@@ -12,6 +12,8 @@ from urllib.parse import urlsplit
 from framework.messages import MessageKey
 from framework.messages import text as message_text
 
+from .panel_access import panel_bind
+
 
 def public_base(node):
     caddy, panel = node["caddy"], node["panel"]
@@ -79,6 +81,24 @@ def verify_caddy_upstream(context, proxy):
         raise RuntimeError(
             message_text(MessageKey.SUBSCRIPTION_PROBE_FAILED, host=host, port=port)
         ) from exc
+
+
+def verify_panel_upstream(context, proxy):
+    if (context.node["caddy"].get("panel_access") or {}).get("mode", "disabled") == "disabled":
+        return
+    try:
+        status = caddy_status(
+            context,
+            proxy,
+            panel_bind(context.node),
+            context.node["panel"]["port"],
+            context.node["panel"]["base_path"],
+        )
+        if status != 200:
+            raise ValueError()
+    except (OSError, ValueError, RuntimeError, http.client.HTTPException) as exc:
+        raise RuntimeError(message_text(MessageKey.PANEL_ACCESS_FAILED)) from exc
+    context.emit(message_text(MessageKey.PANEL_ACCESS_READY))
 
 
 def preflight_caddy_network(context, proxy):

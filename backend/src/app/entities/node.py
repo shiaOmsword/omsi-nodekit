@@ -31,6 +31,15 @@ class Node(StrictModel):
 
     @model_validator(mode="after")
     def no_collisions(self):
+        if self.caddy.panel_access.mode != "disabled":
+            if (
+                self.panel.installation != "managed"
+                or not self.caddy.enabled
+                or not self.deployment
+                or self.deployment.caddy_mode == "none"
+                or self.panel.base_path.startswith(self.panel.subscription_path)
+            ):
+                raise ValueError(message_text(MessageKey.PANEL_ACCESS_INVALID))
         if self.panel.installation != "managed":
             return self
         names = [t.name for t in self.tunnels]

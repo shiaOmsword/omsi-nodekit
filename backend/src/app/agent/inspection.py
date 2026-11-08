@@ -9,6 +9,7 @@ from .caddy import CaddyInspector
 from .discovery import SystemInventory
 from .egress import routing_inventory
 from .firewall import inspect_firewall, network_checks, public_firewall
+from .panel_access import access_status
 from .panels import PanelInspector
 from .preflight import PrerequisiteInspector
 from .ssh_routes import exit_inventory
@@ -48,6 +49,7 @@ class InstallationInspector:
             self.report["warnings"].append(message_text(MessageKey.INSPECTION_MULTIPLE))
         self.report["firewall"] = public_firewall(inspect_firewall(self.context))
         self.report["network_checks"] = network_checks(self.context, self.report)
+        self.report["panel_access"] = access_status(self.context, self)
         self.report["egress"] = routing_inventory(self.context, self)
         self.report["routing"] = saved_routing_inventory(self.context, self)
         self.report["ssh_exits"] = exit_inventory(self.context, self)

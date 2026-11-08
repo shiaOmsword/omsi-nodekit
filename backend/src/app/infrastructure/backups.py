@@ -1,10 +1,12 @@
 import sqlite3
 import tempfile
+from contextlib import closing
 from pathlib import Path
 
 from app.backup_clients import public_catalog, read_catalog
 from app.config import Limits
-from app.defaults import XUI_SETTINGS_COLUMNS, XUI_TABLES
+from app.defaults import XUI_READ_DEFAULTS, XUI_SETTINGS_COLUMNS, XUI_TABLES
+from app.entities.panel import Panel
 from app.ports import BackupFiles, BackupValidator
 from app.system_backup import database_content
 from framework.database import SQLiteSnapshots
@@ -51,6 +53,31 @@ class XuiBackupValidator(BackupValidator):
                 return public_catalog(read_catalog(source))
             except (sqlite3.DatabaseError, ValueError, TypeError, KeyError) as exc:
                 raise ValidationError(message_text(MessageKey.BACKUP_CLIENTS_INVALID)) from exc
+
+    def restore_profile(self, content: bytes) -> dict:
+        with tempfile.TemporaryDirectory(prefix="nodekit-restore-profile-") as folder:
+            source = Path(folder) / "source.db"
+            source.write_bytes(content)
+            try:
+                with closing(
+                    sqlite3.connect(source.resolve().as_uri() + "?mode=ro", uri=True)
+                ) as db:
+                    settings = dict(
+                        db.execute(
+                            "SELECT key,value FROM settings WHERE key IN (?,?)",
+                            ("webBasePath", "subPath"),
+                        )
+                    )
+                return {
+                    "base_path": Panel.safe_url_path(
+                        settings.get("webBasePath", XUI_READ_DEFAULTS["webBasePath"])
+                    ),
+                    "subscription_path": Panel.safe_url_path(
+                        settings.get("subPath", XUI_READ_DEFAULTS["subPath"])
+                    ),
+                }
+            except (sqlite3.DatabaseError, ValueError, TypeError) as exc:
+                raise ValidationError(message_text(MessageKey.RESTORE_PROFILE_INVALID)) from exc
 
 
 class LocalBackupFiles(BackupFiles):

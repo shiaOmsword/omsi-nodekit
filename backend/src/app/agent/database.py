@@ -7,6 +7,7 @@ from framework.messages import MessageKey
 from framework.messages import text as message_text
 
 from .context import AgentContext
+from .panel_access import panel_bind
 from .subscriptions import public_base
 
 
@@ -23,6 +24,7 @@ class PanelDatabase:
 
     def configure_subscriptions(self, path, node):
         changes = {
+            "webListen": panel_bind(node),
             "subListen": node["deployment"]["subscription_bind"],
             "subPort": str(node["panel"]["subscription_port"]),
             "subPath": node["panel"]["subscription_path"],
@@ -54,7 +56,7 @@ class PanelDatabase:
     def configure_listeners(self, path, node, restoring):
         panel = node["panel"]
         changes = {
-            "webListen": "127.0.0.1",
+            "webListen": panel_bind(node),
             "webPort": str(panel["port"]),
             "webCertFile": "",
             "webKeyFile": "",

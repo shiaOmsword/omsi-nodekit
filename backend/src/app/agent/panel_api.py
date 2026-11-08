@@ -11,6 +11,7 @@ from urllib.parse import urlencode
 from framework.messages import MessageKey
 from framework.messages import text as message_text
 
+from .panel_access import panel_bind
 from .subscriptions import public_base
 
 
@@ -23,7 +24,9 @@ class PanelAPI:
     def __init__(self, context, token):
         self.context = context
         panel = context.node["panel"]
-        self.base = f"http://127.0.0.1:{panel['port']}{panel['base_path']}panel/api/"
+        self.base = (
+            f"http://{panel_bind(context.node)}:{panel['port']}{panel['base_path']}panel/api/"
+        )
         self.token = token
         self.opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoAPIRedirect())
 

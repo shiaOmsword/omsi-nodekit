@@ -26,7 +26,7 @@ panel:
   subscription_path: /sub/  # must match the backup when restoring
 
 caddy:
-  enabled: false  # controls creation; existing Caddy is discovered independently
+  enabled: true  # existing Caddy is discovered independently
   # service: caddy
   # config_path: /etc/caddy/Caddyfile  # existing config (container path in Docker)
   image: caddy:2.10.2-alpine
@@ -60,3 +60,11 @@ probe: null
 # probe:
 #   socks_port: 10808
 #   url: https://www.cloudflare.com/cdn-cgi/trace
+
+# Destination runtime is independent of the SQLite backup source.
+deployment:
+  role: ingress
+  panel_runtime: docker
+  caddy_mode: docker
+  subscription_bind: 127.0.0.1
+  install_docker: false
