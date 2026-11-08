@@ -54,10 +54,10 @@ test('an unselected existing panel still requires explicit selection', () => {
   assert.ok(html.includes(messages.report.notSelected));
 });
 
-test('deployment modal keeps native exit defaults and no invented REALITY identity', () => {
+test('deployment modal recommends Docker and Caddy without inventing REALITY identity', () => {
   const target = defaultTarget();
-  assert.equal(target.panel_runtime, 'native');
-  assert.equal(target.caddy_mode, 'none');
+  assert.equal(target.panel_runtime, 'docker');
+  assert.equal(target.caddy_mode, 'docker');
   assert.deepEqual(target.inbounds, []);
   const html = renderToStaticMarkup(
     React.createElement(DeploymentModal, {
@@ -69,7 +69,7 @@ test('deployment modal keeps native exit defaults and no invented REALITY identi
       onSave: noop,
     }),
   );
-  assert.match(html, /value="native" selected=""/);
+  assert.match(html, /value="docker" selected=""/);
   assert.ok(html.includes('Параметры установки'));
   assert.ok(html.includes('Сохранить параметры'));
   assert.ok(html.includes('Inbound не заданы'));

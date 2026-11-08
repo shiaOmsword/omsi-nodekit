@@ -26,6 +26,7 @@ import { JobTable } from '../operations/JobTable';
 import { InboundReport, SubscriptionReport } from './SubscriptionReport';
 import { NetworkBenchmarkPanel } from './NetworkBenchmarkPanel';
 import type { BenchmarkProfile } from '../../types';
+import { PanelAccessReport } from './PanelAccessReport';
 import { NetworkReport } from './NetworkReport';
 
 const actionIcons = {
@@ -63,6 +64,7 @@ export function NodePage({
   onEdit,
   onManage,
   onDeployment,
+  onPanelAccess,
   onSuggest,
   onPlan,
   onImport,
@@ -90,7 +92,8 @@ export function NodePage({
   navigate: (path: string) => void;
   onEdit: () => void;
   onManage: () => void;
-  onDeployment: () => void;
+  onDeployment: (backupId?: string) => void;
+  onPanelAccess: () => void;
   onSuggest: (job: JobDetail) => void;
   onPlan: (action: Action, backupId?: string) => void;
   onImport: (done?: (backup: Backup) => void) => void;
@@ -367,7 +370,7 @@ export function NodePage({
                           : 'Выбери способ установки и HTTPS-сценарий.'}
                       </p>
                     </div>
-                    <Button onClick={onDeployment} disabled={w.busy || w.dirty}>
+                    <Button onClick={() => onDeployment(action === 'restore' ? backupId : undefined)} disabled={w.busy || w.dirty}>
                       Настроить
                     </Button>
                   </div>
@@ -414,7 +417,7 @@ export function NodePage({
                   : action === 'configure'
                     ? 'Только установленная Nodekit панель с общим Caddy. Панель и Xray перезапустятся; активные VPN-соединения могут прерваться. Существующие inbound и клиенты сохраняются. Перед применением проверь параметры и план.'
                   : action === 'restore'
-                    ? 'SQLite-бэкап сохраняет базу и клиентов, но не systemd-туннели, Caddy routes и Nodekit ownership. Восстановление доступно только на пустой цели.'
+                    ? 'Способ установки назначения выбирается независимо от бэкапа: исходную native-панель можно восстановить в Docker + Caddy. Сначала выбери бэкап, затем открой параметры восстановления для сохранения его путей. Клиенты и WG-ключи сохраняются; цель должна быть пустой.'
                     : action === 'fresh'
                       ? 'Новая установка требует пустой цели. Перед запуском будет повторная проверка сервисов и портов.'
                       : 'Операция читает конфигурацию сервера и не перенастраивает сервисы.'}
@@ -458,7 +461,7 @@ export function NodePage({
                 <h2>Развёртывание</h2>
                 <p>3x-ui, Caddy и межсерверные inbound.</p>
               </div>
-              <Button disabled={w.busy || w.dirty} onClick={onDeployment}>
+              <Button disabled={w.busy || w.dirty} onClick={() => onDeployment(action === 'restore' ? backupId : undefined)}>
                 Настроить
               </Button>
             </section>
@@ -504,10 +507,10 @@ export function NodePage({
         </>
       )}
       {route.tab === 'inbounds' && <section className="card"><div className="section-heading"><div><h2>Inbound ноды</h2><p>Изменение порта, SNI и названия; проверка трафика и управление UFW.</p></div>
-        <div className="row-actions"><Button disabled={locked} onClick={() => onPlan('check')}>Обновить</Button><Button disabled={locked || !canDeploy || !report || !caddyReady || config?.deployment?.caddy_mode !== 'existing'} onClick={() => onXHTTP()}>+ VLESS / XHTTP</Button><Button disabled={locked || !canDeploy || !report} onClick={() => onWireGuard()}>+ WireGuard</Button><Button variant="primary" disabled={locked || !canDeploy} onClick={onDeployment}>+ VLESS / REALITY</Button></div></div>
+        <div className="row-actions"><Button disabled={locked} onClick={() => onPlan('check')}>Обновить</Button><Button disabled={locked || !canDeploy || !report || !caddyReady || config?.deployment?.caddy_mode !== 'existing'} onClick={() => onXHTTP()}>+ VLESS / XHTTP</Button><Button disabled={locked || !canDeploy || !report} onClick={() => onWireGuard()}>+ WireGuard</Button><Button variant="primary" disabled={locked || !canDeploy} onClick={() => onDeployment(action === 'restore' ? backupId : undefined)}>+ VLESS / REALITY</Button></div></div>
         {config?.deployment?.caddy_mode !== 'existing' ? <div className="info-banner">
           <span>Для XHTTP выбери существующий Caddy в параметрах развёртывания.</span>
-          <Button disabled={locked} onClick={onDeployment}>Настроить Caddy</Button>
+          <Button disabled={locked} onClick={() => onDeployment(action === 'restore' ? backupId : undefined)}>Настроить Caddy</Button>
         </div> : attachmentNeeded ? <div className="info-banner">
           <span>Caddy выбран в настройках, но ещё не подключён к установленной панели. Сначала подключи его, затем создай XHTTP.</span>
           <Button disabled={locked || !canDeploy} onClick={() => onPlan('attach_caddy')}>Подключить Caddy</Button>
@@ -516,6 +519,7 @@ export function NodePage({
           onEdit={panel.installation === 'managed' ? (item) => item.protocol === 'wireguard' ? onWireGuard(item) : item.network === 'xhttp' ? onXHTTP(item) : onInbound(item, false) : undefined}
           onDelete={(item) => onInbound(item, true)} onTest={onTraffic} onClient={onClient} onPublish={onPublishXHTTP} onRestoreClients={onRestoreClients} />) :
           <EmptyState title="Нужен актуальный отчёт выбранной панели" description="Запусти обнаружение и выбери установку 3x-ui." />}</div></section>}
+      {route.tab === 'overview' && <PanelAccessReport record={node} report={report} locked={locked} onSettings={onPanelAccess} />}
       {route.tab === 'tunnels' && <section className="card">
         <div className="section-heading">
           <div><h2>SSH-туннели</h2><p>Отдельные процессы systemd, локальные TCP-порты и маршруты Xray. Состояние службы не равно проверке выхода.</p></div>
