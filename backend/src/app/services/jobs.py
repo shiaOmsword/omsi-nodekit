@@ -183,6 +183,12 @@ class JobService:
                 raise ValidationError(message_text(MessageKey.RESTORE_BACKUP_REQUIRED))
             if action == JobAction.RESTORE:
                 self.backups.check_restore(node, backup_id)
+            elif action == JobAction.WIREGUARD:
+                self.backups.wireguard_source(
+                    backup_id,
+                    options["wireguard"]["source_inbound_id"],
+                    options["wireguard"].get("source_ipv6"),
+                )
             else:
                 self.backups.content(backup_id)
         elif backup_id:

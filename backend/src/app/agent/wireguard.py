@@ -9,7 +9,7 @@ import uuid
 from pathlib import Path
 from urllib.parse import quote
 
-from app.backup_wireguard import client_identity, key_bytes, read_wireguard
+from app.backup_wireguard import client_identity, key_bytes, select_wireguard
 from framework.messages import MessageKey
 from framework.messages import text as message_text
 
@@ -79,13 +79,12 @@ class WireGuardManager:
             with tempfile.TemporaryDirectory(prefix="nodekit-wg-") as folder:
                 path = Path(folder) / "x-ui.db"
                 path.write_bytes(raw)
-                self.database.validate(path)
-                source = next(
-                    (i for i in read_wireguard(path) if i["id"] == request["source_inbound_id"]),
-                    None,
+                context.snapshots.validate(path)
+                source = select_wireguard(
+                    path, request["source_inbound_id"], source_ipv6=request.get("source_ipv6")
                 )
-            if not source:
-                raise RuntimeError(message_text(MessageKey.WIREGUARD_BACKUP_INVALID))
+                if not source.get("migration"):
+                    self.database.validate(path)
             settings = copy.deepcopy(source["settings"])
             clients = copy.deepcopy(source["clients"])
             for index, client in enumerate(clients):
@@ -145,7 +144,7 @@ class WireGuardManager:
         identifier = None
         proposed = {
             "remark": request["remark"],
-            "enable": True,
+            "enable": source.get("enable", True) if request["operation"] == "restore" else True,
             "listen": "0.0.0.0",
             "port": request["port"],
             "protocol": "wireguard",

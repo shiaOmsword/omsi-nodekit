@@ -99,6 +99,23 @@ class BackupService:
         except Exception as exc:
             raise ValidationError(message_text(MessageKey.WIREGUARD_BACKUP_INVALID)) from exc
 
+    def wireguard_source(self, backup_id, identifier, source_ipv6=None):
+        import tempfile
+        from pathlib import Path
+
+        from app.backup_wireguard import public_catalog, select_wireguard
+
+        try:
+            with tempfile.TemporaryDirectory(prefix="nodekit-wg-source-") as folder:
+                path = Path(folder) / "source.db"
+                path.write_bytes(
+                    database_content(self.content(backup_id), self.limits.backup_bytes)
+                )
+                source = select_wireguard(path, identifier, source_ipv6=source_ipv6)
+                return public_catalog([source])[0]
+        except ValueError as exc:
+            raise ValidationError(str(exc)) from exc
+
     def download(self, backup_id: str, *, manifest=False):
         metadata = self.backups.get(backup_id)
         path = self.files.path(backup_id, manifest=manifest)

@@ -149,6 +149,31 @@ class NodeService:
             if request.tunnel.name not in available or not set(request.tunnel.members) <= available:
                 raise ValidationError(message_text(MessageKey.TUNNEL_CONFIG_INVALID))
         plan = self.renderer.plan(node, request.action)
+        if request.action == JobAction.WIREGUARD and request.wireguard.operation == "restore":
+            source = self.backups.wireguard_source(
+                request.backup_id,
+                request.wireguard.source_inbound_id,
+                request.wireguard.source_ipv6,
+            )
+            plan["steps"].append(
+                message_text(
+                    MessageKey.WIREGUARD_SOURCE_PLAN,
+                    name=source["remark"],
+                    count=source["client_count"],
+                )
+            )
+            if source.get("source_format") == "wg-easy-v15":
+                old = source["endpoint"]
+                plan["steps"].append(
+                    message_text(
+                        MessageKey.WG_EASY_ENDPOINT_PLAN,
+                        old_host=old["host"],
+                        old_port=old["port"],
+                        host=request.wireguard.domain,
+                        port=request.wireguard.port,
+                    )
+                )
+                plan["steps"].append(message_text(MessageKey.WG_EASY_ROUTING_PLAN))
         if request.action == JobAction.TUNNEL_ROUTE:
             route = request.tunnel_route
             if route.kind == "tunnel" and route.name not in {t.name for t in node.tunnels}:

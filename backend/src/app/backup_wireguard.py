@@ -32,7 +32,7 @@ def key_bytes(value):
 
 
 def client_identity(client):
-    result = {k: client.get(k, "") or "" for k in ("email", "subId")}
+    result = {k: client.get(k, "") or "" for k in ("email", "subId", "comment")}
     result.update(
         {
             k: key_bytes(client[k]) if client.get(k) else None
@@ -101,10 +101,17 @@ def normalized_clients(db, identifier, settings):
     return clients
 
 
-def read_wireguard(path):
+def read_wireguard(path, *, source_ipv6=None):
     with closing(sqlite3.connect(Path(path).resolve().as_uri() + "?mode=ro", uri=True)) as db:
         db.row_factory = sqlite3.Row
         db.execute("PRAGMA query_only=ON")
+        tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        from app.wg_easy import TABLES, read_wg_easy
+
+        if TABLES <= tables:
+            if "inbounds" in tables:
+                raise ValueError(message_text(MessageKey.WIREGUARD_BACKUP_INVALID))
+            return read_wg_easy(path, source_ipv6)
         rows = db.execute(
             "SELECT id,remark,port,settings FROM inbounds WHERE protocol='wireguard' "
             "ORDER BY id LIMIT ?",
@@ -144,6 +151,28 @@ def read_wireguard(path):
         return result
 
 
+def select_wireguard(path, identifier, *, source_ipv6=None):
+    source = next(
+        (row for row in read_wireguard(path, source_ipv6=source_ipv6) if row["id"] == identifier),
+        None,
+    )
+    if source is None:
+        raise ValueError(message_text(MessageKey.WIREGUARD_BACKUP_INVALID))
+    migration = source.get("migration")
+    if migration:
+        if migration["blockers"]:
+            raise ValueError(
+                message_text(
+                    MessageKey.WG_EASY_UNSUPPORTED, fields=", ".join(migration["blockers"])
+                )
+            )
+        if type(source_ipv6) is not bool:
+            raise ValueError(message_text(MessageKey.WG_EASY_IPV6_REQUIRED))
+    elif source_ipv6 is not None:
+        raise ValueError(message_text(MessageKey.WIREGUARD_BACKUP_INVALID))
+    return source
+
+
 def public_catalog(rows):
     return [
         {
@@ -152,9 +181,23 @@ def public_catalog(rows):
             "port": row["port"],
             "client_count": len(row["clients"]),
             "clients": [
-                {"email": c.get("email", ""), "has_private_key": bool(c.get("privateKey"))}
+                {
+                    "email": c.get("email", ""),
+                    "has_private_key": bool(c.get("privateKey")),
+                    **(
+                        {
+                            "name": c.get("comment", ""),
+                            "enabled": c.get("enable", True),
+                            "addresses": c.get("allowedIPs", []),
+                            "expiry_time": c.get("expiryTime", 0),
+                        }
+                        if row.get("migration")
+                        else {}
+                    ),
+                }
                 for c in row["clients"]
             ],
+            **row.get("migration", {}),
         }
         for row in rows
     ]
