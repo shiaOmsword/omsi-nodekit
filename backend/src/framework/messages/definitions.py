@@ -137,6 +137,8 @@ MESSAGES = MappingProxyType(
         MessageKey.SUB_CACHE_AUDIT_COMPLETE: "Subscription audit complete; no service or cache was modified",
         MessageKey.SUBSCRIPTION_CHECK: "Subscription / {name}: {state}; {detail}",
         MessageKey.SUBSCRIPTION_CONFIGURE_PLAN: "Verify ownership and the unchanged saved Caddy site; snapshot SQLite; briefly stop only this panel, apply subscription settings and restart it; verify HTTP from Caddy; replace only this node's site; create only missing requested inbounds/clients; restore settings and the site on failure",
+        MessageKey.CONFIGURE_PREFLIGHT_CONFLICT: "Configuration conflict: {fields}.",
+        MessageKey.CONFIGURE_PREFLIGHT_UNREADABLE: "Configuration preflight cannot read or validate {resource}. No services or configuration were changed",
         MessageKey.SUBSCRIPTION_CONFIGURE_GUARD: "Subscription configuration requires an active Nodekit-managed panel, its original manifest and saved Caddy site, and the same runtime, image, admin endpoint, subscription path and shared Caddy instance. Use a separate operation for migration",
         MessageKey.SUBSCRIPTION_CONFIGURED: "Subscription settings applied; existing inbounds, client identities and other Caddy sites preserved",
         MessageKey.INBOUNDS_UNREADABLE: "Inbound inventory is unavailable or exceeds the discovery limit; no client or inbound was changed",

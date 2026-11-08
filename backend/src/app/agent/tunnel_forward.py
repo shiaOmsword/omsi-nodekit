@@ -2,6 +2,7 @@
 
 from pathlib import Path, PurePosixPath
 
+from app.defaults import NODE_DEFAULTS as D
 from framework.messages import MessageKey
 from framework.messages import text as message_text
 
@@ -59,7 +60,7 @@ class TunnelForward:
 
         require_permission("-r", tunnel["identity_file"])
         known_hosts = tunnel["known_hosts_file"]
-        if tunnel.get("host_key_policy", "strict") == "accept-new":
+        if tunnel.get("host_key_policy", D.tunnel_host_key_policy) == "accept-new":
             # A new SSH port is a separate trust entry. Accept only an unseen
             # key and ensure the service user can persist that trust decision.
             if context.status(["test", "-L", known_hosts]) == 0:

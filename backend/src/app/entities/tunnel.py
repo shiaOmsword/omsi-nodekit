@@ -20,7 +20,7 @@ class Tunnel(StrictModel):
     identity_file: str = D.tunnel_identity_file
     known_hosts_file: str = D.tunnel_known_hosts
     # First-contact trust is opt-in; changed keys are never automatically accepted.
-    host_key_policy: Literal["strict", "accept-new"] = "strict"
+    host_key_policy: Literal["strict", "accept-new"] = D.tunnel_host_key_policy
 
     @field_validator("name")
     @classmethod

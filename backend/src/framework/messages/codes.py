@@ -148,6 +148,8 @@ class MessageKey(StrEnum):
     SUB_CACHE_RESTART_FAILED = "sub_cache_restart_failed"
     SUB_CACHE_AUDIT_COMPLETE = "sub_cache_audit_complete"
     SUBSCRIPTION_CONFIGURE_PLAN = "subscription_configure_plan"
+    CONFIGURE_PREFLIGHT_CONFLICT = "configure_preflight_conflict"
+    CONFIGURE_PREFLIGHT_UNREADABLE = "configure_preflight_unreadable"
     SUBSCRIPTION_CONFIGURE_GUARD = "subscription_configure_guard"
     SUBSCRIPTION_CONFIGURED = "subscription_configured"
     INBOUNDS_UNREADABLE = "inbounds_unreadable"
