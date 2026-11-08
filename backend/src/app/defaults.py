@@ -21,6 +21,7 @@ class NodeDefaults:
     ssh_port: int = 22
     ssh_identity_file: str = "~/.ssh/id_ed25519"
     ssh_known_hosts: str = "~/.ssh/known_hosts"
+    tunnel_host_key_policy: str = "strict"
     tunnel_user: str = "omsi"
     tunnel_local_port: int = 15443
     tunnel_identity_file: str = "/home/omsi/.ssh/gb_xray_tunnel"

@@ -63,7 +63,7 @@ export function PanelAccessModal({ record, report, busy, error, onClose, onSave 
       data.deployment = { ...target, caddy_mode: 'existing',
         caddy_id: proxy.installation === 'docker' && proxy.container ? 'docker:' + proxy.container : proxy.id,
         subscription_bind: proxy.installation === 'docker' && proxy.network_mode !== 'host' ? proxy.host_gateway || '' : '127.0.0.1' };
-      await onSave(writeConfig(data), target.caddy_mode === 'existing' ? 'configure' : 'attach_caddy');
+      await onSave(writeConfig(data), report.caddy_attachment === 'required' ? 'attach_caddy' : 'configure');
     } catch { setValidation('Не удалось подготовить настройки доступа. Проверь поля и повтори сохранение.'); }
     finally { setWorking(false); }
   }

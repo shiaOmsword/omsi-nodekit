@@ -93,7 +93,10 @@ class ExistingCaddy:
             raise RuntimeError(message_text(MessageKey.DEPLOYMENT_CADDY_UNSAFE))
         self.original = self.source.read_bytes()
         if previous_site and self.original.count(previous_site) != 1:
-            raise RuntimeError(message_text(MessageKey.SUBSCRIPTION_CONFIGURE_GUARD))
+            detail = message_text(
+                MessageKey.CONFIGURE_PREFLIGHT_CONFLICT, fields="caddy.saved_site"
+            )
+            raise RuntimeError(detail + " " + message_text(MessageKey.SUBSCRIPTION_CONFIGURE_GUARD))
         self._require_unchanged()
         self.finding = found
         for route in found["routes"]:

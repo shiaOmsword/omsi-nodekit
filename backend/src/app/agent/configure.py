@@ -4,6 +4,7 @@ import json
 import re
 import time
 
+from app.defaults import NODE_DEFAULTS as D
 from framework.messages import MessageKey
 from framework.messages import text as message_text
 
@@ -17,6 +18,23 @@ from .subscriptions import public_base, verify_caddy_upstream, verify_panel_upst
 from .xhttp_manager import load_routes, render_managed_site
 
 
+def same_tunnels(desired, installed):
+    def keyed(items):
+        if not isinstance(items, list) or any(not isinstance(item, dict) for item in items):
+            raise ValueError()
+        result = {
+            item["name"]: {"host_key_policy": D.tunnel_host_key_policy, **item} for item in items
+        }
+        if len(result) != len(items):
+            raise ValueError()
+        return result
+
+    try:
+        return keyed(desired) == keyed(installed)
+    except (KeyError, ValueError, TypeError):
+        return False
+
+
 class ConfigureSubscriptions:
     def __init__(self, context, host, database, diagnostics, inspector):
         self.context, self.host, self.database = context, host, database
@@ -27,72 +45,97 @@ class ConfigureSubscriptions:
         target = node.get("deployment") or {}
         selected = self.inspector.selected
         attaching = context.payload["action"] == "attach_caddy"
+        key = (
+            MessageKey.CADDY_ATTACH_CONFLICT
+            if attaching
+            else MessageKey.SUBSCRIPTION_CONFIGURE_GUARD
+        )
+
+        def conflict(fields):
+            detail = message_text(MessageKey.CONFIGURE_PREFLIGHT_CONFLICT, fields=", ".join(fields))
+            return RuntimeError(detail + " " + message_text(key))
+
+        resource = "manifest.json"
         try:
             if base.is_symlink() or (base / "manifest.json").is_symlink():
-                raise ValueError()
+                raise conflict(["manifest.path"])
             manifest_bytes = (base / "manifest.json").read_bytes()
             previous = json.loads(manifest_bytes)["node"]
-            old_mode = (previous.get("deployment") or {}).get("caddy_mode")
+            resource = "manifest.node"
+            old_target = previous.get("deployment") or {}
+            old_panel = previous.get("panel") or {}
+            old_mode = old_target.get("caddy_mode")
+            resource = "Caddyfile.site"
             site = base / "Caddyfile.site"
             if site.is_symlink():
-                raise ValueError()
+                raise conflict(["Caddyfile.site (symlink)"])
             if attaching:
                 if old_mode not in {"none", "docker"} or site.exists() or load_routes(base):
-                    raise ValueError()
+                    raise conflict(["manifest.deployment.caddy_mode / attachment state"])
                 previous_site = None
-                settings = selected.get("settings", {}) if selected else {}
-                if (
-                    int(settings.get("webPort", 0)) != node["panel"]["port"]
-                    or settings.get("webBasePath") != node["panel"]["base_path"]
-                    or settings.get("webCertFile")
-                    or bool(selected.get("container")) != (target.get("panel_runtime") == "docker")
-                    or (
-                        target.get("panel_runtime") == "docker"
-                        and (
-                            not selected["id"].startswith("docker:")
-                            or selected.get("image") != node["panel"]["image"]
-                        )
+                finding = selected or {}
+                settings = finding.get("settings", {})
+                resource = "selected_panel.settings.webPort"
+                port = int(settings.get("webPort", 0))
+                checks = {
+                    "selected_panel.settings.webPort": port == node["panel"]["port"],
+                    "selected_panel.settings.webBasePath": settings.get("webBasePath")
+                    == node["panel"]["base_path"],
+                    "selected_panel.settings.webCertFile": not settings.get("webCertFile"),
+                    "selected_panel.runtime": bool(finding.get("container"))
+                    == (target.get("panel_runtime") == "docker"),
+                }
+                if target.get("panel_runtime") == "docker":
+                    checks.update(
+                        {
+                            "selected_panel.id": finding.get("id", "").startswith("docker:"),
+                            "selected_panel.image": finding.get("image") == node["panel"]["image"],
+                        }
                     )
-                    or (
-                        target.get("panel_runtime") == "native"
-                        and selected.get("service") != context.unit("panel")
+                if target.get("panel_runtime") == "native":
+                    checks["selected_panel.service"] = finding.get("service") == context.unit(
+                        "panel"
                     )
-                ):
-                    raise ValueError()
+                failed = [field for field, valid in checks.items() if not valid]
+                if failed:
+                    raise conflict(failed)
             else:
                 if old_mode in {"none", "docker"}:
                     raise RuntimeError(message_text(MessageKey.CADDY_ATTACH_REQUIRED))
                 previous_site = site.read_bytes()
-            if (
-                not selected
-                or selected["installation"] != "managed"
-                or not selected["active"]
-                or node["panel"]["installation"] != "managed"
-                or (not attaching and not previous_site)
-                or previous["id"] != node["id"]
-                or target.get("caddy_mode") != "existing"
-                or (not attaching and old_mode != "existing")
-                or not node["caddy"]["enabled"]
-                or target["panel_runtime"] != previous["deployment"]["panel_runtime"]
-                or node["tunnels"] != previous["tunnels"]
-                or any(
-                    node["panel"][k] != previous["panel"][k]
-                    for k in ("image", "port", "base_path", "subscription_path")
-                )
-            ):
-                raise ValueError()
+            resource = "manifest.node"
+            finding = selected or {}
+            checks = {
+                "selected_panel.installation": finding.get("installation") == "managed",
+                "selected_panel.active": bool(finding.get("active")),
+                "panel.installation": node["panel"]["installation"] == "managed",
+                "Caddyfile.site": attaching or bool(previous_site),
+                "manifest.id": previous.get("id") == node["id"],
+                "deployment.caddy_mode": target.get("caddy_mode") == "existing",
+                "manifest.deployment.caddy_mode": attaching or old_mode == "existing",
+                "caddy.enabled": bool(node["caddy"]["enabled"]),
+                "manifest.deployment.panel_runtime": target.get("panel_runtime")
+                == old_target.get("panel_runtime"),
+                "manifest.tunnels": same_tunnels(node["tunnels"], previous.get("tunnels")),
+            }
+            checks.update(
+                {
+                    f"manifest.panel.{field}": node["panel"][field] == old_panel.get(field)
+                    for field in ("image", "port", "base_path", "subscription_path")
+                }
+            )
+            failed = [field for field, valid in checks.items() if not valid]
+            if failed:
+                raise conflict(failed)
+            resource = "selected_panel.database_path"
             source = self.inspector.database()
             if source.resolve() != (base / "db/x-ui.db").resolve() or (
                 attaching and (source.is_symlink() or (base / "db").is_symlink())
             ):
-                raise ValueError()
-        except (OSError, ValueError, KeyError, TypeError) as exc:
-            key = (
-                MessageKey.CADDY_ATTACH_CONFLICT
-                if attaching
-                else MessageKey.SUBSCRIPTION_CONFIGURE_GUARD
-            )
-            raise RuntimeError(message_text(key)) from exc
+                raise conflict([resource])
+        except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
+            detail = message_text(MessageKey.CONFIGURE_PREFLIGHT_UNREADABLE, resource=resource)
+            raise RuntimeError(detail + " " + message_text(key)) from exc
 
         def caddy_for(inspector):
             return (
