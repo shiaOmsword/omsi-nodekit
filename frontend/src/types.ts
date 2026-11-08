@@ -8,7 +8,7 @@ export interface NodeSummary {
 export interface NodeRecord extends NodeSummary {
   yaml: string;
 }
-export type Action = 'check' | 'doctor' | 'fresh' | 'restore' | 'backup' | 'configure' | 'attach_caddy' | 'inbound' | 'traffic' | 'tunnel' | 'tunnel_restart' | 'tunnel_route' | 'xhttp' | 'client_import' | 'subscription_maintenance' | 'tcp_tuning' | 'network_benchmark' | 'system_backup' | 'system_restore' | 'wireguard';
+export type Action = 'tunnel_setup' | 'tunnel_control' | 'xray' | 'check' | 'doctor' | 'fresh' | 'restore' | 'backup' | 'configure' | 'attach_caddy' | 'inbound' | 'traffic' | 'tunnel' | 'tunnel_restart' | 'tunnel_route' | 'xhttp' | 'client_import' | 'subscription_maintenance' | 'tcp_tuning' | 'network_benchmark' | 'system_backup' | 'system_restore' | 'wireguard';
 export interface BackupClientCatalog {
   inbounds: {
     id: number;
@@ -30,6 +30,10 @@ export interface BenchmarkReport {
   warnings: string[]; host_tcp: { out_segments: number; retrans_segments: number } | null;
 }
 export interface JobOptions {
+  tunnel_setup?: { names: string[]; outbound_tag: string; expected_fingerprint: string; balancer_tag?: string; fallback_tag?: string };
+  tunnel_control?: { names: string[]; operation: 'enable' | 'disable' };
+  xray?: { operation: 'balancer'; expected_fingerprint: string; tag: string; members: string[]; fallback_tag: string }
+    | { operation: 'route'; expected_fingerprint: string; balancer_tag: string; rule_index?: number; inbounds: { id: number; expected_fingerprint: string }[] };
   wireguard?: { operation: 'create' | 'restore'; remark: string; domain: string; port: number;
     mtu: number; dns: string; subnet: string; client_email: string; source_inbound_id?: number };
   tunnel_restart?: { names: string[] };
@@ -204,7 +208,14 @@ export interface DeploymentProfileFinding {
 export interface SSHExitFinding {
   kind: 'tunnel' | 'pool'; name: string; members: string[]; inbound_ids: number[]; fingerprint: string;
 }
+export interface XrayRoutingFinding {
+  readable: boolean; fingerprint?: string;
+  outbounds: { tag: string; protocol: string }[];
+  balancers: { tag: string; selector: string[]; members: string[]; strategy: string; fallback_tag: string }[];
+  rules: { index: number; inbound_tags: string[]; outbound_tag: string; balancer_tag: string; enabled: boolean; editable: boolean }[];
+}
 export interface InstallationReport {
+  routing?: XrayRoutingFinding | null;
   ssh_exits?: SSHExitFinding[];
   network_benchmark?: BenchmarkReport | null;
   caddy_attachment?: 'ready' | 'required' | 'unknown';

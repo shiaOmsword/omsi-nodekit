@@ -91,6 +91,8 @@ def routed_template(original, source_tag, tunnel, owned_tag, inbound_tag, previo
         ]
     else:
         config["outbounds"].append(outbound)
+    if inbound_tag is None:
+        return config, outbound, None
     rules = config.setdefault("routing", {}).setdefault("rules", [])
     if previous:
         if (
@@ -162,7 +164,7 @@ class TunnelManager:
         return (
             status["config"] == "readable"
             and status["outbound"] == "matched"
-            and status["route"] == "matched"
+            and status["route"] in {"matched", "not_requested"}
             and status["balancer"] in {"matched", "not_requested"}
         )
 
@@ -190,7 +192,11 @@ class TunnelManager:
                 else "different_fields"
             )
             status["route"] = (
-                "matched" if rule in config["routing"]["rules"] else "missing_or_different"
+                "not_requested"
+                if rule is None
+                else "matched"
+                if rule in config["routing"]["rules"]
+                else "missing_or_different"
             )
             if balancer is not None:
                 status["balancer"] = (

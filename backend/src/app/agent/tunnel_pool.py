@@ -13,6 +13,7 @@ from .ssh_routes import refresh_route
 from .tunnel_errors import TunnelPreflightError
 from .tunnel_forward import TunnelForward
 from .tunnel_manager import TunnelManager, loopback_outbound, private_write, routed_template
+from .xray_template import observer_config
 
 
 def pool_template(
@@ -146,20 +147,7 @@ def pool_template(
         # config changes after the last apply must be rejected.
         observer = copy.deepcopy(config["observatory"])
     else:
-        observer = copy.deepcopy(config.get("observatory"))
-        if observer is None:
-            observer = {
-                "subjectSelector": [prefix],
-                "probeUrl": "https://www.google.com/generate_204",
-                "probeInterval": "15s",
-                "enableConcurrency": True,
-            }
-        else:
-            selectors = observer.get("subjectSelector")
-            if not isinstance(selectors, list) or not all(isinstance(x, str) for x in selectors):
-                raise TunnelPreflightError(message_text(MessageKey.TUNNEL_ROUTE_OWNERSHIP))
-            if prefix not in selectors:
-                selectors.append(prefix)
+        observer = observer_config(config, [prefix])
     config["observatory"] = observer
     record = {
         "source_tag": source_tag,

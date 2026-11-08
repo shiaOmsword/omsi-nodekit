@@ -13,6 +13,7 @@ from .panels import PanelInspector
 from .preflight import PrerequisiteInspector
 from .ssh_routes import exit_inventory
 from .tcp_tuning import TCPConfigurator
+from .xray_template import saved_routing_inventory
 
 
 class InstallationInspector:
@@ -48,6 +49,7 @@ class InstallationInspector:
         self.report["firewall"] = public_firewall(inspect_firewall(self.context))
         self.report["network_checks"] = network_checks(self.context, self.report)
         self.report["egress"] = routing_inventory(self.context, self)
+        self.report["routing"] = saved_routing_inventory(self.context, self)
         self.report["ssh_exits"] = exit_inventory(self.context, self)
         self.report["tcp_tuning"] = TCPConfigurator(self.context).inspect()
         # Read-only systemd health; never claim that an active SSH process proves

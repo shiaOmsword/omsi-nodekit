@@ -253,3 +253,53 @@ class TunnelRestartRequest(StrictModel):
         if len(value) != len(set(value)):
             raise ValueError(message_text(MessageKey.TUNNEL_RESTART_REQUEST_INVALID))
         return value
+
+
+class TunnelControlRequest(TunnelRestartRequest):
+    operation: Literal["enable", "disable"]
+
+
+class TunnelSetupRequest(TunnelRestartRequest):
+    expected_fingerprint: str = Field(pattern=r"^[a-f0-9]{64}$")
+    outbound_tag: str = Field(min_length=1, max_length=120, pattern=r"^[a-zA-Z0-9_.-]+$")
+    balancer_tag: str | None = Field(default=None, pattern=r"^[a-zA-Z0-9_.-]{1,120}$")
+    fallback_tag: str = Field(default="direct", pattern=r"^[a-zA-Z0-9_.-]{1,120}$")
+
+    @field_validator("names")
+    @classmethod
+    def limit_names(cls, value):
+        if len(value) > 6:
+            raise ValueError(message_text(MessageKey.TUNNEL_CONFIG_INVALID))
+        return value
+
+
+class BalancerChange(StrictModel):
+    operation: Literal["balancer"]
+    expected_fingerprint: str = Field(pattern=r"^[a-f0-9]{64}$")
+    tag: str = Field(pattern=r"^[a-zA-Z0-9_.-]{1,120}$")
+    members: list[str] = Field(min_length=1, max_length=100)
+    fallback_tag: str = Field(default="direct", pattern=r"^[a-zA-Z0-9_.-]{1,120}$")
+
+    @field_validator("members")
+    @classmethod
+    def valid_members(cls, value):
+        if len(set(value)) != len(value) or any(
+            re.fullmatch(r"[a-zA-Z0-9_.-]{1,120}", tag) is None for tag in value
+        ):
+            raise ValueError(message_text(MessageKey.XRAY_CONFIG_INVALID))
+        return value
+
+
+class RouteChange(StrictModel):
+    operation: Literal["route"]
+    expected_fingerprint: str = Field(pattern=r"^[a-f0-9]{64}$")
+    balancer_tag: str = Field(pattern=r"^[a-zA-Z0-9_.-]{1,120}$")
+    rule_index: int | None = Field(default=None, ge=0, lt=100)
+    inbounds: list[TrafficRequest] = Field(min_length=1, max_length=100)
+
+    @field_validator("inbounds")
+    @classmethod
+    def unique_inbounds(cls, value):
+        if len({i.id for i in value}) != len(value):
+            raise ValueError(message_text(MessageKey.XRAY_CONFIG_INVALID))
+        return value

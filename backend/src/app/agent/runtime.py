@@ -26,11 +26,14 @@ from .subscriptions import SubscriptionDiagnostics
 from .system_backup import SystemRestorer, create_bundle
 from .tcp_tuning import TCPConfigurator
 from .traffic_probe import TrafficProbe
+from .tunnel_control import TunnelController
 from .tunnel_manager import TunnelManager
 from .tunnel_restart import TunnelRestarter
 from .tunnel_routing import TunnelRouter
+from .tunnel_setup import TunnelSetup
 from .wireguard import WireGuardManager
 from .xhttp_manager import XHTTPManager
+from .xray_routing import XrayConfigurator
 
 
 class RemoteAgent:
@@ -119,6 +122,17 @@ class RemoteAgent:
                 inspector.inspect()
                 try:
                     XHTTPManager(context, self.host, self.database, inspector).apply(base)
+                finally:
+                    inspector = InstallationInspector(context)
+                    inspector.inspect()
+            elif action in {"tunnel_setup", "tunnel_control", "xray"}:
+                inspector.inspect()
+                try:
+                    if action == "tunnel_control":
+                        TunnelController(context, self.host).apply()
+                    else:
+                        manager = TunnelSetup if action == "tunnel_setup" else XrayConfigurator
+                        manager(context, self.host, self.database, inspector).apply(base)
                 finally:
                     inspector = InstallationInspector(context)
                     inspector.inspect()

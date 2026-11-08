@@ -114,6 +114,9 @@ class JobService:
             JobAction.TCP_TUNING,
             JobAction.SYSTEM_RESTORE,
             JobAction.NETWORK_BENCHMARK,
+            JobAction.TUNNEL_SETUP,
+            JobAction.TUNNEL_CONTROL,
+            JobAction.XRAY,
             JobAction.TUNNEL,
             JobAction.TUNNEL_RESTART,
             JobAction.TUNNEL_ROUTE,
@@ -147,6 +150,14 @@ class JobService:
             route = options["tunnel_route"]
             if route["kind"] == "tunnel" and route["name"] not in {t.name for t in node.tunnels}:
                 raise ValidationError(message_text(MessageKey.TUNNEL_ROUTE_INVALID))
+        if action in {JobAction.TUNNEL_SETUP, JobAction.TUNNEL_CONTROL}:
+            names = options[str(action)].get("names", [])
+            if (
+                not names
+                or len(names) != len(set(names))
+                or not set(names) <= {t.name for t in node.tunnels}
+            ):
+                raise ValidationError(message_text(MessageKey.TUNNEL_CONFIG_INVALID))
         if action == JobAction.TUNNEL_RESTART:
             available = {t.name for t in node.tunnels}
             names = options["tunnel_restart"].get("names", [])
