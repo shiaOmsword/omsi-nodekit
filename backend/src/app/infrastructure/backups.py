@@ -9,6 +9,8 @@ from app.defaults import XUI_READ_DEFAULTS, XUI_SETTINGS_COLUMNS, XUI_TABLES
 from app.entities.panel import Panel
 from app.ports import BackupFiles, BackupValidator
 from app.system_backup import database_content
+from app.wg_easy import TABLES as WG_EASY_TABLES
+from app.wg_easy import read_wg_easy
 from framework.database import SQLiteSnapshots
 from framework.entities import JsonCodec, NotFoundError, PayloadTooLargeError, ValidationError
 from framework.messages import MessageKey
@@ -26,7 +28,8 @@ class XuiBackupValidator(BackupValidator):
             raise PayloadTooLargeError(
                 message_text(MessageKey.BACKUP_TOO_LARGE, limit=self.limits.backup_bytes)
             )
-        if content.startswith(b"PK"):
+        system_archive = content.startswith(b"PK")
+        if system_archive:
             try:
                 content = database_content(content, self.limits.backup_bytes)
             except ValueError as exc:
@@ -37,6 +40,17 @@ class XuiBackupValidator(BackupValidator):
             path = Path(temporary) / "snapshot.db"
             path.write_bytes(content)
             try:
+                self.snapshots.validate(path)
+                with closing(sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)) as db:
+                    tables = {
+                        r[0]
+                        for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")
+                    }
+                if WG_EASY_TABLES <= tables:
+                    if "inbounds" in tables or system_archive:
+                        raise ValueError()
+                    read_wg_easy(path)
+                    return
                 self.snapshots.validate(
                     path,
                     tables=XUI_TABLES,
@@ -59,6 +73,7 @@ class XuiBackupValidator(BackupValidator):
             source = Path(folder) / "source.db"
             source.write_bytes(content)
             try:
+                self.snapshots.validate(source, tables=XUI_TABLES, columns=XUI_SETTINGS_COLUMNS)
                 with closing(
                     sqlite3.connect(source.resolve().as_uri() + "?mode=ro", uri=True)
                 ) as db:

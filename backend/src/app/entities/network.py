@@ -198,10 +198,13 @@ class WireGuardChange(StrictModel):
     subnet: str = "10.77.0.0/24"
     client_email: str = Field(default="client-wg", pattern=r"^[a-zA-Z0-9][a-zA-Z0-9_.@-]{0,79}$")
     source_inbound_id: int | None = Field(default=None, gt=0)
+    source_ipv6: bool | None = None
 
     @model_validator(mode="after")
     def valid_wireguard(self):
         if (self.operation == "restore") != (self.source_inbound_id is not None):
+            raise ValueError(message_text(MessageKey.WIREGUARD_BACKUP_INVALID))
+        if self.operation != "restore" and self.source_ipv6 is not None:
             raise ValueError(message_text(MessageKey.WIREGUARD_BACKUP_INVALID))
         network = ipaddress.ip_network(self.subnet)
         if network.version != 4 or not 16 <= network.prefixlen <= 29:
