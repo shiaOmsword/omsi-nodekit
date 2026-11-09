@@ -67,7 +67,9 @@ service = container.resolve(JobService)
   `NODEKIT_DEPLOYMENT__REMOTE_ROOT=/srv/nodekit`.
 
 Названия ключей 3x-ui, структура Compose, HTTP-заголовки и защитная привязка backend
-панели к localhost — часть поддерживаемого протокола, а не произвольные переключатели.
+панели к приватному адресу — часть поддерживаемого протокола, а не произвольные переключатели.
+По умолчанию backend на loopback; для защищённого доступа через bridge Caddy
+используется проверенный приватный gateway. См. [доступ к панели](panel-access.md).
 Docker host network сохраняется: смена этой схемы требует отдельной реализации транспорта.
 Это относится к развёртыванию Nodekit; обнаружение существующих Docker-установок
 также показывает bridge networks и published ports.

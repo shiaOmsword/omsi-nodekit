@@ -1,106 +1,87 @@
-# Реализованный этап
-Native/Docker 3x-ui, новый Docker Caddy, подключение общего native/Docker Caddy,
-автоподстановка и создание REALITY inbound описаны в
-[adaptive-deployment.md](adaptive-deployment.md). Ниже сохранены остальные цели,
-включая установку нового native Caddy и Python.
+# Развёртывание: текущая поддержка и roadmap
 
-# Nodekit deployment topologies — design and rollout plan
+Статус сверён с `dev` 9 ноября 2026 года. Рабочая инструкция:
+[адаптивное развёртывание](adaptive-deployment.md). Исходный замысел сохранён
+отдельно в [project.md](project.md) и не является контрактом текущего API.
 
-This is a design contract, **not** a claim that native and hybrid deployments are
-already executable. The current `panel.installation: managed` means Nodekit-owned
-Docker Compose and must remain backward compatible. Existing `native`, `docker`,
-and `auto` mean *discovery*, not a fresh-install target.
+## Реализованные профили
 
-## Target matrix
+| Новая 3x-ui | Caddy | Поддержка |
+| --- | --- | --- |
+| native | без Caddy | Managed native 3x-ui 3.11.0, Linux amd64/arm64, systemd |
+| Docker | без Caddy | Managed Compose, host networking |
+| native или Docker | новый Docker Caddy | Собственный Compose Caddy, HTTP-01 на 80 и настроенный HTTPS-порт |
+| native или Docker | существующий native/Docker Caddy | Явный выбор экземпляра из отчёта, проверки активной конфигурации и собственного сайта |
+| native или Docker | новый native Caddy | Автоматическая установка не реализована; установленный вручную Caddy можно выбрать как существующий |
 
-| New 3x-ui | New Caddy | Remote prerequisites | Notes |
-| --- | --- | --- | --- |
-| native | native | Python 3.11+, root/sudo, systemd, curl, tar, native Caddy install | both services managed by systemd |
-| docker | docker | Python 3.11+, root/sudo, working Docker Engine + Compose | use isolated Nodekit-owned Compose project |
-| docker | native | requirements of both | Caddy reverse-proxies only the configured HTTP listeners |
-| native | docker | requirements of both | Docker Caddy can use a host-published upstream or an explicitly selected network |
-| native/docker | none | requirements for selected 3x-ui runtime | direct/SSH-tunneled management; no Caddy needed |
+`panel.installation: managed` выбирает Nodekit-owned установку, которая может
+быть native или Docker. `auto`, `native`, `docker` выбирают **существующую**
+панель для обнаружения, диагностики и backup. Они не задают runtime новой панели.
 
-The read-only preflight report now shows whether *tools exist today* for all six
-runtime profiles. It does **not** install missing tools, open firewalls, reserve
-ports, verify public DNS, or decide ownership of existing services.
+## Принимаемая конфигурация
 
-## Planned configuration (not accepted by current API)
+Текущий блок для новой Docker-панели без Caddy (часть полного YAML ноды):
 
 ```yaml
+panel:
+  installation: managed
+caddy:
+  enabled: false
 deployment:
-  target:
-    panel: docker             # docker | native
-    caddy: none              # none | native | docker
-  subscription_domain: null # explicit domain only if public HTTPS subscriptions needed
-  inbounds:
-    - protocol: vless
-      port: 443
-      security: reality
-    - protocol: vless
-      port: 8443
-      security: reality
+  role: exit
+  panel_runtime: docker
+  caddy_mode: none
+  subscription_bind: 127.0.0.1
+  install_docker: false
+  manage_ufw: true
+  manage_caddy_ports: true
+  inbounds: []
 ```
 
-Do **not** overload existing `panel.installation` with this target specification.
-The final inbound specification must also model Reality keys, SNI/target,
-transport, unique inbound tags, and any Xray routing. A Reality camouflage SNI
-is **not** the same thing as a DNS name pointing to the subscription server.
+`panel_runtime`: `native | docker`; `caddy_mode`: `none | docker | existing`.
+Для `existing` обязателен `caddy_id` из обнаружения. В этом режиме private bind
+выбирается по сетевой топологии Caddy. Старые YAML без `deployment` продолжают
+работать через прежний Docker-сценарий. Поля раннего эскиза `deployment.target`
+и `subscription_domain` текущая строгая схема не принимает.
 
-## Safe installation workflow
+Новые профили интерфейса предлагают Docker + Caddy; явный native/none не
+переключается молча. Для Docker требуется работающий Engine и Compose.
+`install_docker: true` разрешает установку отсутствующих пакетов через apt
+на Ubuntu/Debian; неисправный существующий Engine не заменяется. Python 3.11+
+нужен **до** запуска агента и автоматически не устанавливается.
 
-1. **Discover** OS, CPU architecture, current systemd services, Docker/Compose,
-   installed 3x-ui/Caddy, listening TCP/UDP ports, firewall, CA material, and
-   the existing remote directory. Capture a read-only report.
-2. **Plan** exact owned resources: requested native service units or Compose
-   project, chosen panel/subscription ports and paths, inbound ports, Caddy
-   upstream addresses, and certificate issuance strategy.
-3. **Preflight** privileges, missing tools, file collisions and active sockets
-   (including IPv6 and TCP/UDP). Identify whether an occupied port belongs
-   to an existing, selected installation. Never assume a free-port probe
-   reserves a port; recheck immediately before starting services.
-4. **Approve/apply**: pinned image digests or verified release archives, no
-   unreviewed execution of `curl | bash`; write only Nodekit-owned directories,
-   units, networks, and configs. Native service installation needs a separate
-   tested adapter and rollback path.
-5. **Configure** HTTP panel/subscription upstreams, optional Caddy and public
-   domain, then provision optional VLESS inbounds via the **authenticated
-   3x-ui API**, not raw SQL writes to a version-dependent schema.
-6. **Verify** systemd/container health, local connections, authenticated TLS,
-   public subscription URL if configured, and an optional real VLESS client
-   transport check. Persist structured events in the job journal.
+## Установка, изменение и восстановление
 
-If port 443 is used for Xray/REALITY, ordinary Caddy HTTP reverse_proxy
-**cannot** share that raw TCP listener. Choose separate Caddy HTTPS port
-(or a consciously configured transport multiplexer, outside initial scope).
+1. Обнаружить VPS, проверить выбранный runtime, инструменты, порты и Caddy.
+   Наличие инструмента не подтверждает ownership, DNS/TLS или внешний доступ.
+2. На пустой цели выполнить Fresh либо Restore после просмотра плана.
+   Fresh создаёт только явно заданные REALITY inbound; Restore сохраняет
+   данные из совместимой SQLite и не добавляет шаблонные inbound поверх неё.
+3. Для установленной панели использовать отдельные операции: `attach_caddy`,
+   `configure`, управление inbound/WG, XHTTP/Hosts, SSH-выходами и routing.
+   Сохранение YAML не применяет все изменения к VPS автоматически.
+4. Переносить SQLite в выбранное [окружение назначения](restore-targets.md).
+   Пути панели/подписок сохраняются из backup, listeners и порты задаются
+   целевой конфигурацией. Не копировать raw Caddy/systemd/firewall вслепую.
+5. Проверить подписки, публичный TLS, UDP/WG при использовании и реальный
+   клиентский трафик. Сохранить резервную копию и результаты репетиции.
 
-## Restore semantics
+[Системный архив](system-backups.md) уже дополняет SQLite конфигурацией,
+алгоритмом TCP и SSH-ключами туннелей. Он приватный, **не зашифрован** и не
+заменяет образ ОС, TLS storage общего Caddy или локальный ключ управления VPS.
 
-- A SQLite snapshot restores **existing inbounds and clients**. Never insert
-  default 443/8443 inbounds on top of a restored database.
-- The user's inspected backup contains VLESS ports **443 and 8443**; it does
-  not show port 8433. All future ports must remain configurable and be
-  checked against both the saved database and live host.
-- Restoration must respect the 3x-ui schema/image version; validate
-  compatibility and refuse unknown migrations, rather than silently upgrading
-  production clients.
-- The SQLite file is sensitive: it contains identities, inbound settings and
-  potentially private material. Certificates, external private keys, Caddy
-  state, systemd units, and other host files may live **outside** SQLite.
-  A reliable whole-node recovery therefore needs an additional explicit,
-  encrypted backup bundle and verified restoration steps.
-- The current Nodekit Docker restore deliberately rewrites panel/subscription
-  listeners to localhost and clears their built-in TLS file paths; this
-  is *not* a byte-for-byte restoration of the old public HTTPS environment.
+## Что остаётся отдельной задачей
 
-## Access and safety
+- Bootstrap отсутствующего Python и автоматическая установка нового native Caddy.
+- Перенос установленной панели между native/Docker или смена образа как отдельная
+  управляемая миграция; `configure` такую миграцию не выполняет.
+- Автоматическая выдача межсерверных SSH-ключей/authorized_keys и импорт
+  исходного outbound напрямую из другой панели.
+- Универсальное восстановление всей ОС и удаление работающей панели с полным
+  rollback. Сейчас Fresh/Restore отказываются заменять существующие установки.
+- Межпровайдерный failover и перенос уже открытых TCP-соединений между сессиями.
+  SSH-пул до одного хоста не защищает от отказа этого хоста.
+- DNS у провайдера, внешний firewall и обновление статических Endpoint на клиентах.
 
-- Current Nodekit authenticates SSH using a **key**; `sudo_password` is for
-  privilege escalation after key login. Root SSH password authentication is
-  not implemented and should not become the default.
-- Administrator UI without a public domain should stay on loopback and be
-  accessed with SSH port forwarding. Optional public subscription HTTPS
-  needs a valid certificate and a hostname matching its URL.
-- `check`, `doctor`, and `backup` must remain read-only on the VPS.
-- `archive` / local `delete` of a Nodekit record must never stop or delete
-  a remote 3x-ui/Caddy installation.
+Наличие реализации и автотестов не означает, что любая топология проверена
+на VPS. Область этой сверки: [аудит документации](documentation-audit.md).
