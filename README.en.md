@@ -6,7 +6,11 @@
 [![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-3776AB)](backend/pyproject.toml)
 [![React + TypeScript](https://img.shields.io/badge/React-TypeScript-149ECA)](frontend/package.json)
 
-[Русский / Russian](readme.md) · [First-run guide (RU)](docs/faq.md) · [Architecture](docs/architecture.md)
+[Русский / Russian](readme.md) · [Documentation index (RU)](docs/README.md) · [First-run guide (RU)](docs/faq.md)
+
+This documentation describes **`dev`**. The default `main` branch is the publication
+line and may lag; use `dev` for the features below. See the
+[documentation audit of November 9, 2026](docs/documentation-audit.md).
 
 OMSI Nodekit is a **locally hosted** web application for people running their own 3x-ui / Xray Linux servers. Instead of manually repeating the same installation, disaster-recovery and routing steps, it provides server discovery, an explicit change plan, SSH execution, progress logs and backups.
 
@@ -23,6 +27,9 @@ The web UI and API listen on **127.0.0.1 by default**. Nodekit communicates with
 | Backups & recovery | Consistent SQLite snapshots, integrity checks, restore to a **new** VPS, selective client migration preserving UUID/subId |
 | VLESS & subscriptions | Manage supported inbounds and clients, VLESS/XHTTP over a private backend and Caddy TLS; audit public subscription HTTPS/DNS without logging bearer tokens |
 | Cache maintenance | Explicitly confirmed server cache reset by restarting **only an owned Docker panel container**; no client-side DNS or app cache reset |
+| WireGuard | Managed WG inbounds and peers; identity-preserving migration from 3x-ui or compatible wg-easy v15 SQLite snapshots; direct UDP transport |
+| System backups | Private `.nodekit.zip` archives with SQLite, node settings, TCP algorithm and tunnel keys; separate restoration of supported system settings |
+| Network & panel access | BBR/CUBIC, ICMP/HTTPS measurements, SSH service restarts; Caddy HTTPS panel access with Basic Auth or an IP allowlist |
 | SSH egress | SSH port forwarding, multiple sessions, guarded Xray routing and troubleshooting |
 | Safety | Preview plans, revision/fingerprint checks, ownership guards, job logs and concurrency locks |
 
@@ -48,7 +55,7 @@ Tech stack: **Python 3.12, FastAPI, Pydantic, SQLite, Poetry, punq**; **React, T
 On your **local computer**, install Python **3.12+**, Poetry **2.x**, Node.js **22.12+** (or compatible 24 LTS), npm and OpenSSH. Windows and Linux are supported; WSL is also suitable on Windows.
 
 ```bash
-git clone https://github.com/shiaOmsword/omsi-nodekit.git
+git clone --branch dev https://github.com/shiaOmsword/omsi-nodekit.git
 cd omsi-nodekit/frontend
 npm ci
 npm run build
@@ -64,7 +71,7 @@ Optional local settings: copy `backend/.envs/.local.example.env` to `backend/.en
 
 ### First VPS connection
 
-The remote Linux host needs Python **3.11+**, SSH key authentication and a verified host key. Docker and Compose are required for Docker deployments; systemd is required for supported native deployments. Mutating operations require adequate root/sudo privileges.
+The remote Linux host needs Python **3.11+**, SSH key authentication and a verified host key. Docker and Compose are required for Docker deployments; installation on Ubuntu/Debian requires explicit opt-in. Supported native deployments require systemd. All remote agent operations require root or configured sudo, including discovery and system-data reads.
 
 1. Connect with OpenSSH manually using the exact port, user, identity and `known_hosts` file; verify the server fingerprint out of band.
 2. Add a node with the [example configuration](backend/config/config-example.yaml) and replace all example values.
@@ -80,13 +87,16 @@ The detailed [first-run guide](docs/faq.md) and [existing-node guide](docs/exist
 - [Subscription and client management](docs/subscriptions.md); [server-side cache maintenance](docs/subscription-maintenance.md)
 - [VLESS/XHTTP/TLS transport setup](docs/working-transports.md)
 - [SSH egress and Xray routing](docs/ssh-egress.md)
-- [Backup recovery rehearsal](docs/restore-rehearsal.md)
+- [WireGuard](docs/wireguard.md) and [wg-easy v15 migration / Endpoint cutover](docs/wireguard-migration.md)
+- [System archives](docs/system-backups.md), [restore targets](docs/restore-targets.md) and [recovery rehearsal](docs/restore-rehearsal.md)
+- [Protected 3x-ui access through Caddy](docs/panel-access.md)
+- [Network measurements](docs/network-benchmarks.md) and [BBR/CUBIC](docs/tcp-congestion-control.md)
 - [Network and firewall changes](docs/network-management.md)
 - [Architecture](docs/architecture.md) and [development roadmap](docs/deployment-roadmap.md)
 
 ## Security boundaries
 
-- **Do not expose Nodekit's local API directly to the Internet.** It can manage server access and sensitive local data. Use SSH port forwarding to access the 3x-ui administrative interface.
+- **Do not expose Nodekit's local API directly to the Internet.** It can manage server access and sensitive local data. Keep the 3x-ui backend private; use SSH forwarding or a [protected Caddy HTTPS route](docs/panel-access.md) for administrative access.
 - `ssh.sudo_password` stored in local YAML/SQLite is **not encrypted**. Prefer `ssh.sudo_password_env`, a protected local environment and least-privilege access.
 - 3x-ui SQLite backups can contain user identifiers, private Xray material and subscription secrets; never upload real backups or full unredacted logs to Issues.
 - A successful TCP check, HTTPS check or local probe is not proof that a VPN client works from every network.

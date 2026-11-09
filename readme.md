@@ -6,7 +6,11 @@
 [![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-3776AB)](backend/pyproject.toml)
 [![React + TypeScript](https://img.shields.io/badge/React-TypeScript-149ECA)](frontend/package.json)
 
-**Документация:** Русский (эта страница) · [English](README.en.md) · [Первый запуск](docs/faq.md) · [Архитектура](docs/architecture.md)
+**Документация:** Русский (эта страница) · [English](README.en.md) · [Все руководства](docs/README.md) · [Первый запуск](docs/faq.md)
+
+Эта документация описывает ветку **`dev`**. `main` — линия публикации, которая может
+отставать; для описанных ниже возможностей используйте `dev`.
+[Сверка документации с кодом от 9 ноября 2026](docs/documentation-audit.md).
 
 OMSI Nodekit — локальное веб-приложение для управления собственными Linux VPS с 3x-ui и Xray. Оно помогает повторяемо проверять инфраструктуру, планировать изменения, восстанавливать панель и клиентов, управлять VLESS inbound и SSH-туннелями, не собирая конфигурацию вручную после каждой миграции.
 
@@ -23,6 +27,9 @@ OMSI Nodekit — локальное веб-приложение для упра�
 | Бэкапы и восстановление | Согласованные SQLite-снимки, проверка целостности, restore на **новую** VPS, выборочный перенос VLESS-клиентов с UUID/subId |
 | Inbound и клиенты | Просмотр, изменение и удаление управляемых inbound, добавление/удаление клиентов, VLESS/XHTTP с приватным backend и публичным TLS через Caddy |
 | Подписки | Проверка выдачи HTTPS, DNS с VPS, TLS и содержимого ответа без записи токенов в журнал; ручной сброс серверного кэша только через подтверждённый рестарт **своего** Docker-контейнера |
+| WireGuard | Создание и изменение WG inbound, управление peers, перенос идентичностей из 3x-ui и совместимого SQLite wg-easy v15; UDP идёт прямо в Xray |
+| Системные бэкапы | Приватный `.nodekit.zip`: SQLite, параметры ноды, BBR/CUBIC и ключи SSH-туннелей; поддерживаемые настройки восстанавливаются отдельной операцией |
+| Сеть и доступ к панели | BBR/CUBIC, измерения ICMP/HTTPS, перезапуск SSH-служб; HTTPS-доступ к 3x-ui через Caddy с Basic Auth или списком IP |
 | SSH-выход | Настройка защищённого SSH forwarding, нескольких туннелей, маршрутизации Xray, диагностика соединений и откат поддерживаемых операций |
 | Безопасное выполнение | Предварительный план, подтверждение изменений, сверка fingerprint/revision, проверки ownership, журнал задач и ограничение параллельных операций |
 
@@ -48,7 +55,7 @@ Backend: **Python 3.12, FastAPI, Pydantic, SQLite, Poetry, punq**. Frontend: **R
 На компьютере нужны **Python 3.12+**, **Poetry 2.x**, **Node.js 22.12+** (или совместимая 24 LTS), npm и **OpenSSH**. Поддерживаются Windows и Linux; на Windows можно работать напрямую или целиком в WSL. Локальные пути к SSH-ключам должны соответствовать среде, где запущен backend.
 
 ```bash
-git clone https://github.com/shiaOmsword/omsi-nodekit.git
+git clone --branch dev https://github.com/shiaOmsword/omsi-nodekit.git
 cd omsi-nodekit/frontend
 npm ci
 npm run build
@@ -66,7 +73,7 @@ poetry run nodekit
 
 ### Подготовка VPS
 
-Нужна **Linux VPS** с Python 3.11+, доступом по SSH-ключу и проверенным `known_hosts`. Для Docker-развёртывания — Docker Engine и Compose; для native-варианта — поддерживаемый Linux/systemd. Права root или настроенный sudo требуются для операций, меняющих систему. Параметры зависят от выбранного сценария.
+Нужна **Linux VPS** с Python 3.11+, доступом по SSH-ключу и проверенным `known_hosts`. Для Docker-развёртывания нужны Docker Engine и Compose; их установку на Ubuntu/Debian можно явно разрешить в плане. Для native-варианта нужен поддерживаемый Linux/systemd. Удалённый агент требует root или настроенный sudo, в том числе для обнаружения и чтения системных данных. Параметры зависят от выбранного сценария.
 
 1. Проверьте SSH-соединение вручную и сверьте fingerprint хоста с доверенным источником.
 2. Добавьте ноду в приложении, используя [пример YAML](backend/config/config-example.yaml) с **тестовыми** адресами.
@@ -86,13 +93,16 @@ poetry run nodekit
 | Подписки, клиентские профили, HTTPS | [Подписки](docs/subscriptions.md), [обслуживание кэша](docs/subscription-maintenance.md) |
 | VLESS/XHTTP/TLS | [Рабочие транспортные схемы](docs/working-transports.md) |
 | SSH forwarding, Xray routing | [SSH-egress](docs/ssh-egress.md) |
-| Восстановление и резервирование | [Проверка восстановления](docs/restore-rehearsal.md) |
+| WireGuard и wg-easy v15 | [WG inbound](docs/wireguard.md), [перенос и Endpoint](docs/wireguard-migration.md) |
+| Восстановление и резервирование | [Системные архивы](docs/system-backups.md), [окружение назначения](docs/restore-targets.md), [репетиция](docs/restore-rehearsal.md) |
+| Доступ к 3x-ui | [SSH и защищённый HTTPS через Caddy](docs/panel-access.md) |
+| Измерения и BBR/CUBIC | [Сетевые замеры](docs/network-benchmarks.md), [TCP congestion control](docs/tcp-congestion-control.md) |
 | UFW, Caddy и порты | [Управление сетью](docs/network-management.md) |
 | Исходный код и проектирование | [Архитектура](docs/architecture.md), [roadmap](docs/deployment-roadmap.md) |
 
 ## Безопасность и ограничения
 
-- **Не выставляйте Nodekit API в публичную сеть.** Он управляет SSH-подключениями, локальными ключами и резервными копиями. Для доступа к самой 3x-ui используйте SSH port forwarding, а не открывайте административный порт в интернет.
+- **Не выставляйте Nodekit API в публичную сеть.** Он управляет SSH-подключениями, локальными ключами и резервными копиями. Административный backend 3x-ui держите на приватном адресе. Для входа используйте SSH forwarding либо [защищённый HTTPS-маршрут Caddy](docs/panel-access.md).
 - `ssh.sudo_password` в локальном YAML/SQLite **не шифруется**. Предпочтительнее `ssh.sudo_password_env` и минимально необходимые полномочия.
 - Бэкапы 3x-ui содержат приватные клиентские идентификаторы и конфигурацию Xray. Не публикуйте базы, SSH-ключи, private keys, подписки, реальные адреса серверов или полные логи.
 - Nodekit не является средством обхода всех сетевых ограничений: диагностика TCP, DNS или локального HTTPS не заменяет проверку с реального устройства.
